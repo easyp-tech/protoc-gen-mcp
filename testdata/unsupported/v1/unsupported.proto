@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package testdata.unsupported.v1;
+
+option go_package = "github.com/easyp-tech/protoc-gen-mcp/testdata/unsupported/v1;unsupportedv1";
+
+import "google/protobuf/type.proto";
+
+// UnsupportedAPI contains unsupported protobuf features for generator tests.
+service UnsupportedAPI {
+  // BuildUnsupported exercises unsupported input/output shapes.
+  rpc BuildUnsupported(UnsupportedRequest) returns (UnsupportedResponse);
+}
+
+// UnsupportedRequest contains unsupported protobuf features.
+message UnsupportedRequest {
+  // payload is unsupported because google.protobuf.Type is excluded from the MVP.
+  google.protobuf.Type payload = 1;
+}
+
+// UnsupportedResponse contains unsupported protobuf features.
+message UnsupportedResponse {}

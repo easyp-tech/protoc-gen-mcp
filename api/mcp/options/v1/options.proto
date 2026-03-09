@@ -1,0 +1,69 @@
+syntax = "proto3";
+
+package api.mcp.options.v1;
+
+option go_package = "github.com/easyp-tech/protoc-gen-mcp/api/mcp/options/v1;optionsv1";
+
+import "google/protobuf/descriptor.proto";
+
+// ServiceOptions defines MCP metadata for a protobuf service.
+message ServiceOptions {
+  // namespace is prepended to generated tool names with an underscore.
+  // Dots and repeated underscores are normalized to a single underscore.
+  string namespace = 1;
+
+  // description overrides the service description inferred from proto comments.
+  string description = 2;
+}
+
+// MethodOptions defines MCP metadata for a protobuf RPC method.
+message MethodOptions {
+  // name overrides the generated tool name segment for the RPC method.
+  // Dots and repeated underscores are normalized to a single underscore.
+  string name = 1;
+
+  // title sets the MCP tool title.
+  string title = 2;
+
+  // description overrides the RPC description inferred from proto comments.
+  string description = 3;
+
+  // hidden disables tool generation for the RPC method.
+  bool hidden = 4;
+
+  // disabled disables tool generation for the RPC method.
+  bool disabled = 5;
+
+  // examples adds JSON Schema examples for the generated tool.
+  repeated string examples = 6;
+}
+
+// FieldOptions defines MCP metadata for a protobuf field.
+message FieldOptions {
+  // required forces a field to be required in generated JSON Schema.
+  optional bool required = 1;
+
+  // optional forces a field to be optional in generated JSON Schema.
+  optional bool optional = 2;
+
+  // description overrides the field description inferred from proto comments.
+  string description = 3;
+
+  // examples adds JSON Schema examples for the generated field schema.
+  repeated string examples = 4;
+}
+
+extend google.protobuf.ServiceOptions {
+  // service stores MCP metadata for a protobuf service.
+  ServiceOptions service = 91001;
+}
+
+extend google.protobuf.MethodOptions {
+  // method stores MCP metadata for a protobuf RPC method.
+  MethodOptions method = 91002;
+}
+
+extend google.protobuf.FieldOptions {
+  // field stores MCP metadata for a protobuf field.
+  FieldOptions field = 91003;
+}
