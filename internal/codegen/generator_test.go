@@ -36,6 +36,26 @@ func TestEasypGenerateExampleGolden(t *testing.T) {
 	}
 }
 
+func TestGeneratedSchemasUseInterpretedStringLiterals(t *testing.T) {
+	root := repoRoot(t)
+
+	runEasyp(t, root, filepath.Join(root, "easyp.test.yaml"), "generate", "-p", "internal/testproto", "-r", ".")
+
+	gotPath := filepath.Join(root, "internal/testproto/example/v1/example.mcp.go")
+	got, err := os.ReadFile(gotPath)
+	if err != nil {
+		t.Fatalf("read generated file %q: %v", gotPath, err)
+	}
+
+	generated := string(got)
+	if strings.Contains(generated, "InputSchemaJSON = `") || strings.Contains(generated, "OutputSchemaJSON = `") {
+		t.Fatalf("generated schema constants must not use raw string literals:\n%s", generated)
+	}
+	if !strings.Contains(generated, "`StringValue`") {
+		t.Fatalf("generated schema descriptions should preserve backticks from proto comments:\n%s", generated)
+	}
+}
+
 func TestEasypGenerateUnsupportedFails(t *testing.T) {
 	root := repoRoot(t)
 	configPath := filepath.Join(t.TempDir(), "easyp.unsupported.yaml")

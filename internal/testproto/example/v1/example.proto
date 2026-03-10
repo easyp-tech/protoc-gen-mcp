@@ -147,7 +147,7 @@ message DescribeAdvancedShapesRequest {
   // dynamic accepts arbitrary JSON values.
   google.protobuf.Value dynamic = 8 [(api.mcp.options.v1.field).optional = true];
 
-  // note exercises StringValue wrapper support.
+  // note exercises `StringValue` wrapper support.
   google.protobuf.StringValue note = 9 [(api.mcp.options.v1.field).optional = true];
 
   // total exercises Int64Value wrapper support.
@@ -233,7 +233,7 @@ message DescribeAdvancedShapesResponse {
   // dynamic accepts arbitrary JSON values.
   google.protobuf.Value dynamic = 8 [(api.mcp.options.v1.field).optional = true];
 
-  // note exercises StringValue wrapper support.
+  // note exercises `StringValue` wrapper support.
   google.protobuf.StringValue note = 9 [(api.mcp.options.v1.field).optional = true];
 
   // total exercises Int64Value wrapper support.

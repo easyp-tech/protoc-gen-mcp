@@ -212,9 +212,9 @@ func generateFile(plugin *protogen.Plugin, file *protogen.File, services []servi
 
 		for _, method := range service.Methods {
 			specName := service.Service.GoName + "_" + method.Method.GoName + "_ToolSpec"
-			generated.P("const ", specName, "InputSchemaJSON = `", method.InputSchemaJSON, "`")
+			generated.P("const ", specName, "InputSchemaJSON = ", quote(method.InputSchemaJSON))
 			generated.P()
-			generated.P("const ", specName, "OutputSchemaJSON = `", method.OutputSchemaJSON, "`")
+			generated.P("const ", specName, "OutputSchemaJSON = ", quote(method.OutputSchemaJSON))
 			generated.P()
 		}
 	}
