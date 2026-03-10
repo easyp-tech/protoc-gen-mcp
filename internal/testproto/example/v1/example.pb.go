@@ -433,7 +433,7 @@ type DescribeAdvancedShapesRequest struct {
 	Items *structpb.ListValue `protobuf:"bytes,7,opt,name=items,proto3" json:"items,omitempty"`
 	// dynamic accepts arbitrary JSON values.
 	Dynamic *structpb.Value `protobuf:"bytes,8,opt,name=dynamic,proto3" json:"dynamic,omitempty"`
-	// note exercises StringValue wrapper support.
+	// note exercises `StringValue` wrapper support.
 	Note *wrapperspb.StringValue `protobuf:"bytes,9,opt,name=note,proto3" json:"note,omitempty"`
 	// total exercises Int64Value wrapper support.
 	Total *wrapperspb.Int64Value `protobuf:"bytes,10,opt,name=total,proto3" json:"total,omitempty"`
@@ -746,7 +746,7 @@ type DescribeAdvancedShapesResponse struct {
 	Items *structpb.ListValue `protobuf:"bytes,7,opt,name=items,proto3" json:"items,omitempty"`
 	// dynamic accepts arbitrary JSON values.
 	Dynamic *structpb.Value `protobuf:"bytes,8,opt,name=dynamic,proto3" json:"dynamic,omitempty"`
-	// note exercises StringValue wrapper support.
+	// note exercises `StringValue` wrapper support.
 	Note *wrapperspb.StringValue `protobuf:"bytes,9,opt,name=note,proto3" json:"note,omitempty"`
 	// total exercises Int64Value wrapper support.
 	Total *wrapperspb.Int64Value `protobuf:"bytes,10,opt,name=total,proto3" json:"total,omitempty"`

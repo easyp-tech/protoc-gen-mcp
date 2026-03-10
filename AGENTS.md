@@ -92,6 +92,9 @@ current architecture unless explicitly revised.
     explicit JSON examples for `Any` payloads plus synthesized fallback
     examples for maps, recursive messages, repeated scalars, and special
     ProtoJSON scalar encodings
+  - generated schema JSON constants are emitted as interpreted Go string
+    literals so proto comments and examples containing backticks do not break
+    generated `*.mcp.go` files
   - Easyp main/test configs without any special managed-mode override for
     `api.mcp.options.v1`, because the options package declares `go_package`
     directly in source
