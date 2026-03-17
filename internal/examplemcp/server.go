@@ -98,6 +98,14 @@ func (Handler) DescribeAdvancedShapes(
 	return resp, nil
 }
 
+// HiddenThing handles the hidden RPC for integration checks.
+func (Handler) HiddenThing(
+	_ context.Context,
+	_ *examplev1.HiddenThingRequest,
+) (*examplev1.HiddenThingResponse, error) {
+	return &examplev1.HiddenThingResponse{}, nil
+}
+
 // DescribeScalarShapes echoes plain protobuf scalar kinds for integration checks.
 func (Handler) DescribeScalarShapes(
 	_ context.Context,

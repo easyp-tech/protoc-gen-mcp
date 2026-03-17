@@ -48,7 +48,7 @@ lint:
 generate:
   inputs:
     - directory:
-        path: api
+        path: mcp
         root: "."
   plugins:
     - name: go

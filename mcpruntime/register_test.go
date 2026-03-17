@@ -31,8 +31,8 @@ func TestRegisterExampleAPIToolsHappyPath(t *testing.T) {
 		toolNames = append(toolNames, tool.Name)
 	}
 	slices.Sort(toolNames)
-	if !slices.Equal(toolNames, []string{"example_CreateReport", "example_DescribeAdvancedShapes", "example_DescribeScalarShapes", "example_Health"}) {
-		t.Fatalf("tool names = %v, want [example_CreateReport example_DescribeAdvancedShapes example_DescribeScalarShapes example_Health]", toolNames)
+	if !slices.Equal(toolNames, []string{"example_CreateReport", "example_DescribeAdvancedShapes", "example_DescribeScalarShapes", "example_Health", "example_HiddenThing"}) {
+		t.Fatalf("tool names = %v, want [example_CreateReport example_DescribeAdvancedShapes example_DescribeScalarShapes example_Health example_HiddenThing]", toolNames)
 	}
 
 	validateToolInputSchema(t, tools.Tools, "example_CreateReport", map[string]any{
@@ -541,10 +541,12 @@ func TestRegisterExampleAPIToolsNamespaceOverride(t *testing.T) {
 		"custom_v1_DescribeAdvancedShapes",
 		"custom_v1_DescribeScalarShapes",
 		"custom_v1_Health",
+		"custom_v1_HiddenThing",
 		"example_CreateReport",
 		"example_DescribeAdvancedShapes",
 		"example_DescribeScalarShapes",
 		"example_Health",
+		"example_HiddenThing",
 	}
 	slices.Sort(toolNames)
 	if !slices.Equal(toolNames, want) {
@@ -696,6 +698,13 @@ func (handler exampleHandler) Ping(
 	return &examplev1.PingResponse{
 		Ack: &emptypb.Empty{},
 	}, nil
+}
+
+func (handler exampleHandler) HiddenThing(
+	_ context.Context,
+	_ *examplev1.HiddenThingRequest,
+) (*examplev1.HiddenThingResponse, error) {
+	return &examplev1.HiddenThingResponse{}, nil
 }
 
 func newExampleSession(t *testing.T, handler exampleHandler, options ...mcpruntime.RegisterOption) (*mcp.ClientSession, func()) {

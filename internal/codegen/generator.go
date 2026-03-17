@@ -15,6 +15,7 @@ type methodSpec struct {
 	Title            string
 	Description      string
 	Examples         []string
+	Deprecated       bool
 	InputSchemaJSON  string
 	OutputSchemaJSON string
 }
@@ -92,6 +93,10 @@ func collectFileSpecs(file *protogen.File) ([]serviceSpec, error) {
 				}
 			}
 
+			if methodMetadata.Deprecated {
+				inputSchema.Deprecated = true
+			}
+
 			outputSchema, err := generateSchema(method.Output)
 			if err != nil {
 				return nil, fmt.Errorf("output schema for %s: %w", method.Desc.FullName(), err)
@@ -112,6 +117,7 @@ func collectFileSpecs(file *protogen.File) ([]serviceSpec, error) {
 				Title:            methodMetadata.Title,
 				Description:      methodMetadata.Description,
 				Examples:         methodMetadata.Examples,
+				Deprecated:       methodMetadata.Deprecated,
 				InputSchemaJSON:  inputSchemaJSON,
 				OutputSchemaJSON: outputSchemaJSON,
 			})
@@ -130,10 +136,16 @@ func generateSchema(message *protogen.Message) (*jsonschema.Schema, error) {
 
 	generatedSchema, err := schema.GenerateMessageSchema(message, schema.Options{
 		MessageMetadata: func(current *protogen.Message) schema.Metadata {
+			metadata, err := loadMessageMetadata(current)
+			if err != nil && fieldErr == nil {
+				fieldErr = err
+			}
 			commentMetadata := parseCommentBlock(current.Comments.Leading)
 			return schema.Metadata{
-				Description: commentMetadata.Description,
-				Examples:    commentMetadata.Examples,
+				Title:         metadata.Title,
+				Description:   metadata.Description,
+				Examples:      commentMetadata.Examples,
+				TypedExamples: metadata.TypedExamples,
 			}
 		},
 		FieldMetadata: func(field *protogen.Field) schema.FieldMetadata {
@@ -142,6 +154,26 @@ func generateSchema(message *protogen.Message) (*jsonschema.Schema, error) {
 				fieldErr = err
 			}
 			return metadata.FieldMetadata
+		},
+		EnumMetadata: func(enum *protogen.Enum) schema.EnumMetadata {
+			metadata, err := loadEnumMetadata(enum)
+			if err != nil && fieldErr == nil {
+				fieldErr = err
+			}
+			return schema.EnumMetadata{
+				Title:       metadata.Title,
+				Description: metadata.Description,
+			}
+		},
+		EnumValueMetadata: func(enumValue *protogen.EnumValue) schema.EnumValueMetadata {
+			metadata, err := loadEnumValueMetadata(enumValue)
+			if err != nil && fieldErr == nil {
+				fieldErr = err
+			}
+			return schema.EnumValueMetadata{
+				Description: metadata.Description,
+				Hidden:      metadata.Hidden,
+			}
 		},
 	})
 	if err != nil {
