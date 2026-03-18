@@ -419,7 +419,23 @@ type FieldOptions struct {
 	// pattern defines a regular expression that the string must match.
 	// Example: "^[A-Z][a-z]+$" for capitalized words
 	Pattern string `protobuf:"bytes,10,opt,name=pattern,proto3" json:"pattern,omitempty"`
-	// format defines a built-in JSON Schema format (e.g., "email", "uri", "uuid", "date-time", "ipv4", "hostname").
+	// format defines a semantic format for the string according to JSON Schema.
+	//
+	// Built-in JSON Schema formats natively understood by most validators include:
+	//   - "date-time", "date", "time", "duration"
+	//   - "email", "idn-email"
+	//   - "hostname", "idn-hostname"
+	//   - "ipv4", "ipv6"
+	//   - "uri", "uri-reference", "iri", "iri-reference"
+	//   - "uuid"
+	//   - "regex"
+	//   - "json-pointer", "relative-json-pointer"
+	//
+	// Custom formats are also fully supported. Since MCP schemas are consumed
+	// by LLMs, providing a descriptive custom format (e.g., "cron-expression",
+	// "hex-color", "sql-query") acts as a strong semantic hint for tool payload
+	// generation, even if the format is not strictly validated by JSON Schema.
+	//
 	// See: https://json-schema.org/understanding-json-schema/reference/string.html#format
 	Format string `protobuf:"bytes,11,opt,name=format,proto3" json:"format,omitempty"`
 	// min_length limits the minimum string length (inclusive).
