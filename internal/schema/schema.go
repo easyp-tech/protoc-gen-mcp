@@ -39,20 +39,29 @@ type FieldMetadata struct {
 	// String validation constraints
 	Pattern   string
 	Format    string
-	MinLength uint32
-	MaxLength uint32
+	MinLength *uint32
+	MaxLength *uint32
 
 	// Number validation constraints
-	Minimum          float64
-	Maximum          float64
-	ExclusiveMinimum float64
-	ExclusiveMaximum float64
-	MultipleOf       float64
+	Minimum          *float64
+	Maximum          *float64
+	ExclusiveMinimum *float64
+	ExclusiveMaximum *float64
+	MultipleOf       *float64
 
 	// Array constraints
-	MinItems    uint32
-	MaxItems    uint32
+	MinItems    *uint32
+	MaxItems    *uint32
 	UniqueItems bool
+
+	// ReadOnly constraints
+	ReadOnly bool
+}
+
+// OneofMetadata describes human-facing metadata and constraints for a oneof group.
+type OneofMetadata struct {
+	Description string
+	Required    bool
 }
 
 // EnumMetadata describes human-facing enum schema metadata.
@@ -73,6 +82,7 @@ type Options struct {
 	FieldMetadata     func(*protogen.Field) FieldMetadata
 	EnumMetadata      func(*protogen.Enum) EnumMetadata
 	EnumValueMetadata func(*protogen.EnumValue) EnumValueMetadata
+	OneofMetadata     func(*protogen.Oneof) OneofMetadata
 }
 
 type schemaBuilder struct {
@@ -205,7 +215,7 @@ func (builder *schemaBuilder) generateMessageSchema(message *protogen.Message) (
 		}
 	}
 
-	oneofConstraints, err := generateOneofConstraints(message)
+	oneofConstraints, err := builder.generateOneofConstraints(message)
 	if err != nil {
 		return nil, err
 	}
@@ -231,6 +241,9 @@ func (builder *schemaBuilder) generateFieldSchema(field *protogen.Field) (*jsons
 	}
 
 	fieldSchema.Description = mergeDescriptions(fieldMetadata.Description, fieldSchema.Description)
+	if fieldMetadata.ReadOnly {
+		fieldSchema.ReadOnly = true
+	}
 
 	// Apply default value if present.
 	if fieldMetadata.HasDefault {
@@ -343,7 +356,7 @@ func generateMapKeySchema(field *protogen.Field) (*jsonschema.Schema, error) {
 	}
 }
 
-func generateOneofConstraints(message *protogen.Message) ([]*jsonschema.Schema, error) {
+func (builder *schemaBuilder) generateOneofConstraints(message *protogen.Message) ([]*jsonschema.Schema, error) {
 	if message == nil {
 		return nil, nil
 	}
@@ -369,17 +382,39 @@ func generateOneofConstraints(message *protogen.Message) ([]*jsonschema.Schema, 
 			continue
 		}
 
+		// Look up OneofMetadata using the builder options.
+		var oneofMeta OneofMetadata
+		if oneof := fields[0].Message; oneof != nil { // Wait, how to get parent Oneof from Field?
+			for _, o := range message.Oneofs {
+				if o.Desc.Name() == name {
+					oneofMeta = lookupOneofMetadata(builder.options, o)
+					break
+				}
+			}
+		} else {
+			// Fallback: search in message.Oneofs directly
+			for _, o := range message.Oneofs {
+				if o.Desc.Name() == name {
+					oneofMeta = lookupOneofMetadata(builder.options, o)
+					break
+				}
+			}
+		}
+
 		selectedBranches := make([]*jsonschema.Schema, 0, len(fields))
 		for _, field := range fields {
 			selectedBranches = append(selectedBranches, selectedOneofFieldSchema(field.Desc.JSONName()))
 		}
 
 		branches := make([]*jsonschema.Schema, 0, len(fields)+1)
-		branches = append(branches, &jsonschema.Schema{
-			Not: &jsonschema.Schema{
-				AnyOf: cloneSchemaSlice(selectedBranches),
-			},
-		})
+		
+		if !oneofMeta.Required {
+			branches = append(branches, &jsonschema.Schema{
+				Not: &jsonschema.Schema{
+					AnyOf: cloneSchemaSlice(selectedBranches),
+				},
+			})
+		}
 
 		for _, field := range fields {
 			fieldName := field.Desc.JSONName()
@@ -1044,11 +1079,17 @@ func lookupMessageMetadata(options Options, message *protogen.Message) Metadata 
 }
 
 func lookupFieldMetadata(options Options, field *protogen.Field) FieldMetadata {
-	if options.FieldMetadata == nil {
-		return FieldMetadata{}
+	if options.FieldMetadata != nil {
+		return options.FieldMetadata(field)
 	}
+	return FieldMetadata{}
+}
 
-	return options.FieldMetadata(field)
+func lookupOneofMetadata(options Options, oneof *protogen.Oneof) OneofMetadata {
+	if options.OneofMetadata != nil {
+		return options.OneofMetadata(oneof)
+	}
+	return OneofMetadata{}
 }
 
 func lookupEnumMetadata(options Options, enum *protogen.Enum) EnumMetadata {
@@ -1148,7 +1189,6 @@ func mergeDescriptions(values ...string) string {
 }
 
 // applyStringConstraints sets JSON Schema string validation keywords from FieldMetadata.
-// Zero values mean "not set" and are not emitted.
 func applyStringConstraints(s *jsonschema.Schema, m FieldMetadata) {
 	if m.Pattern != "" {
 		s.Pattern = m.Pattern
@@ -1156,50 +1196,48 @@ func applyStringConstraints(s *jsonschema.Schema, m FieldMetadata) {
 	if m.Format != "" {
 		s.Format = m.Format
 	}
-	if m.MinLength != 0 {
-		v := int(m.MinLength)
+	if m.MinLength != nil {
+		v := int(*m.MinLength)
 		s.MinLength = &v
 	}
-	if m.MaxLength != 0 {
-		v := int(m.MaxLength)
+	if m.MaxLength != nil {
+		v := int(*m.MaxLength)
 		s.MaxLength = &v
 	}
 }
 
 // applyNumberConstraints sets JSON Schema numeric validation keywords from FieldMetadata.
-// Zero values mean "not set" and are not emitted.
 func applyNumberConstraints(s *jsonschema.Schema, m FieldMetadata) {
-	if m.Minimum != 0 {
-		v := m.Minimum
+	if m.Minimum != nil {
+		v := *m.Minimum
 		s.Minimum = &v
 	}
-	if m.Maximum != 0 {
-		v := m.Maximum
+	if m.Maximum != nil {
+		v := *m.Maximum
 		s.Maximum = &v
 	}
-	if m.ExclusiveMinimum != 0 {
-		v := m.ExclusiveMinimum
+	if m.ExclusiveMinimum != nil {
+		v := *m.ExclusiveMinimum
 		s.ExclusiveMinimum = &v
 	}
-	if m.ExclusiveMaximum != 0 {
-		v := m.ExclusiveMaximum
+	if m.ExclusiveMaximum != nil {
+		v := *m.ExclusiveMaximum
 		s.ExclusiveMaximum = &v
 	}
-	if m.MultipleOf != 0 {
-		v := m.MultipleOf
+	if m.MultipleOf != nil {
+		v := *m.MultipleOf
 		s.MultipleOf = &v
 	}
 }
 
 // applyArrayConstraints sets JSON Schema array validation keywords from FieldMetadata.
-// Zero values mean "not set" and are not emitted.
 func applyArrayConstraints(s *jsonschema.Schema, m FieldMetadata) {
-	if m.MinItems != 0 {
-		v := int(m.MinItems)
+	if m.MinItems != nil {
+		v := int(*m.MinItems)
 		s.MinItems = &v
 	}
-	if m.MaxItems != 0 {
-		v := int(m.MaxItems)
+	if m.MaxItems != nil {
+		v := int(*m.MaxItems)
 		s.MaxItems = &v
 	}
 	if m.UniqueItems {

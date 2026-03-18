@@ -15,6 +15,7 @@ import (
 type serviceMetadata struct {
 	Namespace   string
 	Description string
+	Icons       []*mcpoptionsv1.Icon
 }
 
 type methodMetadata struct {
@@ -25,6 +26,10 @@ type methodMetadata struct {
 	Hidden      bool
 	Disabled    bool
 	Deprecated  bool
+
+	Annotations *mcpoptionsv1.ToolAnnotations
+	Icons       []*mcpoptionsv1.Icon
+	TaskSupport mcpoptionsv1.TaskSupport
 }
 
 type fieldMetadata struct {
@@ -49,6 +54,7 @@ func loadServiceMetadata(service *protogen.Service) (serviceMetadata, error) {
 	if strings.TrimSpace(options.GetDescription()) != "" {
 		metadata.Description = strings.TrimSpace(options.GetDescription())
 	}
+	metadata.Icons = options.GetIcons()
 
 	return metadata, nil
 }
@@ -74,6 +80,13 @@ func loadMethodMetadata(method *protogen.Method) (methodMetadata, error) {
 
 	if options == nil {
 		return metadata, nil
+	}
+
+	metadata.Hidden = options.GetHidden()
+	metadata.Annotations = options.GetAnnotations()
+	metadata.Icons = options.GetIcons()
+	if exec := options.GetExecution(); exec != nil {
+		metadata.TaskSupport = exec.GetTaskSupport()
 	}
 
 	if strings.TrimSpace(options.GetName()) != "" {
@@ -134,20 +147,23 @@ func loadFieldMetadata(field *protogen.Field) (fieldMetadata, error) {
 	// String validation constraints
 	metadata.Pattern = options.GetPattern()
 	metadata.Format = options.GetFormat()
-	metadata.MinLength = options.GetMinLength()
-	metadata.MaxLength = options.GetMaxLength()
+	metadata.MinLength = options.MinLength
+	metadata.MaxLength = options.MaxLength
 
 	// Number validation constraints
-	metadata.Minimum = options.GetMinimum()
-	metadata.Maximum = options.GetMaximum()
-	metadata.ExclusiveMinimum = options.GetExclusiveMinimum()
-	metadata.ExclusiveMaximum = options.GetExclusiveMaximum()
-	metadata.MultipleOf = options.GetMultipleOf()
+	metadata.Minimum = options.Minimum
+	metadata.Maximum = options.Maximum
+	metadata.ExclusiveMinimum = options.ExclusiveMinimum
+	metadata.ExclusiveMaximum = options.ExclusiveMaximum
+	metadata.MultipleOf = options.MultipleOf
 
 	// Array constraints
-	metadata.MinItems = options.GetMinItems()
-	metadata.MaxItems = options.GetMaxItems()
+	metadata.MinItems = options.MinItems
+	metadata.MaxItems = options.MaxItems
 	metadata.UniqueItems = options.GetUniqueItems()
+	
+	// ReadOnly constraints
+	metadata.ReadOnly = options.GetReadOnly()
 
 	return metadata, nil
 }

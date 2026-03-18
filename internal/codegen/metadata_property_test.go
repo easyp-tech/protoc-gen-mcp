@@ -218,13 +218,13 @@ func TestProperty5_ValidationConstraintsPropagation(t *testing.T) {
 		var minLength uint32
 		if setMinLength {
 			minLength = rapid.Uint32Range(1, 1000).Draw(t, "minLength")
-			fm.MinLength = minLength
+			fm.MinLength = &minLength
 		}
 
 		var maxLength uint32
 		if setMaxLength {
 			maxLength = rapid.Uint32Range(1, 10000).Draw(t, "maxLength")
-			fm.MaxLength = maxLength
+			fm.MaxLength = &maxLength
 		}
 
 		var minimum float64
@@ -234,7 +234,7 @@ func TestProperty5_ValidationConstraintsPropagation(t *testing.T) {
 			if minimum == 0 {
 				minimum = 1.0
 			}
-			fm.Minimum = minimum
+			fm.Minimum = &minimum
 		}
 
 		var maximum float64
@@ -243,7 +243,7 @@ func TestProperty5_ValidationConstraintsPropagation(t *testing.T) {
 			if maximum == 0 {
 				maximum = 1.0
 			}
-			fm.Maximum = maximum
+			fm.Maximum = &maximum
 		}
 
 		var exclusiveMinimum float64
@@ -252,7 +252,7 @@ func TestProperty5_ValidationConstraintsPropagation(t *testing.T) {
 			if exclusiveMinimum == 0 {
 				exclusiveMinimum = -1.0
 			}
-			fm.ExclusiveMinimum = exclusiveMinimum
+			fm.ExclusiveMinimum = &exclusiveMinimum
 		}
 
 		var exclusiveMaximum float64
@@ -261,7 +261,7 @@ func TestProperty5_ValidationConstraintsPropagation(t *testing.T) {
 			if exclusiveMaximum == 0 {
 				exclusiveMaximum = 1.0
 			}
-			fm.ExclusiveMaximum = exclusiveMaximum
+			fm.ExclusiveMaximum = &exclusiveMaximum
 		}
 
 		var multipleOf float64
@@ -270,19 +270,19 @@ func TestProperty5_ValidationConstraintsPropagation(t *testing.T) {
 			if multipleOf == 0 {
 				multipleOf = 1.0
 			}
-			fm.MultipleOf = multipleOf
+			fm.MultipleOf = &multipleOf
 		}
 
 		var minItems uint32
 		if setMinItems {
 			minItems = rapid.Uint32Range(1, 100).Draw(t, "minItems")
-			fm.MinItems = minItems
+			fm.MinItems = &minItems
 		}
 
 		var maxItems uint32
 		if setMaxItems {
 			maxItems = rapid.Uint32Range(1, 1000).Draw(t, "maxItems")
-			fm.MaxItems = maxItems
+			fm.MaxItems = &maxItems
 		}
 
 		if setUniqueItems {
@@ -311,92 +311,92 @@ func TestProperty5_ValidationConstraintsPropagation(t *testing.T) {
 		}
 
 		if setMinLength {
-			if fm.MinLength != minLength {
-				t.Fatalf("MinLength: expected %d, got %d", minLength, fm.MinLength)
+			if fm.MinLength == nil || *fm.MinLength != minLength {
+				t.Fatalf("MinLength: expected %d, got %v", minLength, fm.MinLength)
 			}
 		} else {
-			if fm.MinLength != 0 {
-				t.Fatalf("MinLength should be zero-value, got %d", fm.MinLength)
+			if fm.MinLength != nil {
+				t.Fatalf("MinLength should be nil, got %v", fm.MinLength)
 			}
 		}
 
 		if setMaxLength {
-			if fm.MaxLength != maxLength {
-				t.Fatalf("MaxLength: expected %d, got %d", maxLength, fm.MaxLength)
+			if fm.MaxLength == nil || *fm.MaxLength != maxLength {
+				t.Fatalf("MaxLength: expected %d, got %v", maxLength, fm.MaxLength)
 			}
 		} else {
-			if fm.MaxLength != 0 {
-				t.Fatalf("MaxLength should be zero-value, got %d", fm.MaxLength)
+			if fm.MaxLength != nil {
+				t.Fatalf("MaxLength should be nil, got %v", fm.MaxLength)
 			}
 		}
 
 		if setMinimum {
-			if fm.Minimum != minimum {
+			if fm.Minimum == nil || *fm.Minimum != minimum {
 				t.Fatalf("Minimum: expected %v, got %v", minimum, fm.Minimum)
 			}
 		} else {
-			if fm.Minimum != 0 {
-				t.Fatalf("Minimum should be zero-value, got %v", fm.Minimum)
+			if fm.Minimum != nil {
+				t.Fatalf("Minimum should be nil, got %v", fm.Minimum)
 			}
 		}
 
 		if setMaximum {
-			if fm.Maximum != maximum {
+			if fm.Maximum == nil || *fm.Maximum != maximum {
 				t.Fatalf("Maximum: expected %v, got %v", maximum, fm.Maximum)
 			}
 		} else {
-			if fm.Maximum != 0 {
-				t.Fatalf("Maximum should be zero-value, got %v", fm.Maximum)
+			if fm.Maximum != nil {
+				t.Fatalf("Maximum should be nil, got %v", fm.Maximum)
 			}
 		}
 
 		if setExclusiveMinimum {
-			if fm.ExclusiveMinimum != exclusiveMinimum {
+			if fm.ExclusiveMinimum == nil || *fm.ExclusiveMinimum != exclusiveMinimum {
 				t.Fatalf("ExclusiveMinimum: expected %v, got %v", exclusiveMinimum, fm.ExclusiveMinimum)
 			}
 		} else {
-			if fm.ExclusiveMinimum != 0 {
-				t.Fatalf("ExclusiveMinimum should be zero-value, got %v", fm.ExclusiveMinimum)
+			if fm.ExclusiveMinimum != nil {
+				t.Fatalf("ExclusiveMinimum should be nil, got %v", fm.ExclusiveMinimum)
 			}
 		}
 
 		if setExclusiveMaximum {
-			if fm.ExclusiveMaximum != exclusiveMaximum {
+			if fm.ExclusiveMaximum == nil || *fm.ExclusiveMaximum != exclusiveMaximum {
 				t.Fatalf("ExclusiveMaximum: expected %v, got %v", exclusiveMaximum, fm.ExclusiveMaximum)
 			}
 		} else {
-			if fm.ExclusiveMaximum != 0 {
-				t.Fatalf("ExclusiveMaximum should be zero-value, got %v", fm.ExclusiveMaximum)
+			if fm.ExclusiveMaximum != nil {
+				t.Fatalf("ExclusiveMaximum should be nil, got %v", fm.ExclusiveMaximum)
 			}
 		}
 
 		if setMultipleOf {
-			if fm.MultipleOf != multipleOf {
+			if fm.MultipleOf == nil || *fm.MultipleOf != multipleOf {
 				t.Fatalf("MultipleOf: expected %v, got %v", multipleOf, fm.MultipleOf)
 			}
 		} else {
-			if fm.MultipleOf != 0 {
-				t.Fatalf("MultipleOf should be zero-value, got %v", fm.MultipleOf)
+			if fm.MultipleOf != nil {
+				t.Fatalf("MultipleOf should be nil, got %v", fm.MultipleOf)
 			}
 		}
 
 		if setMinItems {
-			if fm.MinItems != minItems {
-				t.Fatalf("MinItems: expected %d, got %d", minItems, fm.MinItems)
+			if fm.MinItems == nil || *fm.MinItems != minItems {
+				t.Fatalf("MinItems: expected %d, got %v", minItems, fm.MinItems)
 			}
 		} else {
-			if fm.MinItems != 0 {
-				t.Fatalf("MinItems should be zero-value, got %d", fm.MinItems)
+			if fm.MinItems != nil {
+				t.Fatalf("MinItems should be nil, got %v", fm.MinItems)
 			}
 		}
 
 		if setMaxItems {
-			if fm.MaxItems != maxItems {
-				t.Fatalf("MaxItems: expected %d, got %d", maxItems, fm.MaxItems)
+			if fm.MaxItems == nil || *fm.MaxItems != maxItems {
+				t.Fatalf("MaxItems: expected %d, got %v", maxItems, fm.MaxItems)
 			}
 		} else {
-			if fm.MaxItems != 0 {
-				t.Fatalf("MaxItems should be zero-value, got %d", fm.MaxItems)
+			if fm.MaxItems != nil {
+				t.Fatalf("MaxItems should be nil, got %v", fm.MaxItems)
 			}
 		}
 
@@ -419,32 +419,32 @@ func TestProperty5_ValidationConstraintsPropagation(t *testing.T) {
 		if fm.Format != "" {
 			constraintMap["format"] = fm.Format
 		}
-		if fm.MinLength != 0 {
-			constraintMap["minLength"] = fm.MinLength
+		if fm.MinLength != nil {
+			constraintMap["minLength"] = *fm.MinLength
 		}
-		if fm.MaxLength != 0 {
-			constraintMap["maxLength"] = fm.MaxLength
+		if fm.MaxLength != nil {
+			constraintMap["maxLength"] = *fm.MaxLength
 		}
-		if fm.Minimum != 0 {
-			constraintMap["minimum"] = fm.Minimum
+		if fm.Minimum != nil {
+			constraintMap["minimum"] = *fm.Minimum
 		}
-		if fm.Maximum != 0 {
-			constraintMap["maximum"] = fm.Maximum
+		if fm.Maximum != nil {
+			constraintMap["maximum"] = *fm.Maximum
 		}
-		if fm.ExclusiveMinimum != 0 {
-			constraintMap["exclusiveMinimum"] = fm.ExclusiveMinimum
+		if fm.ExclusiveMinimum != nil {
+			constraintMap["exclusiveMinimum"] = *fm.ExclusiveMinimum
 		}
-		if fm.ExclusiveMaximum != 0 {
-			constraintMap["exclusiveMaximum"] = fm.ExclusiveMaximum
+		if fm.ExclusiveMaximum != nil {
+			constraintMap["exclusiveMaximum"] = *fm.ExclusiveMaximum
 		}
-		if fm.MultipleOf != 0 {
-			constraintMap["multipleOf"] = fm.MultipleOf
+		if fm.MultipleOf != nil {
+			constraintMap["multipleOf"] = *fm.MultipleOf
 		}
-		if fm.MinItems != 0 {
-			constraintMap["minItems"] = fm.MinItems
+		if fm.MinItems != nil {
+			constraintMap["minItems"] = *fm.MinItems
 		}
-		if fm.MaxItems != 0 {
-			constraintMap["maxItems"] = fm.MaxItems
+		if fm.MaxItems != nil {
+			constraintMap["maxItems"] = *fm.MaxItems
 		}
 		if fm.UniqueItems {
 			constraintMap["uniqueItems"] = fm.UniqueItems

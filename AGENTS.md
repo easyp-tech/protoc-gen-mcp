@@ -78,6 +78,10 @@ current architecture unless explicitly revised.
 - Implemented:
   - `cmd/protoc-gen-mcp-go` plugin scaffold and generated `*.mcp.go` bindings
   - custom MCP protobuf options in `mcp/options/v1/options.proto`
+  - generated tool metadata includes `ToolAnnotations` (`read_only_hint`, `destructive_hint`, `idempotent_hint`, `open_world_hint`) and `Icon` mappings directly to the Go SDK
+  - dedicated `examples/` directory featuring 4 standalone integration projects spanning quickstarts to complex CRM mocks
+  - support for `oneof` explicit requiredness through `mcp.options.v1.oneof` options
+  - strict schema generation correctly differentiating zero-values (`0`, `0.0`, `""`) using pointer constraints
   - runtime registration and JSON Schema validation in `mcpruntime`
   - descriptor-to-JSON-Schema generation in `internal/schema`
   - support for maps, recursive message schemas, top-level/nested `oneof`, and

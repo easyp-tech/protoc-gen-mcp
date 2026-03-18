@@ -9,14 +9,14 @@ import "google/protobuf/type.proto";
 // UnsupportedAPI contains unsupported protobuf features for generator tests.
 service UnsupportedAPI {
   // BuildUnsupported exercises unsupported input/output shapes.
-  rpc BuildUnsupported(UnsupportedRequest) returns (UnsupportedResponse);
+  rpc BuildUnsupported(BuildUnsupportedRequest) returns (BuildUnsupportedResponse);
 }
 
-// UnsupportedRequest contains unsupported protobuf features.
-message UnsupportedRequest {
+// BuildUnsupportedRequest contains unsupported protobuf features.
+message BuildUnsupportedRequest {
   // payload is unsupported because google.protobuf.Type is excluded from the MVP.
   google.protobuf.Type payload = 1;
 }
 
 // UnsupportedResponse contains unsupported protobuf features.
-message UnsupportedResponse {}
+message BuildUnsupportedResponse {}
