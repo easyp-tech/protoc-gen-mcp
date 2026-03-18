@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package filemanager.api.v1;
+
+import "mcp/options/v1/options.proto";
+
+option go_package = "github.com/easyp-tech/protoc-gen-mcp/examples/3-file-manager/proto;filemanagerv1";
+
+service FileManagerAPI {
+  option (mcp.options.v1.service) = {
+    namespace: "files"
+    description: "A secure file management service for temporary directories."
+  };
+
+  rpc ReadFile (ReadFileRequest) returns (ReadFileResponse) {
+    option (mcp.options.v1.method) = {
+      description: "Reads the content of a file."
+      annotations: {
+        read_only_hint: true
+        idempotent_hint: true
+      }
+    };
+  }
+
+  rpc DeleteFile (DeleteFileRequest) returns (DeleteFileResponse) {
+    option (mcp.options.v1.method) = {
+      description: "Permanently deletes a file."
+      annotations: {
+        destructive_hint: true
+      }
+    };
+  }
+}
+
+message ReadFileRequest {
+  string filename = 1 [(mcp.options.v1.field) = {
+    description: "The name of the file to read. Must not contain paths or directories."
+    pattern: "^[a-zA-Z0-9_\\-\\.]+$"
+    min_length: 1
+  }];
+}
+
+message ReadFileResponse {
+  string content = 1;
+}
+
+message DeleteFileRequest {
+  string filename = 1 [(mcp.options.v1.field) = {
+    description: "The name of the file to delete. Must not contain paths or directories."
+    pattern: "^[a-zA-Z0-9_\\-\\.]+$"
+    min_length: 1
+  }];
+}
+
+message DeleteFileResponse {
+  bool success = 1;
+}

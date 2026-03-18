@@ -56,6 +56,14 @@ The example server currently exposes:
 - `example_DescribeAdvancedShapes`
 - `example_DescribeScalarShapes`
 
+## Examples
+
+We provide several standalone, runnable examples demonstrating the power of generated MCP tools, protobuf `options`, validation constraints, and integration with the official Go SDK. Check out the [examples/](examples/) directory for:
+- [1-helloworld](examples/1-helloworld/) - Minimal Quickstart setup.
+- [2-weather-api](examples/2-weather-api/) - Read-only queries, validation limits, Oneofs.
+- [3-file-manager](examples/3-file-manager/) - Destructive tools and schema-based string parameter constraints.
+- [4-crm-system](examples/4-crm-system/) - A full mock system with FieldMask partial updates, custom icons mapping, schemas nested types, and advanced array filters.
+
 ## Generation With Easyp
 
 The intended workflow is `easyp`, not manual `protoc` invocation. `easyp`

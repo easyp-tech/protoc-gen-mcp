@@ -18,21 +18,71 @@ const (
 
 // Metadata describes human-facing schema metadata.
 type Metadata struct {
-	Description string
-	Examples    []string
+	Title         string
+	Description   string
+	Examples      []string
+	TypedExamples []any
 }
 
-// FieldMetadata extends schema metadata with requiredness overrides.
+// FieldMetadata extends schema metadata with validation constraints.
 type FieldMetadata struct {
 	Metadata
-	RequiredOverride *bool
-	OptionalOverride *bool
+
+	// Typed examples from FieldOptions.examples (materialized).
+	// Takes priority over Metadata.Examples (string-based from comments).
+	TypedExamples []any
+
+	// Default value from FieldOptions.default_value (materialized).
+	Default    any
+	HasDefault bool
+
+	// String validation constraints
+	Pattern   string
+	Format    string
+	MinLength *uint32
+	MaxLength *uint32
+
+	// Number validation constraints
+	Minimum          *float64
+	Maximum          *float64
+	ExclusiveMinimum *float64
+	ExclusiveMaximum *float64
+	MultipleOf       *float64
+
+	// Array constraints
+	MinItems    *uint32
+	MaxItems    *uint32
+	UniqueItems bool
+
+	// ReadOnly constraints
+	ReadOnly bool
+}
+
+// OneofMetadata describes human-facing metadata and constraints for a oneof group.
+type OneofMetadata struct {
+	Description string
+	Required    bool
+}
+
+// EnumMetadata describes human-facing enum schema metadata.
+type EnumMetadata struct {
+	Title       string
+	Description string
+}
+
+// EnumValueMetadata describes per-value enum metadata.
+type EnumValueMetadata struct {
+	Description string
+	Hidden      bool
 }
 
 // Options configures schema generation from protobuf messages.
 type Options struct {
-	MessageMetadata func(*protogen.Message) Metadata
-	FieldMetadata   func(*protogen.Field) FieldMetadata
+	MessageMetadata   func(*protogen.Message) Metadata
+	FieldMetadata     func(*protogen.Field) FieldMetadata
+	EnumMetadata      func(*protogen.Enum) EnumMetadata
+	EnumValueMetadata func(*protogen.EnumValue) EnumValueMetadata
+	OneofMetadata     func(*protogen.Oneof) OneofMetadata
 }
 
 type schemaBuilder struct {
@@ -114,9 +164,20 @@ func (builder *schemaBuilder) generateMessageSchema(message *protogen.Message) (
 	schema := &jsonschema.Schema{
 		Type:                 "object",
 		Description:          messageMetadata.Description,
-		Examples:             materializeExamples(messageMetadata.Examples),
 		Properties:           make(map[string]*jsonschema.Schema),
 		AdditionalProperties: disallowAdditionalProperties(),
+	}
+
+	// Apply title if present.
+	if messageMetadata.Title != "" {
+		schema.Title = messageMetadata.Title
+	}
+
+	// TypedExamples take priority over string-based examples.
+	if len(messageMetadata.TypedExamples) > 0 {
+		schema.Examples = messageMetadata.TypedExamples
+	} else {
+		schema.Examples = materializeExamples(messageMetadata.Examples)
 	}
 
 	for _, field := range message.Fields {
@@ -154,7 +215,7 @@ func (builder *schemaBuilder) generateMessageSchema(message *protogen.Message) (
 		}
 	}
 
-	oneofConstraints, err := generateOneofConstraints(message)
+	oneofConstraints, err := builder.generateOneofConstraints(message)
 	if err != nil {
 		return nil, err
 	}
@@ -174,32 +235,55 @@ func (builder *schemaBuilder) generateFieldSchema(field *protogen.Field) (*jsons
 	}
 
 	fieldMetadata := lookupFieldMetadata(builder.options, field)
-	fieldSchema, err := builder.generateSingularSchema(field)
+	fieldSchema, err := builder.generateSingularSchema(field, fieldMetadata)
 	if err != nil {
 		return nil, err
 	}
 
 	fieldSchema.Description = mergeDescriptions(fieldMetadata.Description, fieldSchema.Description)
+	if fieldMetadata.ReadOnly {
+		fieldSchema.ReadOnly = true
+	}
+
+	// Apply default value if present.
+	if fieldMetadata.HasDefault {
+		fieldSchema.Default = marshalDefault(fieldMetadata.Default)
+	}
+
 	if field.Desc.IsList() {
 		itemExamples := builder.autoSingularExamples(field, make(map[protoreflect.FullName]int))
 		if len(itemExamples) > 0 {
 			fieldSchema.Examples = itemExamples
 		}
 
-		arrayExamples := materializeExamples(fieldMetadata.Examples)
+		// TypedExamples take priority over string-based examples from comments.
+		var arrayExamples []any
+		if len(fieldMetadata.TypedExamples) > 0 {
+			arrayExamples = fieldMetadata.TypedExamples
+		} else {
+			arrayExamples = materializeExamples(fieldMetadata.Examples)
+		}
 		if len(arrayExamples) == 0 {
 			arrayExamples = builder.autoFieldExamples(field)
 		}
 
-		return &jsonschema.Schema{
+		arraySchema := &jsonschema.Schema{
 			Type:        "array",
 			Description: fieldSchema.Description,
 			Examples:    arrayExamples,
 			Items:       fieldSchema,
-		}, nil
+		}
+
+		// Apply array constraints.
+		applyArrayConstraints(arraySchema, fieldMetadata)
+
+		return arraySchema, nil
 	}
 
-	if explicitExamples := materializeExamples(fieldMetadata.Examples); len(explicitExamples) > 0 {
+	// TypedExamples take priority over string-based examples from comments.
+	if len(fieldMetadata.TypedExamples) > 0 {
+		fieldSchema.Examples = fieldMetadata.TypedExamples
+	} else if explicitExamples := materializeExamples(fieldMetadata.Examples); len(explicitExamples) > 0 {
 		fieldSchema.Examples = explicitExamples
 	} else if autoExamples := builder.autoFieldExamples(field); len(autoExamples) > 0 {
 		fieldSchema.Examples = autoExamples
@@ -219,7 +303,7 @@ func (builder *schemaBuilder) generateMapFieldSchema(field *protogen.Field) (*js
 		return nil, err
 	}
 
-	valueSchema, err := builder.generateSingularSchema(field.Message.Fields[1])
+	valueSchema, err := builder.generateSingularSchema(field.Message.Fields[1], FieldMetadata{})
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +356,7 @@ func generateMapKeySchema(field *protogen.Field) (*jsonschema.Schema, error) {
 	}
 }
 
-func generateOneofConstraints(message *protogen.Message) ([]*jsonschema.Schema, error) {
+func (builder *schemaBuilder) generateOneofConstraints(message *protogen.Message) ([]*jsonschema.Schema, error) {
 	if message == nil {
 		return nil, nil
 	}
@@ -298,17 +382,39 @@ func generateOneofConstraints(message *protogen.Message) ([]*jsonschema.Schema, 
 			continue
 		}
 
+		// Look up OneofMetadata using the builder options.
+		var oneofMeta OneofMetadata
+		if oneof := fields[0].Message; oneof != nil { // Wait, how to get parent Oneof from Field?
+			for _, o := range message.Oneofs {
+				if o.Desc.Name() == name {
+					oneofMeta = lookupOneofMetadata(builder.options, o)
+					break
+				}
+			}
+		} else {
+			// Fallback: search in message.Oneofs directly
+			for _, o := range message.Oneofs {
+				if o.Desc.Name() == name {
+					oneofMeta = lookupOneofMetadata(builder.options, o)
+					break
+				}
+			}
+		}
+
 		selectedBranches := make([]*jsonschema.Schema, 0, len(fields))
 		for _, field := range fields {
 			selectedBranches = append(selectedBranches, selectedOneofFieldSchema(field.Desc.JSONName()))
 		}
 
 		branches := make([]*jsonschema.Schema, 0, len(fields)+1)
-		branches = append(branches, &jsonschema.Schema{
-			Not: &jsonschema.Schema{
-				AnyOf: cloneSchemaSlice(selectedBranches),
-			},
-		})
+		
+		if !oneofMeta.Required {
+			branches = append(branches, &jsonschema.Schema{
+				Not: &jsonschema.Schema{
+					AnyOf: cloneSchemaSlice(selectedBranches),
+				},
+			})
+		}
 
 		for _, field := range fields {
 			fieldName := field.Desc.JSONName()
@@ -372,12 +478,14 @@ func cloneSchemaSlice(values []*jsonschema.Schema) []*jsonschema.Schema {
 	return cloned
 }
 
-func (builder *schemaBuilder) generateSingularSchema(field *protogen.Field) (*jsonschema.Schema, error) {
+func (builder *schemaBuilder) generateSingularSchema(field *protogen.Field, metadata FieldMetadata) (*jsonschema.Schema, error) {
 	switch field.Desc.Kind() {
 	case protoreflect.BoolKind:
 		return &jsonschema.Schema{Type: "boolean"}, nil
 	case protoreflect.StringKind:
-		return &jsonschema.Schema{Type: "string"}, nil
+		s := &jsonschema.Schema{Type: "string"}
+		applyStringConstraints(s, metadata)
+		return s, nil
 	case protoreflect.BytesKind:
 		return &jsonschema.Schema{
 			Type:            "string",
@@ -388,24 +496,55 @@ func (builder *schemaBuilder) generateSingularSchema(field *protogen.Field) (*js
 		protoreflect.Sfixed32Kind,
 		protoreflect.Uint32Kind,
 		protoreflect.Fixed32Kind:
-		return &jsonschema.Schema{Type: "integer"}, nil
+		s := &jsonschema.Schema{Type: "integer"}
+		applyNumberConstraints(s, metadata)
+		return s, nil
 	case protoreflect.Int64Kind,
 		protoreflect.Sint64Kind,
 		protoreflect.Sfixed64Kind,
 		protoreflect.Uint64Kind,
 		protoreflect.Fixed64Kind:
+		// Int64/Uint64 are encoded as strings in ProtoJSON — number constraints don't apply.
 		return &jsonschema.Schema{Type: "string"}, nil
 	case protoreflect.FloatKind, protoreflect.DoubleKind:
+		// Float/Double use AnyOf schema for ProtoJSON — constraints not applied.
 		return protoJSONFloatSchema(false), nil
 	case protoreflect.EnumKind:
-		enumValues := field.Enum.Values
+		enumMeta := lookupEnumMetadata(builder.options, field.Enum)
 		enumSchema := &jsonschema.Schema{
 			Type: "string",
-			Enum: make([]any, 0, len(enumValues)),
+			Enum: make([]any, 0, len(field.Enum.Values)),
 		}
-		for _, enumValue := range enumValues {
+		if enumMeta.Title != "" {
+			enumSchema.Title = enumMeta.Title
+		}
+
+		var valueDescriptions []string
+		for _, enumValue := range field.Enum.Values {
+			valueMeta := lookupEnumValueMetadata(builder.options, enumValue)
+			if valueMeta.Hidden {
+				continue
+			}
 			enumSchema.Enum = append(enumSchema.Enum, string(enumValue.Desc.Name()))
+			if valueMeta.Description != "" {
+				valueDescriptions = append(valueDescriptions, string(enumValue.Desc.Name())+": "+valueMeta.Description)
+			}
 		}
+
+		// Build description: enum-level description first, then per-value descriptions.
+		description := enumMeta.Description
+		if len(valueDescriptions) > 0 {
+			valueDesc := strings.Join(valueDescriptions, "\n")
+			if description != "" {
+				description += "\n\n" + valueDesc
+			} else {
+				description = valueDesc
+			}
+		}
+		if description != "" {
+			enumSchema.Description = description
+		}
+
 		return enumSchema, nil
 	case protoreflect.MessageKind:
 		fullName := field.Desc.Message().FullName()
@@ -800,6 +939,10 @@ func (builder *schemaBuilder) autoMessageExample(
 		}
 	}()
 
+	if seen[fullName] > 5 {
+		return nil, false
+	}
+
 	recursive := seen[fullName] > 1
 	example := make(map[string]any)
 	handledOneofs := make(map[protoreflect.Name]struct{})
@@ -936,22 +1079,38 @@ func lookupMessageMetadata(options Options, message *protogen.Message) Metadata 
 }
 
 func lookupFieldMetadata(options Options, field *protogen.Field) FieldMetadata {
-	if options.FieldMetadata == nil {
-		return FieldMetadata{}
+	if options.FieldMetadata != nil {
+		return options.FieldMetadata(field)
+	}
+	return FieldMetadata{}
+}
+
+func lookupOneofMetadata(options Options, oneof *protogen.Oneof) OneofMetadata {
+	if options.OneofMetadata != nil {
+		return options.OneofMetadata(oneof)
+	}
+	return OneofMetadata{}
+}
+
+func lookupEnumMetadata(options Options, enum *protogen.Enum) EnumMetadata {
+	if options.EnumMetadata == nil {
+		return EnumMetadata{}
 	}
 
-	return options.FieldMetadata(field)
+	return options.EnumMetadata(enum)
+}
+
+func lookupEnumValueMetadata(options Options, enumValue *protogen.EnumValue) EnumValueMetadata {
+	if options.EnumValueMetadata == nil {
+		return EnumValueMetadata{}
+	}
+
+	return options.EnumValueMetadata(enumValue)
 }
 
 func isRequiredField(field *protogen.Field, metadata FieldMetadata) bool {
 	if isRealOneofField(field) {
 		return false
-	}
-	if metadata.RequiredOverride != nil {
-		return *metadata.RequiredOverride
-	}
-	if metadata.OptionalOverride != nil {
-		return !*metadata.OptionalOverride
 	}
 	if field.Desc.IsList() || field.Desc.IsMap() {
 		return false
@@ -1027,4 +1186,71 @@ func mergeDescriptions(values ...string) string {
 	}
 
 	return result
+}
+
+// applyStringConstraints sets JSON Schema string validation keywords from FieldMetadata.
+func applyStringConstraints(s *jsonschema.Schema, m FieldMetadata) {
+	if m.Pattern != "" {
+		s.Pattern = m.Pattern
+	}
+	if m.Format != "" {
+		s.Format = m.Format
+	}
+	if m.MinLength != nil {
+		v := int(*m.MinLength)
+		s.MinLength = &v
+	}
+	if m.MaxLength != nil {
+		v := int(*m.MaxLength)
+		s.MaxLength = &v
+	}
+}
+
+// applyNumberConstraints sets JSON Schema numeric validation keywords from FieldMetadata.
+func applyNumberConstraints(s *jsonschema.Schema, m FieldMetadata) {
+	if m.Minimum != nil {
+		v := *m.Minimum
+		s.Minimum = &v
+	}
+	if m.Maximum != nil {
+		v := *m.Maximum
+		s.Maximum = &v
+	}
+	if m.ExclusiveMinimum != nil {
+		v := *m.ExclusiveMinimum
+		s.ExclusiveMinimum = &v
+	}
+	if m.ExclusiveMaximum != nil {
+		v := *m.ExclusiveMaximum
+		s.ExclusiveMaximum = &v
+	}
+	if m.MultipleOf != nil {
+		v := *m.MultipleOf
+		s.MultipleOf = &v
+	}
+}
+
+// applyArrayConstraints sets JSON Schema array validation keywords from FieldMetadata.
+func applyArrayConstraints(s *jsonschema.Schema, m FieldMetadata) {
+	if m.MinItems != nil {
+		v := int(*m.MinItems)
+		s.MinItems = &v
+	}
+	if m.MaxItems != nil {
+		v := int(*m.MaxItems)
+		s.MaxItems = &v
+	}
+	if m.UniqueItems {
+		s.UniqueItems = true
+	}
+}
+
+// marshalDefault converts a Go value to json.RawMessage for the Schema.Default field.
+// Returns nil if marshaling fails.
+func marshalDefault(v any) json.RawMessage {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
+	return raw
 }

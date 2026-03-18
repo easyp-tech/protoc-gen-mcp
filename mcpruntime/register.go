@@ -30,6 +30,8 @@ type ToolSpec[Req proto.Message, Resp proto.Message] struct {
 	Namespace        string
 	InputSchemaJSON  string
 	OutputSchemaJSON string
+	Annotations      *mcp.ToolAnnotations
+	Icons            []mcp.Icon
 	NewRequest       func() Req
 	NewResponse      func() Resp
 	Handler          func(context.Context, Req) (Resp, error)
@@ -82,6 +84,8 @@ func RegisterProtoTool[Req proto.Message, Resp proto.Message](
 		Description:  spec.Description,
 		InputSchema:  inputSchema,
 		OutputSchema: outputSchema,
+		Annotations:  spec.Annotations,
+		Icons:        spec.Icons,
 	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		rawArguments, err := marshalArguments(req)
 		if err != nil {

@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+package crm.api.v1;
+
+import "mcp/options/v1/options.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/easyp-tech/protoc-gen-mcp/examples/4-crm-system/proto;crmv1";
+
+service UsersAPI {
+  option (mcp.options.v1.service) = {
+    namespace: "crm"
+    description: "Enterprise Customer Relationship Management (CRM) API."
+    icons: [{
+      src: "https://example.com/crm-icon.png",
+      mime_type: "image/png"
+    }]
+  };
+
+  rpc ListUsers (ListUsersRequest) returns (ListUsersResponse) {
+    option (mcp.options.v1.method) = {
+      description: "List users matching the selected filters."
+      annotations: { read_only_hint: true }
+    };
+  }
+
+  rpc UpdateUser (UpdateUserRequest) returns (UpdateUserResponse) {
+    option (mcp.options.v1.method) = {
+      description: "Perform a partial update of a user profile using a field mask."
+      icons: [{
+        src: "https://example.com/edit-icon.svg",
+        mime_type: "image/svg+xml"
+      }]
+    };
+  }
+}
+
+message User {
+  string id = 1 [(mcp.options.v1.field) = {
+    read_only: true
+    description: "Unique identifier for the user."
+  }];
+
+  string name = 2 [(mcp.options.v1.field) = {
+    min_length: 2
+  }];
+
+  repeated string tags = 3 [(mcp.options.v1.field) = {
+    description: "Tags assigned to the user."
+    min_items: 1
+    unique_items: true
+    examples: [
+      { array_value: { items: [ { string_value: "premium" }, { string_value: "active" } ] } }
+    ]
+  }];
+
+  google.protobuf.Timestamp registered_at = 4 [(mcp.options.v1.field) = {
+    read_only: true
+  }];
+}
+
+message ListUsersRequest {
+  int32 limit = 1 [(mcp.options.v1.field) = {
+    description: "Maximum number of users to return."
+    minimum: 1.0
+    maximum: 100.0
+    default_value: { integer_value: 10 }
+  }];
+
+  repeated string required_tags = 2 [(mcp.options.v1.field) = {
+    description: "Filter users who must have ALL these tags."
+  }];
+}
+
+message ListUsersResponse {
+  repeated User users = 1;
+}
+
+message UpdateUserRequest {
+  User user = 1 [(mcp.options.v1.field) = {
+    description: "The user object containing new values."
+  }];
+
+  google.protobuf.FieldMask update_mask = 2 [(mcp.options.v1.field) = {
+    description: "The list of fields to update (e.g., 'name', 'tags')."
+    examples: [
+      { string_value: "name,tags" }
+    ]
+  }];
+}
+
+message UpdateUserResponse {
+  User user = 1;
+}

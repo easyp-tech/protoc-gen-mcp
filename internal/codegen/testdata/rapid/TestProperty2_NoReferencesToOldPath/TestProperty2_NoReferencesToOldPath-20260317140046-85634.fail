@@ -1,0 +1,7 @@
+# 2026/03/17 14:00:46.803772 [TestProperty2_NoReferencesToOldPath] [rapid] draw fileIndex: 5
+# 2026/03/17 14:00:46.803844 [TestProperty2_NoReferencesToOldPath] file internal/codegen/metadata_property_test.go contains reference to old path "api/mcp/options/v1"
+# 
+v0.4.8#2615905384316246083
+0x0
+0x6b74f03291620
+0x5

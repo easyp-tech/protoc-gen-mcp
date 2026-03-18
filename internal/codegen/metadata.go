@@ -4,16 +4,18 @@ import (
 	"fmt"
 	"strings"
 
-	mcpoptionsv1 "github.com/easyp-tech/protoc-gen-mcp/api/mcp/options/v1"
 	"github.com/easyp-tech/protoc-gen-mcp/internal/schema"
+	mcpoptionsv1 "github.com/easyp-tech/protoc-gen-mcp/mcp/options/v1"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/descriptorpb"
 )
 
 type serviceMetadata struct {
 	Namespace   string
 	Description string
+	Icons       []*mcpoptionsv1.Icon
 }
 
 type methodMetadata struct {
@@ -23,6 +25,11 @@ type methodMetadata struct {
 	Examples    []string
 	Hidden      bool
 	Disabled    bool
+	Deprecated  bool
+
+	Annotations *mcpoptionsv1.ToolAnnotations
+	Icons       []*mcpoptionsv1.Icon
+	TaskSupport mcpoptionsv1.TaskSupport
 }
 
 type fieldMetadata struct {
@@ -47,6 +54,7 @@ func loadServiceMetadata(service *protogen.Service) (serviceMetadata, error) {
 	if strings.TrimSpace(options.GetDescription()) != "" {
 		metadata.Description = strings.TrimSpace(options.GetDescription())
 	}
+	metadata.Icons = options.GetIcons()
 
 	return metadata, nil
 }
@@ -63,8 +71,22 @@ func loadMethodMetadata(method *protogen.Method) (methodMetadata, error) {
 	if err != nil {
 		return methodMetadata{}, err
 	}
+
+	// Read standard protobuf deprecated option from method descriptor.
+	// This is independent of MCP options and must be checked unconditionally.
+	if stdOpts, ok := method.Desc.Options().(*descriptorpb.MethodOptions); ok && stdOpts != nil {
+		metadata.Deprecated = stdOpts.GetDeprecated()
+	}
+
 	if options == nil {
 		return metadata, nil
+	}
+
+	metadata.Hidden = options.GetHidden()
+	metadata.Annotations = options.GetAnnotations()
+	metadata.Icons = options.GetIcons()
+	if exec := options.GetExecution(); exec != nil {
+		metadata.TaskSupport = exec.GetTaskSupport()
 	}
 
 	if strings.TrimSpace(options.GetName()) != "" {
@@ -74,11 +96,6 @@ func loadMethodMetadata(method *protogen.Method) (methodMetadata, error) {
 	if strings.TrimSpace(options.GetDescription()) != "" {
 		metadata.Description = strings.TrimSpace(options.GetDescription())
 	}
-	if len(options.GetExamples()) > 0 {
-		metadata.Examples = cloneStrings(options.GetExamples())
-	}
-	metadata.Hidden = options.GetHidden()
-	metadata.Disabled = options.GetDisabled()
 
 	return metadata, nil
 }
@@ -102,34 +119,51 @@ func loadFieldMetadata(field *protogen.Field) (fieldMetadata, error) {
 		return metadata, nil
 	}
 
-	if options.Required != nil && options.Optional != nil {
-		return fieldMetadata{}, fmt.Errorf(
-			"field %s cannot set both mcp.options.v1.field.required and optional",
-			field.Desc.FullName(),
-		)
-	}
-	if oneof := field.Desc.ContainingOneof(); oneof != nil && !oneof.IsSynthetic() &&
-		(options.Required != nil || options.Optional != nil) {
-		return fieldMetadata{}, fmt.Errorf(
-			"field %s cannot override required/optional while participating in oneof %s",
-			field.Desc.FullName(),
-			oneof.FullName(),
-		)
-	}
-	if options.Required != nil {
-		required := options.GetRequired()
-		metadata.RequiredOverride = &required
-	}
-	if options.Optional != nil {
-		optional := options.GetOptional()
-		metadata.OptionalOverride = &optional
-	}
 	if strings.TrimSpace(options.GetDescription()) != "" {
 		metadata.Description = strings.TrimSpace(options.GetDescription())
 	}
-	if len(options.GetExamples()) > 0 {
-		metadata.Examples = cloneStrings(options.GetExamples())
+
+	// Typed examples from FieldOptions.examples
+	if protoExamples := options.GetExamples(); len(protoExamples) > 0 {
+		typedExamples := make([]any, 0, len(protoExamples))
+		for _, ev := range protoExamples {
+			if materialized, ok := materializeExampleValue(ev); ok {
+				typedExamples = append(typedExamples, materialized)
+			}
+		}
+		if len(typedExamples) > 0 {
+			metadata.TypedExamples = typedExamples
+		}
 	}
+
+	// Default value from FieldOptions.default_value
+	if dv := options.GetDefaultValue(); dv != nil {
+		if materialized, ok := materializeExampleValue(dv); ok {
+			metadata.Default = materialized
+			metadata.HasDefault = true
+		}
+	}
+
+	// String validation constraints
+	metadata.Pattern = options.GetPattern()
+	metadata.Format = options.GetFormat()
+	metadata.MinLength = options.MinLength
+	metadata.MaxLength = options.MaxLength
+
+	// Number validation constraints
+	metadata.Minimum = options.Minimum
+	metadata.Maximum = options.Maximum
+	metadata.ExclusiveMinimum = options.ExclusiveMinimum
+	metadata.ExclusiveMaximum = options.ExclusiveMaximum
+	metadata.MultipleOf = options.MultipleOf
+
+	// Array constraints
+	metadata.MinItems = options.MinItems
+	metadata.MaxItems = options.MaxItems
+	metadata.UniqueItems = options.GetUniqueItems()
+	
+	// ReadOnly constraints
+	metadata.ReadOnly = options.GetReadOnly()
 
 	return metadata, nil
 }
@@ -235,13 +269,187 @@ func getExtension(options proto.Message, extension protoreflect.ExtensionType) (
 	return proto.GetExtension(options, extension), nil
 }
 
-func cloneStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
+type messageMetadata struct {
+	Title       string
+	Description string
+	// TypedExamples holds materialized ExampleObject values from MessageOptions.examples.
+	TypedExamples []any
+}
+
+type enumMetadata struct {
+	Title       string
+	Description string
+}
+
+type enumValueMetadata struct {
+	Description string
+	Hidden      bool
+}
+
+func loadMessageMetadata(message *protogen.Message) (messageMetadata, error) {
+	commentMetadata := parseCommentBlock(message.Comments.Leading)
+	metadata := messageMetadata{
+		Description: commentMetadata.Description,
 	}
 
-	cloned := make([]string, len(values))
-	copy(cloned, values)
+	options, err := getMessageOptions(message)
+	if err != nil {
+		return messageMetadata{}, err
+	}
+	if options == nil {
+		return metadata, nil
+	}
 
-	return cloned
+	metadata.Title = strings.TrimSpace(options.GetTitle())
+	if strings.TrimSpace(options.GetDescription()) != "" {
+		metadata.Description = strings.TrimSpace(options.GetDescription())
+	}
+
+	if protoExamples := options.GetExamples(); len(protoExamples) > 0 {
+		typedExamples := make([]any, 0, len(protoExamples))
+		for _, obj := range protoExamples {
+			typedExamples = append(typedExamples, materializeExampleObject(obj))
+		}
+		if len(typedExamples) > 0 {
+			metadata.TypedExamples = typedExamples
+		}
+	}
+
+	return metadata, nil
+}
+
+func loadEnumMetadata(enum *protogen.Enum) (enumMetadata, error) {
+	metadata := enumMetadata{}
+
+	options, err := getEnumOptions(enum)
+	if err != nil {
+		return enumMetadata{}, err
+	}
+	if options == nil {
+		return metadata, nil
+	}
+
+	metadata.Title = strings.TrimSpace(options.GetTitle())
+	metadata.Description = strings.TrimSpace(options.GetDescription())
+
+	return metadata, nil
+}
+
+func loadEnumValueMetadata(enumValue *protogen.EnumValue) (enumValueMetadata, error) {
+	metadata := enumValueMetadata{}
+
+	options, err := getEnumValueOptions(enumValue)
+	if err != nil {
+		return enumValueMetadata{}, err
+	}
+	if options == nil {
+		return metadata, nil
+	}
+
+	metadata.Description = strings.TrimSpace(options.GetDescription())
+	metadata.Hidden = options.GetHidden()
+
+	return metadata, nil
+}
+
+func getMessageOptions(message *protogen.Message) (*mcpoptionsv1.MessageOptions, error) {
+	value, err := getExtension(message.Desc.Options(), mcpoptionsv1.E_Message)
+	if err != nil || value == nil {
+		return nil, err
+	}
+
+	options, ok := value.(*mcpoptionsv1.MessageOptions)
+	if !ok {
+		return nil, fmt.Errorf("message %s returned unexpected message options type %T", message.Desc.FullName(), value)
+	}
+
+	return options, nil
+}
+
+func getEnumOptions(enum *protogen.Enum) (*mcpoptionsv1.EnumOptions, error) {
+	value, err := getExtension(enum.Desc.Options(), mcpoptionsv1.E_Enum)
+	if err != nil || value == nil {
+		return nil, err
+	}
+
+	options, ok := value.(*mcpoptionsv1.EnumOptions)
+	if !ok {
+		return nil, fmt.Errorf("enum %s returned unexpected enum options type %T", enum.Desc.FullName(), value)
+	}
+
+	return options, nil
+}
+
+func getEnumValueOptions(enumValue *protogen.EnumValue) (*mcpoptionsv1.EnumValueOptions, error) {
+	value, err := getExtension(enumValue.Desc.Options(), mcpoptionsv1.E_EnumValue)
+	if err != nil || value == nil {
+		return nil, err
+	}
+
+	options, ok := value.(*mcpoptionsv1.EnumValueOptions)
+	if !ok {
+		return nil, fmt.Errorf("enum value %s returned unexpected enum value options type %T", enumValue.Desc.FullName(), value)
+	}
+
+	return options, nil
+}
+
+// materializeExampleValue converts a proto ExampleValue to a Go any value
+// suitable for JSON Schema examples/defaults.
+// Returns (nil, false) if the value is nil or has no kind set.
+func materializeExampleValue(v *mcpoptionsv1.ExampleValue) (any, bool) {
+	if v == nil {
+		return nil, false
+	}
+	switch k := v.GetKind().(type) {
+	case *mcpoptionsv1.ExampleValue_StringValue:
+		return k.StringValue, true
+	case *mcpoptionsv1.ExampleValue_NumberValue:
+		return k.NumberValue, true
+	case *mcpoptionsv1.ExampleValue_BoolValue:
+		return k.BoolValue, true
+	case *mcpoptionsv1.ExampleValue_NullValue:
+		if k.NullValue {
+			return nil, true
+		}
+		return nil, false
+	case *mcpoptionsv1.ExampleValue_ObjectValue:
+		return materializeExampleObject(k.ObjectValue), true
+	case *mcpoptionsv1.ExampleValue_ArrayValue:
+		return materializeExampleArray(k.ArrayValue), true
+	default:
+		return nil, false
+	}
+}
+
+// materializeExampleObject converts a proto ExampleObject to a map[string]any,
+// recursively processing each property value.
+func materializeExampleObject(obj *mcpoptionsv1.ExampleObject) map[string]any {
+	if obj == nil || len(obj.GetProperties()) == 0 {
+		return map[string]any{}
+	}
+	result := make(map[string]any, len(obj.GetProperties()))
+	for key, val := range obj.GetProperties() {
+		materialized, ok := materializeExampleValue(val)
+		if ok {
+			result[key] = materialized
+		}
+	}
+	return result
+}
+
+// materializeExampleArray converts a proto ExampleArray to a []any,
+// recursively processing each item.
+func materializeExampleArray(arr *mcpoptionsv1.ExampleArray) []any {
+	if arr == nil || len(arr.GetItems()) == 0 {
+		return []any{}
+	}
+	result := make([]any, 0, len(arr.GetItems()))
+	for _, item := range arr.GetItems() {
+		materialized, ok := materializeExampleValue(item)
+		if ok {
+			result = append(result, materialized)
+		}
+	}
+	return result
 }

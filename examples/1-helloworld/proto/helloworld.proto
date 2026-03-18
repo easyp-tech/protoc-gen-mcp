@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package helloworld.api.v1;
+
+import "mcp/options/v1/options.proto";
+
+option go_package = "github.com/easyp-tech/protoc-gen-mcp/examples/1-helloworld/proto;helloworldv1";
+
+service GreeterAPI {
+  option (mcp.options.v1.service) = {
+    namespace: "greeter"
+    description: "A simple greeting service to demonstrate MCP integration."
+  };
+
+  rpc SayHello (SayHelloRequest) returns (SayHelloResponse) {
+    option (mcp.options.v1.method) = {
+      description: "Returns a friendly greeting for the given name."
+    };
+  }
+}
+
+message SayHelloRequest {
+  string name = 1 [(mcp.options.v1.field) = {
+    description: "The name of the person to greet."
+    examples: [{ string_value: "Alice" }]
+  }];
+}
+
+message SayHelloResponse {
+  string message = 1;
+}

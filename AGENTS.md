@@ -24,7 +24,7 @@ current architecture unless explicitly revised.
 - `.goreleaser.yaml`: release packaging for the plugin binary
 - `easyp.yaml`: main repository config for shipped protobuf APIs
 - `easyp.test.yaml`: development and test config for fixture generation
-- `api/mcp/options/v1/options.proto`: custom protobuf options for MCP metadata
+- `mcp/options/v1/options.proto`: custom protobuf options for MCP metadata
 - `internal/codegen`: code generation logic
 - `internal/examplemcp`: reusable example MCP server wiring and stdio smoke test
 - `internal/schema`: protobuf descriptor to JSON Schema conversion
@@ -60,8 +60,8 @@ current architecture unless explicitly revised.
   literals when possible, and fallback examples are synthesized for advanced
   forms such as maps, `Any`, recursive messages, and ProtoJSON special scalar
   encodings
-- `api.mcp.options.v1` must declare its `go_package` directly in
-  `api/mcp/options/v1/options.proto` so downstream Easyp consumers do not need
+- `mcp.options.v1` must declare its `go_package` directly in
+  `mcp/options/v1/options.proto` so downstream Easyp consumers do not need
   a special `go_package_prefix` override
 
 ## Public API
@@ -77,7 +77,11 @@ current architecture unless explicitly revised.
 
 - Implemented:
   - `cmd/protoc-gen-mcp-go` plugin scaffold and generated `*.mcp.go` bindings
-  - custom MCP protobuf options in `api/mcp/options/v1/options.proto`
+  - custom MCP protobuf options in `mcp/options/v1/options.proto`
+  - generated tool metadata includes `ToolAnnotations` (`read_only_hint`, `destructive_hint`, `idempotent_hint`, `open_world_hint`) and `Icon` mappings directly to the Go SDK
+  - dedicated `examples/` directory featuring 4 standalone integration projects spanning quickstarts to complex CRM mocks
+  - support for `oneof` explicit requiredness through `mcp.options.v1.oneof` options
+  - strict schema generation correctly differentiating zero-values (`0`, `0.0`, `""`) using pointer constraints
   - runtime registration and JSON Schema validation in `mcpruntime`
   - descriptor-to-JSON-Schema generation in `internal/schema`
   - support for maps, recursive message schemas, top-level/nested `oneof`, and
@@ -96,7 +100,7 @@ current architecture unless explicitly revised.
     literals so proto comments and examples containing backticks do not break
     generated `*.mcp.go` files
   - Easyp main/test configs without any special managed-mode override for
-    `api.mcp.options.v1`, because the options package declares `go_package`
+    `mcp.options.v1`, because the options package declares `go_package`
     directly in source
   - GitHub Actions CI in `.github/workflows/tests.yml`
   - GoReleaser-based tagged releases in `.github/workflows/release.yml` and
@@ -116,7 +120,7 @@ current architecture unless explicitly revised.
     `bool`, `string`, `bytes`, enum, nested message, repeated scalar, and
     proto3 `optional` scalar/enum fields
 - Verified:
-  - `easyp` lint and generation flows for `api` and `internal/testproto`
+  - `easyp` lint and generation flows for `mcp` and `internal/testproto`
   - `go test ./...`
   - stdio smoke test via `internal/examplemcp/stdio_test.go`
   - client-side schema acceptance checks against advertised `tools/list`
@@ -145,7 +149,7 @@ current architecture unless explicitly revised.
   `easyp.test.yaml` and refresh the matching golden snapshot
 - Repository verification should use `easyp`; avoid ad hoc direct generation
   flows for development checks
-- Keep `api/mcp/options/v1/options.proto` as the source of truth for the
+- Keep `mcp/options/v1/options.proto` as the source of truth for the
   options package `go_package`; do not reintroduce a special Easyp override
   unless the package layout changes again
 
@@ -154,8 +158,8 @@ current architecture unless explicitly revised.
 - Validate configs:
   - `easyp --cfg easyp.yaml validate-config`
   - `easyp --cfg easyp.test.yaml validate-config`
-- Lint shipped protobuf API: `easyp --cfg easyp.yaml lint -p api -r .`
-- Generate shipped protobuf API: `easyp --cfg easyp.yaml generate -p api -r .`
+- Lint shipped protobuf API: `easyp --cfg easyp.yaml lint -p mcp -r .`
+- Generate shipped protobuf API: `easyp --cfg easyp.yaml generate -p mcp -r .`
 - Lint test fixtures: `easyp --cfg easyp.test.yaml lint -p internal/testproto -r .`
 - Generate test fixtures: `easyp --cfg easyp.test.yaml generate -p internal/testproto -r .`
 - Build plugin: `go build ./cmd/protoc-gen-mcp-go`

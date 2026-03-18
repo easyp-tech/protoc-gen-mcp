@@ -4,7 +4,7 @@ package internal.testproto.example.v1;
 
 option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/testproto/example/v1;examplev1";
 
-import "api/mcp/options/v1/options.proto";
+import "mcp/options/v1/options.proto";
 import "google/protobuf/any.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
@@ -15,7 +15,7 @@ import "google/protobuf/wrappers.proto";
 
 // ExampleAPI exposes test MCP tools used by repository tests.
 service ExampleAPI {
-  option (api.mcp.options.v1.service) = {
+  option (mcp.options.v1.service) = {
     namespace: "example"
   };
 
@@ -23,16 +23,15 @@ service ExampleAPI {
   //
   // Example: {"city":"Paris","count":2,"details":{"label":"today"}}
   rpc CreateReport(CreateReportRequest) returns (CreateReportResponse) {
-    option (api.mcp.options.v1.method) = {
+    option (mcp.options.v1.method) = {
       title: "Create report"
       description: "Create a report for a city."
-      examples: "{\"city\":\"Paris\",\"count\":2,\"details\":{\"label\":\"today\"}}"
     };
   }
 
   // Ping returns an empty response.
   rpc Ping(PingRequest) returns (PingResponse) {
-    option (api.mcp.options.v1.method) = {
+    option (mcp.options.v1.method) = {
       name: "Health"
       title: "Health check"
     };
@@ -40,7 +39,7 @@ service ExampleAPI {
 
   // DescribeAdvancedShapes exercises maps and well-known protobuf types.
   rpc DescribeAdvancedShapes(DescribeAdvancedShapesRequest) returns (DescribeAdvancedShapesResponse) {
-    option (api.mcp.options.v1.method) = {
+    option (mcp.options.v1.method) = {
       title: "Describe advanced shapes"
       description: "Exercise maps and well-known protobuf types."
     };
@@ -48,29 +47,39 @@ service ExampleAPI {
 
   // DescribeScalarShapes exercises plain protobuf scalar kinds.
   rpc DescribeScalarShapes(DescribeScalarShapesRequest) returns (DescribeScalarShapesResponse) {
-    option (api.mcp.options.v1.method) = {
+    option (mcp.options.v1.method) = {
       title: "Describe scalar shapes"
       description: "Exercise plain protobuf scalar kinds."
     };
   }
 
   // HiddenThing is intentionally hidden from generated tools.
+  // Note: the `hidden` method option was removed in this iteration.
   rpc HiddenThing(HiddenThingRequest) returns (HiddenThingResponse) {
-    option (api.mcp.options.v1.method) = {
-      hidden: true
-    };
+    option deprecated = true;
   }
 }
 
 // CreateReportRequest describes a report generation request.
 message CreateReportRequest {
   // city is the city name.
-  string city = 1 [(api.mcp.options.v1.field) = {
+  string city = 1 [(mcp.options.v1.field) = {
     description: "City name."
+    examples: [
+      { string_value: "Paris" },
+      { string_value: "London" }
+    ]
+    min_length: 1
+    max_length: 100
+    pattern: "^[A-Z]"
   }];
 
   // count is the number of requested items.
-  int32 count = 2;
+  int32 count = 2 [(mcp.options.v1.field) = {
+    default_value: { number_value: 10 }
+    minimum: 1
+    maximum: 1000
+  }];
 
   // details contains nested report options.
   ReportDetails details = 3;
@@ -79,7 +88,11 @@ message CreateReportRequest {
   optional string units = 4;
 
   // labels adds additional labels.
-  repeated string labels = 5;
+  repeated string labels = 5 [(mcp.options.v1.field) = {
+    min_items: 1
+    max_items: 50
+    unique_items: true
+  }];
 }
 
 // CreateReportResponse describes a report generation result.
@@ -133,63 +146,63 @@ message DescribeAdvancedShapesRequest {
   map<uint64, string> limits = 14;
 
   // observed_at is represented as an RFC 3339 timestamp string.
-  google.protobuf.Timestamp observed_at = 4 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.Timestamp observed_at = 4;
 
   // ttl is represented as a protobuf duration string.
-  google.protobuf.Duration ttl = 5 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.Duration ttl = 5;
 
   // payload accepts arbitrary JSON objects.
-  google.protobuf.Struct payload = 6 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.Struct payload = 6;
 
   // items accepts arbitrary JSON arrays.
-  google.protobuf.ListValue items = 7 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.ListValue items = 7;
 
   // dynamic accepts arbitrary JSON values.
-  google.protobuf.Value dynamic = 8 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.Value dynamic = 8;
 
   // note exercises `StringValue` wrapper support.
-  google.protobuf.StringValue note = 9 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.StringValue note = 9;
 
   // total exercises Int64Value wrapper support.
-  google.protobuf.Int64Value total = 10 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.Int64Value total = 10;
 
   // enabled exercises BoolValue wrapper support.
-  google.protobuf.BoolValue enabled = 11 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.BoolValue enabled = 11;
 
   // ratio exercises ProtoJSON float special values.
-  google.protobuf.DoubleValue ratio = 12 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.DoubleValue ratio = 12;
 
   // mask exercises FieldMask string support.
-  google.protobuf.FieldMask mask = 13 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.FieldMask mask = 13;
 
   // blob exercises BytesValue wrapper support.
-  google.protobuf.BytesValue blob = 15 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.BytesValue blob = 15;
 
   // small_total exercises Int32Value wrapper support.
-  google.protobuf.Int32Value small_total = 16 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.Int32Value small_total = 16;
 
   // uint_total exercises UInt32Value wrapper support.
-  google.protobuf.UInt32Value uint_total = 17 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.UInt32Value uint_total = 17;
 
   // huge_total exercises UInt64Value wrapper support.
-  google.protobuf.UInt64Value huge_total = 18 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.UInt64Value huge_total = 18;
 
   // weight exercises FloatValue wrapper support.
-  google.protobuf.FloatValue weight = 19 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.FloatValue weight = 19;
 
   // raw_ratio exercises raw double ProtoJSON float support.
   optional double raw_ratio = 20;
 
   // tree exercises recursive message schemas.
-  RecursiveNode tree = 24 [(api.mcp.options.v1.field).optional = true];
+  optional RecursiveNode tree = 24;
 
   // detail_any exercises Any with a regular embedded message payload.
   // Example: {"@type":"type.googleapis.com/internal.testproto.example.v1.ReportDetails","label":"from-any"}
-  google.protobuf.Any detail_any = 25 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.Any detail_any = 25;
 
   // duration_any exercises Any with a well-known embedded payload.
   // Example: {"@type":"type.googleapis.com/google.protobuf.Duration","value":"3600s"}
-  google.protobuf.Any duration_any = 26 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.Any duration_any = 26;
 
   // selector exercises top-level oneof support.
   oneof selector {
@@ -219,63 +232,63 @@ message DescribeAdvancedShapesResponse {
   map<uint64, string> limits = 14;
 
   // observed_at is represented as an RFC 3339 timestamp string.
-  google.protobuf.Timestamp observed_at = 4 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.Timestamp observed_at = 4;
 
   // ttl is represented as a protobuf duration string.
-  google.protobuf.Duration ttl = 5 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.Duration ttl = 5;
 
   // payload accepts arbitrary JSON objects.
-  google.protobuf.Struct payload = 6 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.Struct payload = 6;
 
   // items accepts arbitrary JSON arrays.
-  google.protobuf.ListValue items = 7 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.ListValue items = 7;
 
   // dynamic accepts arbitrary JSON values.
-  google.protobuf.Value dynamic = 8 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.Value dynamic = 8;
 
   // note exercises `StringValue` wrapper support.
-  google.protobuf.StringValue note = 9 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.StringValue note = 9;
 
   // total exercises Int64Value wrapper support.
-  google.protobuf.Int64Value total = 10 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.Int64Value total = 10;
 
   // enabled exercises BoolValue wrapper support.
-  google.protobuf.BoolValue enabled = 11 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.BoolValue enabled = 11;
 
   // ratio exercises ProtoJSON float special values.
-  google.protobuf.DoubleValue ratio = 12 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.DoubleValue ratio = 12;
 
   // mask exercises FieldMask string support.
-  google.protobuf.FieldMask mask = 13 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.FieldMask mask = 13;
 
   // blob exercises BytesValue wrapper support.
-  google.protobuf.BytesValue blob = 15 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.BytesValue blob = 15;
 
   // small_total exercises Int32Value wrapper support.
-  google.protobuf.Int32Value small_total = 16 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.Int32Value small_total = 16;
 
   // uint_total exercises UInt32Value wrapper support.
-  google.protobuf.UInt32Value uint_total = 17 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.UInt32Value uint_total = 17;
 
   // huge_total exercises UInt64Value wrapper support.
-  google.protobuf.UInt64Value huge_total = 18 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.UInt64Value huge_total = 18;
 
   // weight exercises FloatValue wrapper support.
-  google.protobuf.FloatValue weight = 19 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.FloatValue weight = 19;
 
   // raw_ratio exercises raw double ProtoJSON float support.
   optional double raw_ratio = 20;
 
   // tree exercises recursive message schemas.
-  RecursiveNode tree = 24 [(api.mcp.options.v1.field).optional = true];
+  optional RecursiveNode tree = 24;
 
   // detail_any exercises Any with a regular embedded message payload.
   // Example: {"@type":"type.googleapis.com/internal.testproto.example.v1.ReportDetails","label":"from-any"}
-  google.protobuf.Any detail_any = 25 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.Any detail_any = 25;
 
   // duration_any exercises Any with a well-known embedded payload.
   // Example: {"@type":"type.googleapis.com/google.protobuf.Duration","value":"3600s"}
-  google.protobuf.Any duration_any = 26 [(api.mcp.options.v1.field).optional = true];
+  optional google.protobuf.Any duration_any = 26;
 
   // selector exercises top-level oneof support.
   oneof selector {
@@ -436,6 +449,11 @@ message DescribeScalarShapesResponse {
 
 // ReportDetails contains nested report options.
 message ReportDetails {
+  option (mcp.options.v1.message) = {
+    title: "Report Details"
+    description: "Nested report configuration options."
+  };
+
   // label is an arbitrary label.
   string label = 1;
 }
@@ -446,7 +464,7 @@ message RecursiveNode {
   string name = 1;
 
   // child points at the next recursive node.
-  RecursiveNode child = 2 [(api.mcp.options.v1.field).optional = true];
+  optional RecursiveNode child = 2;
 
   // children holds repeated recursive nodes.
   repeated RecursiveNode children = 3;
@@ -454,12 +472,23 @@ message RecursiveNode {
 
 // ReportStatus describes the report state.
 enum ReportStatus {
+  option (mcp.options.v1.enum) = {
+    title: "Report Status"
+    description: "Current state of the report."
+  };
+
   // REPORT_STATUS_NONE is the default enum value.
-  REPORT_STATUS_NONE = 0;
+  REPORT_STATUS_NONE = 0 [(mcp.options.v1.enum_value) = {
+    hidden: true
+  }];
 
   // REPORT_STATUS_OK indicates a successful report.
-  REPORT_STATUS_OK = 1;
+  REPORT_STATUS_OK = 1 [(mcp.options.v1.enum_value) = {
+    description: "Report completed successfully."
+  }];
 
   // REPORT_STATUS_FAILED indicates a failed report.
-  REPORT_STATUS_FAILED = 2;
+  REPORT_STATUS_FAILED = 2 [(mcp.options.v1.enum_value) = {
+    description: "Report generation failed."
+  }];
 }

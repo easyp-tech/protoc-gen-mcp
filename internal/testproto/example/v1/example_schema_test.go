@@ -87,8 +87,8 @@ func TestGeneratedSchemasMatchProtoJSONContract(t *testing.T) {
 		}
 
 		status := schema.Properties["status"]
-		if !slices.Equal(status.Enum, []string{"REPORT_STATUS_NONE", "REPORT_STATUS_OK", "REPORT_STATUS_FAILED"}) {
-			t.Fatalf("status.enum = %v, want enum names", status.Enum)
+		if !slices.Equal(status.Enum, []string{"REPORT_STATUS_OK", "REPORT_STATUS_FAILED"}) {
+			t.Fatalf("status.enum = %v, want enum names without hidden NONE", status.Enum)
 		}
 	})
 
@@ -408,8 +408,8 @@ func TestGeneratedSchemasMatchProtoJSONContract(t *testing.T) {
 		if got := schemaTypeString(t, schema.Properties["doubleValue"].AnyOf[0].Type); got != "number" {
 			t.Fatalf("doubleValue.anyOf[0].type = %q, want number", got)
 		}
-		if !slices.Equal(schema.Properties["status"].Enum, []string{"REPORT_STATUS_NONE", "REPORT_STATUS_OK", "REPORT_STATUS_FAILED"}) {
-			t.Fatalf("status.enum = %v, want enum names", schema.Properties["status"].Enum)
+		if !slices.Equal(schema.Properties["status"].Enum, []string{"REPORT_STATUS_OK", "REPORT_STATUS_FAILED"}) {
+			t.Fatalf("status.enum = %v, want enum names without hidden NONE", schema.Properties["status"].Enum)
 		}
 
 		details := schema.Properties["details"]
@@ -480,8 +480,8 @@ func TestGeneratedSchemasMatchProtoJSONContract(t *testing.T) {
 		if len(optionalStatus.AnyOf) != 2 {
 			t.Fatalf("optionalStatus.anyOf length = %d, want 2", len(optionalStatus.AnyOf))
 		}
-		if !slices.Equal(optionalStatus.AnyOf[0].Enum, []string{"REPORT_STATUS_NONE", "REPORT_STATUS_OK", "REPORT_STATUS_FAILED"}) {
-			t.Fatalf("optionalStatus.anyOf[0].enum = %v, want enum names", optionalStatus.AnyOf[0].Enum)
+		if !slices.Equal(optionalStatus.AnyOf[0].Enum, []string{"REPORT_STATUS_OK", "REPORT_STATUS_FAILED"}) {
+			t.Fatalf("optionalStatus.anyOf[0].enum = %v, want enum names without hidden NONE", optionalStatus.AnyOf[0].Enum)
 		}
 		if got := schemaTypeString(t, optionalStatus.AnyOf[1].Type); got != "null" {
 			t.Fatalf("optionalStatus.anyOf[1].type = %q, want null", got)

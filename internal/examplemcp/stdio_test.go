@@ -46,8 +46,8 @@ func TestServerOverStdio(t *testing.T) {
 		toolNames = append(toolNames, tool.Name)
 	}
 	slices.Sort(toolNames)
-	if !slices.Equal(toolNames, []string{"example_CreateReport", "example_DescribeAdvancedShapes", "example_DescribeScalarShapes", "example_Health"}) {
-		t.Fatalf("tool names = %v, want [example_CreateReport example_DescribeAdvancedShapes example_DescribeScalarShapes example_Health]", toolNames)
+	if !slices.Equal(toolNames, []string{"example_CreateReport", "example_DescribeAdvancedShapes", "example_DescribeScalarShapes", "example_Health", "example_HiddenThing"}) {
+		t.Fatalf("tool names = %v, want [example_CreateReport example_DescribeAdvancedShapes example_DescribeScalarShapes example_Health example_HiddenThing]", toolNames)
 	}
 
 	validateToolInputSchema(t, tools.Tools, "example_CreateReport", map[string]any{

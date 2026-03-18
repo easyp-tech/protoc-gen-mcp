@@ -1,0 +1,714 @@
+// Package mcp.options.v1 defines custom protobuf options used by the
+// protoc-gen-mcp-go code generator to annotate services, methods, fields,
+// messages, enums, enum values, and oneofs with MCP-specific metadata.
+//
+// These options are the proto contract between user-authored .proto files and
+// the generator. The generator reads these annotations at code-generation time
+// to produce Go MCP tool bindings, JSON Schema definitions, and runtime
+// registration helpers.
+//
+// This revision aligns the proto contract with MCP spec 2025-11-25, adding
+// ToolAnnotations, Icon, OneofOptions, ExecutionOptions, hidden method
+// support, read-only fields, integer examples, and optional validation
+// constraints.
+//
+// See AGENTS.md at the repository root for the full project context, supported
+// protobuf features, MVP rules, and build/test commands.
+syntax = "proto3";
+
+package mcp.options.v1;
+
+option go_package = "github.com/easyp-tech/protoc-gen-mcp/mcp/options/v1;optionsv1";
+
+import "google/protobuf/descriptor.proto";
+
+// ServiceOptions defines MCP metadata attached to a protobuf service via
+// google.protobuf.ServiceOptions. The generator uses these annotations to
+// control the namespace prefix, description, and default icons for all tools
+// generated for the service's unary RPC methods.
+message ServiceOptions {
+  // namespace is prepended to every generated MCP tool name for this service,
+  // joined with an underscore. Dots and repeated underscores in the value are
+  // normalized to a single underscore.
+  //
+  // Format: plain string (not JSON-encoded).
+  // When absent: the generator derives the namespace from the proto service name.
+  //
+  // Example:
+  //   option (mcp.options.v1.service) = { namespace: "myapp" };
+  //   // Tool names become "myapp_MethodName".
+  string namespace = 1;
+
+  // description overrides the service-level description that the generator
+  // would otherwise infer from leading proto comments on the service
+  // declaration.
+  //
+  // Format: plain string (not JSON-encoded).
+  // When absent: the generator uses the proto source comment on the service.
+  //
+  // Example:
+  //   option (mcp.options.v1.service) = {
+  //     description: "Reporting service for analytics dashboards."
+  //   };
+  string description = 2;
+
+  // icons provides default icons for all tools generated from this service.
+  // Individual method-level icons override these defaults.
+  //
+  // See: MCP spec 2025-11-25, Icon data type.
+  repeated Icon icons = 3;
+}
+
+// MethodOptions defines MCP metadata attached to a protobuf RPC method via
+// google.protobuf.MethodOptions. The generator uses these annotations to
+// control the tool name, title, description, visibility, behavioral hints,
+// icons, and execution semantics of the generated MCP tool.
+//
+// Deprecation: to mark an RPC as deprecated, use the standard protobuf option
+// `option deprecated = true;` on the method. The generator will propagate
+// this to `"deprecated": true` in the tool's JSON Schema.
+//
+// Method-level examples have been replaced by field-level `example` and
+// `examples` annotations in FieldOptions. The generator assembles a
+// composite JSON example by walking the request message's fields.
+message MethodOptions {
+  // name overrides the method segment of the generated MCP tool name.
+  // Dots and repeated underscores in the value are normalized to a single
+  // underscore. The final tool name is "{namespace}_{name}".
+  //
+  // Format: plain string (not JSON-encoded).
+  // When absent: the generator uses the proto RPC method name as-is.
+  //
+  // Example:
+  //   option (mcp.options.v1.method) = { name: "GenerateReport" };
+  string name = 1;
+
+  // title sets the human-readable title of the generated MCP tool, surfaced
+  // to agents and clients in the tool listing.
+  //
+  // Format: plain string (not JSON-encoded).
+  // When absent: the tool has no explicit title; clients may display the tool
+  // name instead.
+  //
+  // Example:
+  //   option (mcp.options.v1.method) = { title: "Create Report" };
+  string title = 2;
+
+  // description overrides the tool description that the generator would
+  // otherwise infer from leading proto comments on the RPC method.
+  //
+  // Format: plain string (not JSON-encoded).
+  // When absent: the generator uses the proto source comment on the RPC.
+  //
+  // Example:
+  //   option (mcp.options.v1.method) = {
+  //     description: "Generates a PDF report for the given date range."
+  //   };
+  string description = 3;
+
+  // hidden suppresses tool generation for this RPC method.
+  // The method will exist in protobuf but will not be exposed as an MCP tool.
+  // Use this when the RPC should remain in the proto contract for
+  // compatibility but must not be called by agents.
+  //
+  // Example:
+  //   rpc InternalDebug(DebugRequest) returns (DebugResponse) {
+  //     option (mcp.options.v1.method) = { hidden: true };
+  //   };
+  bool hidden = 4;
+
+  // annotations provides behavioral hints for the generated MCP tool.
+  // Agents use these hints to decide confirmation prompts, safety checks,
+  // and other UX affordances. All annotation properties are advisory.
+  //
+  // See: MCP spec 2025-11-25, ToolAnnotations.
+  //
+  // Example:
+  //   option (mcp.options.v1.method) = {
+  //     annotations: { read_only_hint: true }
+  //   };
+  ToolAnnotations annotations = 10;
+
+  // icons provides visual identifiers for the generated MCP tool.
+  // Overrides service-level default icons for this specific method.
+  //
+  // See: MCP spec 2025-11-25, Icon data type.
+  repeated Icon icons = 11;
+
+  // execution describes execution-related properties for the tool,
+  // such as task-augmented execution support.
+  //
+  // See: MCP spec 2025-11-25, execution.taskSupport.
+  //
+  // Example:
+  //   option (mcp.options.v1.method) = {
+  //     execution: { task_support: TASK_SUPPORT_OPTIONAL }
+  //   };
+  ExecutionOptions execution = 12;
+}
+
+// FieldOptions defines MCP metadata attached to a protobuf field via
+// google.protobuf.FieldOptions. The generator uses these annotations to enrich
+// the JSON Schema of individual fields with descriptions, examples, defaults,
+// and validation constraints.
+//
+// Requiredness policy: field requiredness in the generated MCP JSON Schema is
+// determined entirely by proto3 syntax — there is no override mechanism in
+// FieldOptions.
+//   - A singular field WITHOUT the `optional` keyword is required.
+//   - A singular field WITH the `optional` keyword is optional.
+//   - `repeated`, `map`, and `oneof` fields are always optional.
+message FieldOptions {
+  // description overrides the field description that the generator would
+  // otherwise infer from leading proto comments on the field declaration.
+  //
+  // Format: plain string (not JSON-encoded).
+  // When absent: the generator uses the proto source comment on the field.
+  //
+  // Example:
+  //   string name = 1 [(mcp.options.v1.field) = {
+  //     description: "Full name of the report recipient."
+  //   }];
+  string description = 1;
+
+  // examples provides multiple typed example values for this field,
+  // included in the field's JSON Schema as `"examples": [<parsed>, ...]`.
+  //
+  // When absent: the generator may synthesize fallback examples for complex
+  // ProtoJSON shapes.
+  //
+  // Example:
+  //   repeated string tags = 3 [(mcp.options.v1.field) = {
+  //     examples: [
+  //       { array_value: { items: [{ string_value: "urgent" }] } }
+  //     ]
+  //   }];
+  repeated ExampleValue examples = 3;
+
+  // default_value provides a typed default value for this field,
+  // included in the field's JSON Schema as `"default": <parsed>`.
+  //
+  // When absent: no `"default"` is emitted in the JSON Schema.
+  //
+  // Example:
+  //   int32 page_size = 4 [(mcp.options.v1.field) = {
+  //     default_value: { number_value: 25 }
+  //   }];
+  ExampleValue default_value = 4;
+
+  // String validation constraints
+
+  // pattern defines a regular expression that the string must match.
+  // Example: "^[A-Z][a-z]+$" for capitalized words
+  string pattern = 10;
+
+  // format defines a semantic format for the string according to JSON Schema.
+  //
+  // Built-in JSON Schema formats natively understood by most validators include:
+  //   - "date-time", "date", "time", "duration"
+  //   - "email", "idn-email"
+  //   - "hostname", "idn-hostname"
+  //   - "ipv4", "ipv6"
+  //   - "uri", "uri-reference", "iri", "iri-reference"
+  //   - "uuid"
+  //   - "regex"
+  //   - "json-pointer", "relative-json-pointer"
+  //
+  // Custom formats are also fully supported. Since MCP schemas are consumed
+  // by LLMs, providing a descriptive custom format (e.g., "cron-expression",
+  // "hex-color", "sql-query") acts as a strong semantic hint for tool payload
+  // generation, even if the format is not strictly validated by JSON Schema.
+  //
+  // See: https://json-schema.org/understanding-json-schema/reference/string.html#format
+  string format = 11;
+
+  // min_length limits the minimum string length (inclusive).
+  // Uses optional to distinguish "not set" from zero.
+  // Example: min_length: 1 means non-empty string
+  optional uint32 min_length = 12;
+
+  // max_length limits the maximum string length (inclusive).
+  // Uses optional to distinguish "not set" from zero.
+  // Example: max_length: 100
+  optional uint32 max_length = 13;
+
+  // Number validation constraints
+
+  // minimum defines the inclusive lower bound for numeric values.
+  // Uses optional to correctly support minimum: 0.
+  // Example: minimum: 0.0 for non-negative numbers
+  optional double minimum = 20;
+
+  // maximum defines the inclusive upper bound for numeric values.
+  // Uses optional to correctly support maximum: 0.
+  // Example: maximum: 100.0
+  optional double maximum = 21;
+
+  // exclusive_minimum defines the strictly greater than lower bound.
+  // Uses optional to correctly support exclusive_minimum: 0.
+  // Example: exclusive_minimum: 0.0 means value must be > 0
+  optional double exclusive_minimum = 22;
+
+  // exclusive_maximum defines the strictly less than upper bound.
+  // Uses optional to correctly support exclusive_maximum: 0.
+  // Example: exclusive_maximum: 100.0 means value must be < 100
+  optional double exclusive_maximum = 23;
+
+  // multiple_of requires the numeric value to be a multiple of this number.
+  // Uses optional to distinguish "not set" from zero.
+  // Example: multiple_of: 0.01 for monetary values (cents precision)
+  optional double multiple_of = 24;
+
+  // Array constraints
+
+  // min_items limits the minimum number of items in a repeated field.
+  // Uses optional to distinguish "not set" from zero.
+  // Example: min_items: 1 means non-empty array
+  optional uint32 min_items = 30;
+
+  // max_items limits the maximum number of items in a repeated field.
+  // Uses optional to distinguish "not set" from zero.
+  // Example: max_items: 10
+  optional uint32 max_items = 31;
+
+  // unique_items indicates whether array elements must be unique.
+  // Example: unique_items: true for a set-like collection
+  bool unique_items = 32;
+
+  // read_only marks the field as read-only in JSON Schema.
+  // Read-only fields are emitted with `"readOnly": true` in the JSON Schema.
+  // Agents should not include read-only fields in tool call arguments.
+  //
+  // Example:
+  //   string id = 1 [(mcp.options.v1.field) = { read_only: true }];
+  bool read_only = 40;
+}
+
+// ExampleValue represents a typed JSON value for examples and defaults
+// without relying on google.protobuf.Value to keep the closure clean.
+//
+// Usage examples:
+//   - String: { string_value: "example" }
+//   - Number: { number_value: 42.5 }
+//   - Integer: { integer_value: 42 }
+//   - Boolean: { bool_value: true }
+//   - Null: { null_value: true }
+//   - Object: { object_value: { properties: { "key": { string_value: "val" } } } }
+//   - Array: { array_value: { items: [{ number_value: 1 }, { number_value: 2 }] } }
+message ExampleValue {
+  // kind represents the underlying type of the example value.
+  oneof kind {
+    // string_value emits a JSON string.
+    string string_value = 1;
+
+    // number_value emits a JSON number (double precision).
+    double number_value = 2;
+
+    // bool_value emits a JSON boolean.
+    bool bool_value = 3;
+
+    // object_value emits a JSON object.
+    ExampleObject object_value = 4;
+
+    // array_value emits a JSON array.
+    ExampleArray array_value = 5;
+
+    // null_value: set to true to emit an explicit JSON null.
+    bool null_value = 6;
+
+    // integer_value emits a JSON integer without floating-point precision loss.
+    // Use this for exact integer examples (e.g., 42 instead of 42.0).
+    int64 integer_value = 7;
+  }
+}
+
+// ExampleObject represents a JSON object structure for examples.
+// Properties are stored as a map from string keys to typed values.
+//
+// Example:
+//   {
+//     properties: {
+//       "name": { string_value: "John" },
+//       "age": { number_value: 30 }
+//     }
+//   }
+message ExampleObject {
+  // properties is a map of property names to typed values.
+  map<string, ExampleValue> properties = 1;
+}
+
+// ExampleArray represents a JSON array structure for examples.
+// Items are stored as a repeated list of typed values.
+//
+// Example:
+//   {
+//     items: [
+//       { string_value: "foo" },
+//       { string_value: "bar" }
+//     ]
+//   }
+message ExampleArray {
+  // items is the list of array elements.
+  repeated ExampleValue items = 1;
+}
+
+// ToolAnnotations provides optional behavioral hints for a generated MCP tool.
+// All fields are advisory — agents may choose to ignore them.
+//
+// See: MCP spec 2025-11-25, ToolAnnotations data type.
+//
+// Example:
+//   option (mcp.options.v1.method) = {
+//     annotations: {
+//       read_only_hint: true
+//       open_world_hint: false
+//     }
+//   };
+message ToolAnnotations {
+  // read_only_hint: if true, the tool does not modify its environment.
+  // Default: false.
+  //
+  // Example: a search or lookup tool that only reads data.
+  bool read_only_hint = 1;
+
+  // destructive_hint: if true, the tool may perform destructive updates
+  // to its environment. If false, the tool performs only additive updates.
+  // Meaningful only when read_only_hint is false.
+  //
+  // Uses optional because the MCP default is true (destructive assumed),
+  // but proto3 zero-value for bool is false — we must distinguish "unset"
+  // from "explicitly false".
+  //
+  // Default: true (when unset, assume destructive).
+  optional bool destructive_hint = 2;
+
+  // idempotent_hint: if true, calling the tool repeatedly with the same
+  // arguments will have no additional effect on its environment.
+  // Meaningful only when read_only_hint is false.
+  // Default: false.
+  bool idempotent_hint = 3;
+
+  // open_world_hint: if true, this tool may interact with an "open world"
+  // of external entities. If false, the tool's domain of interaction is
+  // closed. For example, a web search tool is open-world, whereas a
+  // memory tool is closed-world.
+  //
+  // Uses optional because the MCP default is true (open-world assumed),
+  // but proto3 zero-value for bool is false.
+  //
+  // Default: true (when unset, assume open-world).
+  optional bool open_world_hint = 4;
+
+  // title provides a human-readable title via annotations.
+  // If MethodOptions.title is set, it takes precedence at the top level.
+  string title = 5;
+}
+
+// Icon represents a visual identifier for an MCP entity (tool, service),
+// as defined by the MCP spec Icon data type.
+//
+// See: MCP spec 2025-11-25, Icon.
+//
+// Example:
+//   icons: [{
+//     src: "https://example.com/tool-icon.png"
+//     mime_type: "image/png"
+//     sizes: ["48x48"]
+//   }]
+message Icon {
+  // src is a URI pointing to the icon resource (required).
+  // Must be an HTTPS URL or a data: URI with base64-encoded image data.
+  string src = 1;
+
+  // mime_type provides the MIME type of the icon (optional).
+  // Examples: "image/png", "image/svg+xml", "image/webp".
+  string mime_type = 2;
+
+  // sizes provides size specifications (optional).
+  // Examples: ["48x48"], ["any"] for scalable formats like SVG,
+  // or ["48x48", "96x96"] for multiple sizes.
+  repeated string sizes = 3;
+
+  // theme specifies the intended background theme for this icon (optional).
+  // Values: "light" or "dark".
+  string theme = 4;
+}
+
+// ExecutionOptions describes execution-related properties for a generated
+// MCP tool.
+//
+// See: MCP spec 2025-11-25, execution.taskSupport.
+message ExecutionOptions {
+  // task_support indicates whether this tool supports task-augmented execution.
+  // See: MCP spec 2025-11-25, Tool-Level Negotiation.
+  //
+  // Default: TASK_SUPPORT_FORBIDDEN.
+  TaskSupport task_support = 1;
+}
+
+// TaskSupport enumerates the supported modes for task-augmented tool execution.
+//
+// See: MCP spec 2025-11-25, execution.taskSupport.
+enum TaskSupport {
+  // TASK_SUPPORT_NONE is the default value, equivalent to MCP's
+  // "forbidden" — this tool must not be invoked as a task.
+  TASK_SUPPORT_NONE = 0;
+
+  // TASK_SUPPORT_OPTIONAL means clients may invoke this tool as a task
+  // or as a normal request.
+  TASK_SUPPORT_OPTIONAL = 1;
+
+  // TASK_SUPPORT_REQUIRED means clients must invoke this tool as a task.
+  // The server will return a -32601 error for non-task invocations.
+  TASK_SUPPORT_REQUIRED = 2;
+}
+
+// OneofOptions defines MCP metadata attached to a protobuf oneof group via
+// google.protobuf.OneofOptions. The generator uses these annotations to
+// enrich JSON Schema constraints for oneof groups.
+//
+// Example:
+//   oneof selector {
+//     option (mcp.options.v1.oneof) = {
+//       description: "Choose one identification method."
+//       required: true
+//     };
+//     string email = 1;
+//     string phone = 2;
+//   }
+message OneofOptions {
+  // description provides a human-readable description of the oneof group,
+  // surfaced in the JSON Schema or tool documentation.
+  //
+  // When absent: no description is emitted for the oneof group.
+  string description = 1;
+
+  // required: if true, at least one variant of the oneof must be provided
+  // in the tool call arguments. By default, oneof groups are optional in the
+  // generated MCP schema — the caller may omit all oneof variants.
+  //
+  // Default: false (all variants optional).
+  bool required = 2;
+}
+
+// MessageOptions defines MCP metadata attached to a protobuf message via
+// google.protobuf.MessageOptions. The generator uses these annotations to
+// enrich the JSON Schema of nested message objects with a title, description,
+// and examples.
+message MessageOptions {
+  // title sets the human-readable title for this message's JSON Schema object,
+  // surfaced to agents and clients inspecting the tool's input schema.
+  //
+  // Format: plain string (not JSON-encoded).
+  // When absent: no `"title"` is emitted in the JSON Schema object.
+  //
+  // Example:
+  //   option (mcp.options.v1.message) = { title: "Report Parameters" };
+  string title = 1;
+
+  // description provides a human-readable description for this message's
+  // JSON Schema object.
+  //
+  // Format: plain string (not JSON-encoded).
+  // When absent: the generator may use the proto source comment on the message.
+  //
+  // Example:
+  //   option (mcp.options.v1.message) = {
+  //     description: "Parameters controlling report generation."
+  //   };
+  string description = 2;
+
+  // examples provides typed object examples for this message, included
+  // in the message's JSON Schema as `"examples": [<parsed>, ...]`.
+  //
+  // When absent: no message-level examples are emitted.
+  //
+  // Example:
+  //   option (mcp.options.v1.message) = {
+  //     examples: [{ properties: { "name": { string_value: "Q4 Report" } } }]
+  //   };
+  repeated ExampleObject examples = 3;
+}
+
+// EnumOptions defines MCP metadata attached to a protobuf enum via
+// google.protobuf.EnumOptions. The generator uses these annotations to enrich
+// the JSON Schema of enum types with a title and description.
+message EnumOptions {
+  // title sets the human-readable title for this enum's JSON Schema
+  // representation.
+  //
+  // Format: plain string (not JSON-encoded).
+  // When absent: no `"title"` is emitted in the JSON Schema.
+  //
+  // Example:
+  //   option (mcp.options.v1.enum) = { title: "Report Format" };
+  string title = 1;
+
+  // description provides a human-readable description for this enum's
+  // JSON Schema representation.
+  //
+  // Format: plain string (not JSON-encoded).
+  // When absent: the generator may use the proto source comment on the enum.
+  //
+  // Example:
+  //   option (mcp.options.v1.enum) = {
+  //     description: "Output format for generated reports."
+  //   };
+  string description = 2;
+}
+
+// EnumValueOptions defines MCP metadata attached to an individual protobuf
+// enum value via google.protobuf.EnumValueOptions. The generator uses these
+// annotations to control per-value descriptions and visibility in the
+// generated JSON Schema.
+//
+// A common pattern is to hide sentinel zero-values such as `_UNSPECIFIED` or
+// `_NONE` from the JSON Schema's allowed values list by setting
+// `hidden = true`. This keeps the schema agent-friendly while preserving the
+// proto3 zero-value convention:
+//
+//   enum Status {
+//     STATUS_NONE = 0 [(mcp.options.v1.enum_value) = {
+//       hidden: true
+//     }];
+//     STATUS_ACTIVE = 1;
+//   }
+message EnumValueOptions {
+  // description provides a human-readable description for this enum value,
+  // included in the JSON Schema alongside the value.
+  //
+  // Format: plain string (not JSON-encoded).
+  // When absent: no description is emitted for this enum value.
+  //
+  // Example:
+  //   STATUS_ACTIVE = 1 [(mcp.options.v1.enum_value) = {
+  //     description: "The resource is active and available."
+  //   }];
+  string description = 1;
+
+  // hidden excludes this enum value from the JSON Schema's list of allowed
+  // values. Typically used for sentinel zero-values (`_UNSPECIFIED`, `_NONE`)
+  // that should not be presented to agents or clients.
+  //
+  // Format: boolean.
+  // When absent (false): the enum value is included in the schema.
+  //
+  // Example:
+  //   STATUS_NONE = 0 [(mcp.options.v1.enum_value) = {
+  //     hidden: true
+  //   }];
+  bool hidden = 2;
+}
+
+// Extend google.protobuf.ServiceOptions to attach MCP service metadata.
+//
+// Usage in a user proto file:
+//
+//   service ReportAPI {
+//     option (mcp.options.v1.service) = {
+//       namespace: "reports"
+//       description: "Analytics reporting service."
+//     };
+//     rpc CreateReport(CreateReportRequest) returns (CreateReportResponse);
+//   }
+extend google.protobuf.ServiceOptions {
+  // service stores MCP metadata for a protobuf service.
+  ServiceOptions service = 91001;
+}
+
+// Extend google.protobuf.MethodOptions to attach MCP method metadata.
+//
+// Usage in a user proto file:
+//
+//   rpc CreateReport(CreateReportRequest) returns (CreateReportResponse) {
+//     option (mcp.options.v1.method) = {
+//       title: "Create Report"
+//       description: "Generates a new analytics report."
+//       annotations: { read_only_hint: false destructive_hint: false }
+//     };
+//   }
+extend google.protobuf.MethodOptions {
+  // method stores MCP metadata for a protobuf RPC method.
+  MethodOptions method = 91002;
+}
+
+// Extend google.protobuf.FieldOptions to attach MCP field metadata.
+//
+// Usage in a user proto file:
+//
+//   string report_name = 1 [(mcp.options.v1.field) = {
+//     description: "Human-readable name for the report."
+//     examples: [{ string_value: "Q4 Revenue Summary" }]
+//     default_value: { string_value: "Untitled Report" }
+//   }];
+extend google.protobuf.FieldOptions {
+  // field stores MCP metadata for a protobuf field.
+  FieldOptions field = 91003;
+}
+
+// Extend google.protobuf.MessageOptions to attach MCP message metadata.
+//
+// Usage in a user proto file:
+//
+//   message ReportParams {
+//     option (mcp.options.v1.message) = {
+//       title: "Report Parameters"
+//       description: "Controls report generation behavior."
+//     };
+//     string name = 1;
+//   }
+extend google.protobuf.MessageOptions {
+  // message stores MCP metadata for a protobuf message.
+  MessageOptions message = 91004;
+}
+
+// Extend google.protobuf.EnumOptions to attach MCP enum metadata.
+//
+// Usage in a user proto file:
+//
+//   enum ReportFormat {
+//     option (mcp.options.v1.enum) = {
+//       title: "Report Format"
+//       description: "Output format for generated reports."
+//     };
+//     REPORT_FORMAT_NONE = 0;
+//     REPORT_FORMAT_PDF = 1;
+//   }
+extend google.protobuf.EnumOptions {
+  // enum stores MCP metadata for a protobuf enum.
+  EnumOptions enum = 91005;
+}
+
+// Extend google.protobuf.EnumValueOptions to attach MCP enum value metadata.
+//
+// Usage in a user proto file:
+//
+//   enum Status {
+//     STATUS_NONE = 0 [(mcp.options.v1.enum_value) = {
+//       hidden: true
+//     }];
+//     STATUS_ACTIVE = 1 [(mcp.options.v1.enum_value) = {
+//       description: "The resource is active."
+//     }];
+//   }
+extend google.protobuf.EnumValueOptions {
+  // enum_value stores MCP metadata for a protobuf enum value.
+  EnumValueOptions enum_value = 91006;
+}
+
+// Extend google.protobuf.OneofOptions to attach MCP oneof group metadata.
+//
+// Usage in a user proto file:
+//
+//   oneof selector {
+//     option (mcp.options.v1.oneof) = {
+//       description: "Choose one identification method."
+//       required: true
+//     };
+//     string email = 1;
+//     string phone = 2;
+//   }
+extend google.protobuf.OneofOptions {
+  // oneof stores MCP metadata for a protobuf oneof group.
+  OneofOptions oneof = 91007;
+}

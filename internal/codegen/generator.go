@@ -2,8 +2,10 @@ package codegen
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/easyp-tech/protoc-gen-mcp/internal/schema"
+	mcpoptionsv1 "github.com/easyp-tech/protoc-gen-mcp/mcp/options/v1"
 	"github.com/google/jsonschema-go/jsonschema"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -15,14 +17,18 @@ type methodSpec struct {
 	Title            string
 	Description      string
 	Examples         []string
+	Deprecated       bool
 	InputSchemaJSON  string
 	OutputSchemaJSON string
+	Annotations      *mcpoptionsv1.ToolAnnotations
+	Icons            []*mcpoptionsv1.Icon
 }
 
 type serviceSpec struct {
 	Service     *protogen.Service
 	Namespace   string
 	Description string
+	Icons       []*mcpoptionsv1.Icon
 	Methods     []methodSpec
 }
 
@@ -66,6 +72,7 @@ func collectFileSpecs(file *protogen.File) ([]serviceSpec, error) {
 			Service:     service,
 			Namespace:   serviceMetadata.Namespace,
 			Description: serviceMetadata.Description,
+			Icons:       serviceMetadata.Icons,
 		}
 
 		for _, method := range service.Methods {
@@ -92,6 +99,10 @@ func collectFileSpecs(file *protogen.File) ([]serviceSpec, error) {
 				}
 			}
 
+			if methodMetadata.Deprecated {
+				inputSchema.Deprecated = true
+			}
+
 			outputSchema, err := generateSchema(method.Output)
 			if err != nil {
 				return nil, fmt.Errorf("output schema for %s: %w", method.Desc.FullName(), err)
@@ -112,13 +123,24 @@ func collectFileSpecs(file *protogen.File) ([]serviceSpec, error) {
 				Title:            methodMetadata.Title,
 				Description:      methodMetadata.Description,
 				Examples:         methodMetadata.Examples,
+				Deprecated:       methodMetadata.Deprecated,
 				InputSchemaJSON:  inputSchemaJSON,
 				OutputSchemaJSON: outputSchemaJSON,
+				Annotations:      methodMetadata.Annotations,
+				Icons:            methodMetadata.Icons,
 			})
 		}
 
 		if len(spec.Methods) > 0 {
 			serviceSpecs = append(serviceSpecs, spec)
+		}
+	}
+
+	for i := range serviceSpecs {
+		for j := range serviceSpecs[i].Methods {
+			if len(serviceSpecs[i].Methods[j].Icons) == 0 {
+				serviceSpecs[i].Methods[j].Icons = serviceSpecs[i].Icons
+			}
 		}
 	}
 
@@ -130,10 +152,16 @@ func generateSchema(message *protogen.Message) (*jsonschema.Schema, error) {
 
 	generatedSchema, err := schema.GenerateMessageSchema(message, schema.Options{
 		MessageMetadata: func(current *protogen.Message) schema.Metadata {
+			metadata, err := loadMessageMetadata(current)
+			if err != nil && fieldErr == nil {
+				fieldErr = err
+			}
 			commentMetadata := parseCommentBlock(current.Comments.Leading)
 			return schema.Metadata{
-				Description: commentMetadata.Description,
-				Examples:    commentMetadata.Examples,
+				Title:         metadata.Title,
+				Description:   metadata.Description,
+				Examples:      commentMetadata.Examples,
+				TypedExamples: metadata.TypedExamples,
 			}
 		},
 		FieldMetadata: func(field *protogen.Field) schema.FieldMetadata {
@@ -142,6 +170,26 @@ func generateSchema(message *protogen.Message) (*jsonschema.Schema, error) {
 				fieldErr = err
 			}
 			return metadata.FieldMetadata
+		},
+		EnumMetadata: func(enum *protogen.Enum) schema.EnumMetadata {
+			metadata, err := loadEnumMetadata(enum)
+			if err != nil && fieldErr == nil {
+				fieldErr = err
+			}
+			return schema.EnumMetadata{
+				Title:       metadata.Title,
+				Description: metadata.Description,
+			}
+		},
+		EnumValueMetadata: func(enumValue *protogen.EnumValue) schema.EnumValueMetadata {
+			metadata, err := loadEnumValueMetadata(enumValue)
+			if err != nil && fieldErr == nil {
+				fieldErr = err
+			}
+			return schema.EnumValueMetadata{
+				Description: metadata.Description,
+				Hidden:      metadata.Hidden,
+			}
 		},
 	})
 	if err != nil {
@@ -199,6 +247,8 @@ func generateFile(plugin *protogen.Plugin, file *protogen.File, services []servi
 			generated.P("Namespace: ", quote(service.Namespace), ",")
 			generated.P("InputSchemaJSON: ", specName, "InputSchemaJSON,")
 			generated.P("OutputSchemaJSON: ", specName, "OutputSchemaJSON,")
+			generated.P("Annotations: ", stringifyAnnotations(generated, method.Annotations), ",")
+			generated.P("Icons: ", stringifyIcons(generated, method.Icons), ",")
 			generated.P("NewRequest: func() *", generated.QualifiedGoIdent(method.Method.Input.GoIdent), " { return &", generated.QualifiedGoIdent(method.Method.Input.GoIdent), "{} },")
 			generated.P("NewResponse: func() *", generated.QualifiedGoIdent(method.Method.Output.GoIdent), " { return &", generated.QualifiedGoIdent(method.Method.Output.GoIdent), "{} },")
 			generated.P("Handler: impl.", method.Method.GoName, ",")
@@ -224,4 +274,55 @@ func generateFile(plugin *protogen.Plugin, file *protogen.File, services []servi
 
 func quote(value string) string {
 	return fmt.Sprintf("%q", value)
+}
+
+func stringifyAnnotations(generated *protogen.GeneratedFile, ann *mcpoptionsv1.ToolAnnotations) string {
+	if ann == nil {
+		return "nil"
+	}
+	mcpAnnIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("ToolAnnotations"))
+	
+	var fields []string
+	if ann.DestructiveHint != nil {
+		protoBoolIdent := generated.QualifiedGoIdent(protogen.GoImportPath("google.golang.org/protobuf/proto").Ident("Bool"))
+		fields = append(fields, fmt.Sprintf("DestructiveHint: %s(%t),", protoBoolIdent, *ann.DestructiveHint))
+	}
+	if ann.IdempotentHint != false {
+		fields = append(fields, fmt.Sprintf("IdempotentHint: %t,", ann.IdempotentHint))
+	}
+	if ann.OpenWorldHint != nil {
+		protoBoolIdent := generated.QualifiedGoIdent(protogen.GoImportPath("google.golang.org/protobuf/proto").Ident("Bool"))
+		fields = append(fields, fmt.Sprintf("OpenWorldHint: %s(%t),", protoBoolIdent, *ann.OpenWorldHint))
+	}
+	if ann.Title != "" {
+		protoStringIdent := generated.QualifiedGoIdent(protogen.GoImportPath("google.golang.org/protobuf/proto").Ident("String"))
+		fields = append(fields, fmt.Sprintf("Title: %s(%q),", protoStringIdent, ann.Title))
+	}
+	
+	if len(fields) == 0 {
+		return "&" + mcpAnnIdent + "{}"
+	}
+	return "&" + mcpAnnIdent + "{" + strings.Join(fields, " ") + "}"
+}
+
+func stringifyIcons(generated *protogen.GeneratedFile, icons []*mcpoptionsv1.Icon) string {
+	if len(icons) == 0 {
+		return "nil"
+	}
+	mcpIconIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("Icon"))
+
+	var items []string
+	for _, icon := range icons {
+		sizesStr := "nil"
+		if len(icon.GetSizes()) > 0 {
+			var quotedSizes []string
+			for _, s := range icon.GetSizes() {
+				quotedSizes = append(quotedSizes, fmt.Sprintf("%q", s))
+			}
+			sizesStr = "[]string{" + strings.Join(quotedSizes, ", ") + "}"
+		}
+		items = append(items, fmt.Sprintf("%s{Source: %q, MIMEType: %q, Sizes: %s, Theme: %q},",
+			mcpIconIdent, icon.GetSrc(), icon.GetMimeType(), sizesStr, icon.GetTheme()))
+	}
+	return "[]" + mcpIconIdent + "{" + strings.Join(items, " ") + "}"
 }
