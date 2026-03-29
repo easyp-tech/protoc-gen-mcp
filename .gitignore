@@ -35,3 +35,10 @@ go.work.sum
 /example-mcp-server
 /protoc-gen-mcp
 dist/
+
+# Example server binaries
+examples/1-helloworld/helloworld-server
+examples/2-weather-api/weather-server
+examples/3-file-manager/file-server
+examples/4-crm-system/crm-server
+.DS_Store
