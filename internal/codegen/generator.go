@@ -281,7 +281,7 @@ func stringifyAnnotations(generated *protogen.GeneratedFile, ann *mcpoptionsv1.T
 		return "nil"
 	}
 	mcpAnnIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("ToolAnnotations"))
-	
+
 	var fields []string
 	if ann.DestructiveHint != nil {
 		protoBoolIdent := generated.QualifiedGoIdent(protogen.GoImportPath("google.golang.org/protobuf/proto").Ident("Bool"))
@@ -298,7 +298,7 @@ func stringifyAnnotations(generated *protogen.GeneratedFile, ann *mcpoptionsv1.T
 		protoStringIdent := generated.QualifiedGoIdent(protogen.GoImportPath("google.golang.org/protobuf/proto").Ident("String"))
 		fields = append(fields, fmt.Sprintf("Title: %s(%q),", protoStringIdent, ann.Title))
 	}
-	
+
 	if len(fields) == 0 {
 		return "&" + mcpAnnIdent + "{}"
 	}
