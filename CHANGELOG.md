@@ -16,7 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Agent skill for [skills.sh](https://skills.sh) in `skills/protoc-gen-mcp/`
+- Agent skill for [skills.sh](https://skills.sh) in a dedicated repository
+  [easyp-tech/protoc-gen-mcp-skill](https://github.com/easyp-tech/protoc-gen-mcp-skill)
   that teaches AI agents how to build MCP servers with this tool.
 - Internal developer skill in `.github/skills/protoc-gen-mcp/` with
   troubleshooting and schema generation references.

@@ -70,8 +70,11 @@ Install the [skills.sh](https://skills.sh/) agent skill to let your AI coding
 assistant build MCP servers with protoc-gen-mcp:
 
 ```bash
-npx skills add easyp-tech/protoc-gen-mcp
+npx skills add easyp-tech/protoc-gen-mcp-skill
 ```
+
+The skill source lives in a separate repository:
+[easyp-tech/protoc-gen-mcp-skill](https://github.com/easyp-tech/protoc-gen-mcp-skill).
 
 The skill teaches agents the full workflow: define proto → configure easyp →
 generate → implement handler → serve. It covers proto options, requiredness
