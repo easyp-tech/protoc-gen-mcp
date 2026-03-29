@@ -46,7 +46,7 @@ generate:
       out: .
       opts:
         paths: source_relative
-    - command: ["go", "run", "../cmd/protoc-gen-mcp-go"]
+    - command: ["go", "run", "../cmd/protoc-gen-mcp"]
       out: .
       opts:
         paths: source_relative

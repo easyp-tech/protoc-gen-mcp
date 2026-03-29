@@ -33,4 +33,5 @@ go.work.sum
 
 # Local binaries and release artifacts
 /example-mcp-server
+/protoc-gen-mcp
 dist/

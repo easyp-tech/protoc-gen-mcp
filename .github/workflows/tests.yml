@@ -30,12 +30,12 @@ jobs:
 
       - name: Lint protobuf packages
         run: |
-          easyp --cfg easyp.yaml lint -p api -r .
+          easyp --cfg easyp.yaml lint -p mcp -r .
           easyp --cfg easyp.test.yaml lint -p internal/testproto -r .
 
       - name: Regenerate protobuf packages
         run: |
-          easyp --cfg easyp.yaml generate -p api -r .
+          easyp --cfg easyp.yaml generate -p mcp -r .
           easyp --cfg easyp.test.yaml generate -p internal/testproto -r .
 
       - name: Verify generated files are up to date

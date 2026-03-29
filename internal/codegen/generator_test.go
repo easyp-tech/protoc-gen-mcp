@@ -67,7 +67,7 @@ func TestEasypGenerateUnsupportedFails(t *testing.T) {
 		"        path: testdata/unsupported",
 		"        root: \".\"",
 		"  plugins:",
-		"    - command: [\"go\", \"run\", \"./cmd/protoc-gen-mcp-go\"]",
+		"    - command: [\"go\", \"run\", \"./cmd/protoc-gen-mcp\"]",
 		"      out: .",
 		"      opts:",
 		"        paths: source_relative",

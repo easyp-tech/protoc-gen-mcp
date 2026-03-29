@@ -36,7 +36,7 @@ and runs config validation, Easyp lint, Easyp generation, a generated-file
 freshness check, and `go test ./...`. Releases are implemented in
 [release.yml](.github/workflows/release.yml)
 and use [`.goreleaser.yaml`](.goreleaser.yaml)
-to publish tagged builds of `protoc-gen-mcp-go`.
+to publish tagged builds of `protoc-gen-mcp`.
 
 ## Test MCP Server
 
@@ -64,10 +64,23 @@ We provide several standalone, runnable examples demonstrating the power of gene
 - [3-file-manager](examples/3-file-manager/) - Destructive tools and schema-based string parameter constraints.
 - [4-crm-system](examples/4-crm-system/) - A full mock system with FieldMask partial updates, custom icons mapping, schemas nested types, and advanced array filters.
 
+## Agent Skill
+
+Install the [skills.sh](https://skills.sh/) agent skill to let your AI coding
+assistant build MCP servers with protoc-gen-mcp:
+
+```bash
+npx skills add easyp-tech/protoc-gen-mcp
+```
+
+The skill teaches agents the full workflow: define proto → configure easyp →
+generate → implement handler → serve. It covers proto options, requiredness
+policy, ProtoJSON contract, and common patterns.
+
 ## Generation With Easyp
 
 The intended workflow is `easyp`, not manual `protoc` invocation. `easyp`
-drives both `protoc-gen-go` and `protoc-gen-mcp-go` with the same repository
+drives both `protoc-gen-go` and `protoc-gen-mcp` with the same repository
 config.
 
 Example `easyp.yaml`:
@@ -90,7 +103,7 @@ generate:
       out: .
       opts:
         paths: source_relative
-    - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp-go@latest"]
+    - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@latest"]
       out: .
       opts:
         paths: source_relative

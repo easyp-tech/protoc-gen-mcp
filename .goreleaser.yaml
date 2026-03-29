@@ -3,9 +3,9 @@ version: 2
 project_name: protoc-gen-mcp
 
 builds:
-  - id: protoc-gen-mcp-go
-    binary: protoc-gen-mcp-go
-    main: ./cmd/protoc-gen-mcp-go
+  - id: protoc-gen-mcp
+    binary: protoc-gen-mcp
+    main: ./cmd/protoc-gen-mcp
     flags:
       - -trimpath
     env:
@@ -19,9 +19,9 @@ builds:
       - arm64
 
 archives:
-  - id: protoc-gen-mcp-go
+  - id: protoc-gen-mcp
     ids:
-      - protoc-gen-mcp-go
+      - protoc-gen-mcp
     formats:
       - tar.gz
     format_overrides:

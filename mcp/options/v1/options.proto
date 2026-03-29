@@ -1,5 +1,5 @@
 // Package mcp.options.v1 defines custom protobuf options used by the
-// protoc-gen-mcp-go code generator to annotate services, methods, fields,
+// protoc-gen-mcp code generator to annotate services, methods, fields,
 // messages, enums, enum values, and oneofs with MCP-specific metadata.
 //
 // These options are the proto contract between user-authored .proto files and

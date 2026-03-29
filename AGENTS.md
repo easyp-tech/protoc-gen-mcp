@@ -17,7 +17,7 @@ current architecture unless explicitly revised.
 
 ## Layout
 
-- `cmd/protoc-gen-mcp-go`: protoc plugin entrypoint for `--mcp-go_out`
+- `cmd/protoc-gen-mcp`: protoc plugin entrypoint for `--mcp_out`
 - `cmd/example-mcp-server`: runnable stdio MCP server for manual agent/client checks
 - `mcpruntime`: public runtime helpers used by generated code
 - `.github/workflows`: GitHub Actions CI and release workflows
@@ -76,7 +76,7 @@ current architecture unless explicitly revised.
 ## Current Status
 
 - Implemented:
-  - `cmd/protoc-gen-mcp-go` plugin scaffold and generated `*.mcp.go` bindings
+  - `cmd/protoc-gen-mcp` plugin scaffold and generated `*.mcp.go` bindings
   - custom MCP protobuf options in `mcp/options/v1/options.proto`
   - generated tool metadata includes `ToolAnnotations` (`read_only_hint`, `destructive_hint`, `idempotent_hint`, `open_world_hint`) and `Icon` mappings directly to the Go SDK
   - dedicated `examples/` directory featuring 4 standalone integration projects spanning quickstarts to complex CRM mocks
@@ -162,7 +162,7 @@ current architecture unless explicitly revised.
 - Generate shipped protobuf API: `easyp --cfg easyp.yaml generate -p mcp -r .`
 - Lint test fixtures: `easyp --cfg easyp.test.yaml lint -p internal/testproto -r .`
 - Generate test fixtures: `easyp --cfg easyp.test.yaml generate -p internal/testproto -r .`
-- Build plugin: `go build ./cmd/protoc-gen-mcp-go`
+- Build plugin: `go build ./cmd/protoc-gen-mcp`
 - Validate GoReleaser config: `goreleaser check`
 - Build example MCP server binary:
   - `go build -o example-mcp-server ./cmd/example-mcp-server/main.go`
