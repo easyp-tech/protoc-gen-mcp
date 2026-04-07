@@ -54,6 +54,12 @@ Language selection is explicit through plugin options:
 - `lang=go`
 - `lang=python`
 
+Backward compatibility rule:
+
+- if `lang` is omitted, generation defaults to `go`
+- `lang=go` preserves the current plugin behavior
+- `lang=python` selects the Python renderer
+
 Python runtime selection is also explicit through plugin options:
 
 - `python_runtime=google.protobuf`
@@ -64,12 +70,35 @@ Only `python_runtime=google.protobuf` is supported in the MVP. The other
 declared values are reserved for future expansion and must fail fast during
 generation with a clear error.
 
+Runtime option compatibility rule:
+
+- if `lang=python` and `python_runtime` is omitted, it defaults to
+  `google.protobuf`
+- if `lang=go`, any supplied `python_runtime` value is a generation error
+
 ### Python Baseline
 
 The Python target supports `Python 3.10+`.
 
 This matches the minimum version supported by the official MCP Python SDK and
 keeps the generated code aligned with the SDK's asynchronous server model.
+
+### Official MCP SDK Target
+
+The MVP pins the Python MCP dependency contract to:
+
+- package: `mcp`
+- supported version range for generated-code compatibility: `>=1.27,<2`
+
+The generated code targets the low-level API surface from that SDK:
+
+- `mcp.server.Server`
+- `mcp.shared.context.RequestContext`
+- `mcp.types.Tool`
+- `mcp.types.CallToolResult`
+- `mcp.types.TextContent`
+
+The MVP does not target `FastMCP` or any higher-level wrapper API.
 
 ### Python Runtime Model
 
@@ -79,10 +108,13 @@ dependencies such as:
 
 - the official MCP Python SDK
 - standard `google.protobuf` generated modules and JSON formatting helpers
-- a JSON Schema validator selected by the implementation
+- the `jsonschema` Python package used for JSON Schema validation
 
 The generated `*_mcp.py` module must not import a repository-owned installable
 Python runtime package.
+
+The generated code assumes that standard protobuf Python output and MCP Python
+output share the same output root and package structure.
 
 ### Handler Model
 
@@ -90,17 +122,34 @@ The generated Python API mirrors the Go DX model instead of Go syntax.
 
 Each generated module exports:
 
-- a typed handler contract for the service methods
-- schema JSON constants for each generated tool
-- `register_<service>_tools(server, impl, opts=None)` or equivalent idiomatic
-  Python registration helper
+- a typed `Protocol` named `<ServiceName>ToolHandler`
+- a type alias `ToolRequestContext` for the concrete official MCP Python SDK
+  request context type used by generated handlers
+- module-level schema JSON constants in upper snake case:
+  `<SERVICE_NAME>_<METHOD_NAME>_INPUT_SCHEMA_JSON` and
+  `<SERVICE_NAME>_<METHOD_NAME>_OUTPUT_SCHEMA_JSON`
+- a registration helper named `register_<service_name>_tools`
 
 The registration helper accepts:
 
 - a server instance from the official low-level MCP Python SDK
 - a handler implementation object
-- optional registration options if the Python target needs the same namespace
-  override behavior as Go
+- a keyword-only `namespace: str | None = None` override
+
+The namespace keyword is required in MVP and is the Python equivalent of Go
+`mcpruntime.WithNamespace`:
+
+- `None` means use the generated default namespace
+- a provided string is trimmed, normalized, and used instead of the generated
+  namespace
+- normalization rules must match the Go runtime exactly
+
+The generated handler protocol is explicit:
+
+- the protocol name is `<ServiceName>ToolHandler`
+- handler method names are the proto RPC method names converted to snake case
+- each method signature is:
+  `def method(self, ctx: ToolRequestContext, req: <RequestMessage>) -> <ResponseMessage> | Awaitable[<ResponseMessage>]`
 
 The generated glue must accept both synchronous and asynchronous handler
 methods. The surrounding server model remains asynchronous because that is the
@@ -148,17 +197,47 @@ ProtoJSON-driven schema semantics.
 The existing Go target is migrated to render from the same shared IR so both
 languages depend on the same semantic decisions.
 
+### Python Server Composition Model
+
+The official low-level MCP Python SDK exposes one `tools/list` handler and one
+`tools/call` handler per server. Therefore, the Python target cannot register
+each generated service independently through isolated decorator state.
+
+Instead, generated Python modules cooperate through a server-scoped internal
+registry:
+
+- the first `register_<service_name>_tools(...)` call installs shared
+  `tools/list` and `tools/call` handlers onto the server
+- subsequent registration calls add tool definitions and dispatch callbacks into
+  that same registry
+- duplicate tool names on the same server fail fast, matching the Go runtime
+
+This preserves the Go-style workflow where multiple generated registration
+helpers can target the same server instance.
+
 ## Python Generated API
 
 For a proto file `foo.proto`, the Python target emits `foo_mcp.py` alongside
 the standard protobuf-generated `foo_pb2.py`.
 
+Output/import contract for MVP:
+
+- the Python protobuf generator and `protoc-gen-mcp` with `lang=python` must
+  write into the same Python package tree
+- if protobuf generation creates `pkg/foo_pb2.py`, MCP generation creates
+  `pkg/foo_mcp.py`
+- `foo_mcp.py` imports the corresponding `foo_pb2` module using that same
+  package/module path
+- generating `*_pb2.py` and `*_mcp.py` into different output roots is out of
+  scope for MVP
+
 The generated module contains:
 
-- tool schema JSON constants
-- helper functions for JSON Schema loading and validation
+- tool schema JSON constants as module-level strings
+- helper functions for JSON Schema loading and validation using the `jsonschema`
+  package
 - helper functions for ProtoJSON parsing and serialization
-- a service handler contract
+- a `Protocol`-based service handler contract
 - a registration function that binds protobuf-backed MCP tools onto the
   official low-level MCP server
 
@@ -181,18 +260,28 @@ It must preserve:
 - annotations and icons
 - hidden method suppression
 - deprecated schema marking
+- namespace override behavior through the `namespace=` keyword argument
+
+Registration API shape is fixed for MVP:
+
+- function name: `register_<service_name>_tools`
+- return type: `None`
+- keyword override surface: `namespace: str | None = None`
+- no variadic Python option callbacks in MVP
 
 ### Request Flow
 
 For each tool call:
 
 1. collect raw MCP tool arguments
-2. validate arguments against the generated input JSON Schema
+2. validate arguments against the generated input JSON Schema with the
+   `jsonschema` package
 3. parse arguments into the appropriate protobuf request message using official
    `google.protobuf` ProtoJSON behavior
 4. invoke the handler implementation
 5. serialize the protobuf response back to ProtoJSON
-6. validate the serialized JSON against the generated output schema
+6. validate the serialized JSON against the generated output schema with the
+   `jsonschema` package
 7. return both text content and structured content consistent with the Go
    target
 
@@ -202,8 +291,19 @@ The Python target must match the Go target's behavior at the MCP boundary:
 
 - invalid input schema data becomes an invalid-params style MCP error
 - ProtoJSON parse failures become invalid-params style MCP errors
-- business logic errors returned by the handler become tool error results
+- any exception raised by the user handler becomes a tool error result
 - output schema mismatches fail as server-side runtime errors
+
+Python handler error contract:
+
+- handler methods return only a protobuf response value or an awaitable
+  resolving to that value
+- handler methods do not return an error object
+- user/business errors are represented by raising exceptions
+- generated runtime catches exceptions raised from the handler invocation and
+  converts them into tool error results
+- generated runtime does not convert its own schema/ProtoJSON/registration
+  failures into tool error results
 
 ### Sync And Async Handlers
 
