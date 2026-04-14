@@ -414,6 +414,54 @@ func TestGenerate_PythonUnsupportedDescriptorFails(t *testing.T) {
 	}
 }
 
+func TestGenerate_JVMUnsupportedDescriptorFailsBeforeOutput(t *testing.T) {
+	tests := []struct {
+		name     string
+		language Language
+	}{
+		{
+			name:     "kotlin",
+			language: LanguageKotlin,
+		},
+		{
+			name:     "java",
+			language: LanguageJava,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plugin := newTempProtogenPlugin(t, map[string]string{
+				"test/v1/unsupported.proto": strings.Join([]string{
+					`syntax = "proto3";`,
+					`package test.v1;`,
+					`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/unsupported;unsupportedv1";`,
+					`import "google/protobuf/type.proto";`,
+					`message BuildUnsupportedRequest {`,
+					`  google.protobuf.Type payload = 1;`,
+					`}`,
+					`message BuildUnsupportedResponse {}`,
+					`service UnsupportedAPI {`,
+					`  rpc BuildUnsupported(BuildUnsupportedRequest) returns (BuildUnsupportedResponse);`,
+					`}`,
+					"",
+				}, "\n"),
+			}, "test/v1/unsupported.proto")
+
+			err := Generate(plugin, Options{Language: tt.language})
+			if err == nil {
+				t.Fatal("Generate unexpectedly succeeded")
+			}
+			if !strings.Contains(err.Error(), `well-known type "google.protobuf.Type" is not supported`) {
+				t.Fatalf("unexpected generator failure: %v", err)
+			}
+			if len(plugin.Response().GetFile()) != 0 {
+				t.Fatalf("JVM unsupported descriptor emitted %d files, want 0", len(plugin.Response().GetFile()))
+			}
+		})
+	}
+}
+
 func TestGenerate_PythonUnsupportedRuntimeBetterprotoFails(t *testing.T) {
 	root := repoRoot(t)
 
@@ -493,6 +541,51 @@ func TestGenerate_PythonStreamingRPCFails(t *testing.T) {
 
 	if !strings.Contains(err.Error(), `streaming RPC is not supported`) {
 		t.Fatalf("unexpected generator failure: %v", err)
+	}
+}
+
+func TestGenerate_JVMStreamingRPCFailsBeforeOutput(t *testing.T) {
+	tests := []struct {
+		name     string
+		language Language
+	}{
+		{
+			name:     "kotlin",
+			language: LanguageKotlin,
+		},
+		{
+			name:     "java",
+			language: LanguageJava,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plugin := newTempProtogenPlugin(t, map[string]string{
+				"test/v1/streaming.proto": strings.Join([]string{
+					`syntax = "proto3";`,
+					`package test.v1;`,
+					`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/streaming;streamingv1";`,
+					`message StreamingRequest {}`,
+					`message StreamingResponse {}`,
+					`service StreamingAPI {`,
+					`  rpc Watch(StreamingRequest) returns (stream StreamingResponse);`,
+					`}`,
+					"",
+				}, "\n"),
+			}, "test/v1/streaming.proto")
+
+			err := Generate(plugin, Options{Language: tt.language})
+			if err == nil {
+				t.Fatal("Generate unexpectedly succeeded")
+			}
+			if !strings.Contains(err.Error(), `streaming RPC is not supported`) {
+				t.Fatalf("unexpected generator failure: %v", err)
+			}
+			if len(plugin.Response().GetFile()) != 0 {
+				t.Fatalf("JVM streaming RPC emitted %d files, want 0", len(plugin.Response().GetFile()))
+			}
+		})
 	}
 }
 
