@@ -42,6 +42,8 @@ decision-consistent with the current architecture unless explicitly revised.
 - `easyp.test.yaml`: development and test config for fixture generation
 - `mcp/options/v1/options.proto`: custom protobuf options for MCP metadata
 - `internal/codegen`: code generation logic
+- `internal/codegen/jvm_*.go`: shared JVM semantic model, naming, and collector
+  foundation used by future Kotlin/Java renderers
 - `internal/examplemcp`: reusable example MCP server wiring and stdio smoke test
 - `internal/schema`: protobuf descriptor to JSON Schema conversion
 - `internal/testproto`: protobuf fixtures and generated code used in repository tests
@@ -112,8 +114,13 @@ decision-consistent with the current architecture unless explicitly revised.
 
 - Implemented:
   - `cmd/protoc-gen-mcp` plugin scaffold and generated `*.mcp.go` bindings
-  - typed plugin option parsing for `lang=go|python` and
+  - typed plugin option parsing for `lang=go|python|kotlin|java` and
     `python_runtime=google.protobuf|betterproto|grpclib`
+  - shared JVM foundation for `lang=kotlin` and `lang=java`: parser and
+    generator dispatch accept both targets, collect SDK-neutral `internal/codegen/jvm_*.go`
+    models, preserve existing `FileModel` schema JSON/annotations/icons/type
+    semantics, and emit no JVM files until Kotlin/Java renderers are implemented
+    in later phases
   - single-source custom generator option handling through
     `protogen.Options.ParamFunc`, with fail-fast rejection of unknown
     `protoc-gen-mcp` params
@@ -208,6 +215,7 @@ decision-consistent with the current architecture unless explicitly revised.
     proto3 `optional` scalar/enum fields
 - Verified:
   - `easyp` lint and generation flows for `mcp` and `internal/testproto`
+  - `go test ./internal/codegen -count=1` for generator, Go/Python, and shared JVM foundation coverage
   - `go test ./...`
   - stdio smoke tests via `internal/examplemcp/stdio_test.go`
   - Python stdio integration coverage for the shared server:
