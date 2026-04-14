@@ -16,6 +16,41 @@ func TestParseOptions_DefaultLangGo(t *testing.T) {
 	}
 }
 
+func TestParseOptions_JVMLanguages(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want Language
+	}{
+		{
+			name: "kotlin",
+			raw:  "lang=kotlin",
+			want: LanguageKotlin,
+		},
+		{
+			name: "java",
+			raw:  "lang=java",
+			want: LanguageJava,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts, err := ParseOptions(tt.raw)
+			if err != nil {
+				t.Fatalf("ParseOptions returned error: %v", err)
+			}
+
+			if opts.Language != tt.want {
+				t.Fatalf("Language = %q, want %q", opts.Language, tt.want)
+			}
+			if opts.PythonRuntime != "" {
+				t.Fatalf("PythonRuntime = %q, want empty", opts.PythonRuntime)
+			}
+		})
+	}
+}
+
 func TestParseOptions_PythonDefaultsRuntime(t *testing.T) {
 	opts, err := ParseOptions("lang=python")
 	if err != nil {
@@ -56,10 +91,32 @@ func TestParseOptions_PythonRuntimeConstants(t *testing.T) {
 	}
 }
 
-func TestParseOptions_PythonRuntimeRejectedForGo(t *testing.T) {
-	_, err := ParseOptions("lang=go,python_runtime=google.protobuf")
-	if err == nil {
-		t.Fatal("ParseOptions succeeded, want error")
+func TestParseOptions_PythonRuntimeRejectedForNonPythonLanguages(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+	}{
+		{
+			name: "go",
+			raw:  "lang=go,python_runtime=google.protobuf",
+		},
+		{
+			name: "kotlin",
+			raw:  "lang=kotlin,python_runtime=google.protobuf",
+		},
+		{
+			name: "java",
+			raw:  "lang=java,python_runtime=google.protobuf",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ParseOptions(tt.raw)
+			if err == nil {
+				t.Fatal("ParseOptions succeeded, want error")
+			}
+		})
 	}
 }
 
