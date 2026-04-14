@@ -1,3 +1,6 @@
+deps:
+  - github.com/easyp-tech/protoc-gen-mcp
+
 lint:
   use:
     - DIRECTORY_SAME_PACKAGE
@@ -39,10 +42,26 @@ lint:
 generate:
   inputs:
     - directory:
-        path: examples
+        path: "1_helloworld/proto"
+        root: "."
+    - directory:
+        path: "2_weather_api/proto"
+        root: "."
+    - directory:
+        path: "3_file_manager/proto"
+        root: "."
+    - directory:
+        path: "4_crm_system/proto"
         root: "."
   plugins:
     - name: go
+      out: .
+      opts:
+        paths: source_relative
+    - name: python
+      with_imports: true
+      out: .
+    - command: ["go", "run", "../cmd/protoc-gen-mcp"]
       out: .
       opts:
         paths: source_relative
@@ -50,3 +69,5 @@ generate:
       out: .
       opts:
         paths: source_relative
+        lang: python
+        python_runtime: google.protobuf

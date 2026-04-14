@@ -55,7 +55,15 @@ generate:
       out: .
       opts:
         paths: source_relative
+    - name: python
+      out: .
     - command: ["go", "run", "./cmd/protoc-gen-mcp"]
       out: .
       opts:
         paths: source_relative
+    - command: ["go", "run", "./cmd/protoc-gen-mcp"]
+      out: .
+      opts:
+        paths: source_relative
+        lang: python
+        python_runtime: google.protobuf

@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package testdata.unsupported.v1;
+
+option go_package = "github.com/easyp-tech/protoc-gen-mcp/testdata/unsupported/v1;unsupportedv1";
+
+message StreamingRequest {}
+
+message StreamingResponse {}
+
+service StreamingAPI {
+  rpc Watch(StreamingRequest) returns (stream StreamingResponse);
+}

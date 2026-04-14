@@ -1,0 +1,158 @@
+syntax = "proto3";
+
+package notebook.v1;
+
+import "google/protobuf/timestamp.proto";
+import "mcp/options/v1/options.proto";
+
+service NotebookAPI {
+  option (mcp.options.v1.service) = {
+    namespace: "notebook"
+    description: "A small in-memory notebook service for generated Python MCP bindings."
+  };
+
+  rpc CreateNote(CreateNoteRequest) returns (CreateNoteResponse) {
+    option (mcp.options.v1.method) = {
+      title: "Create note"
+      description: "Create a note in the local in-memory notebook."
+      annotations: {
+        destructive_hint: false
+        idempotent_hint: false
+        open_world_hint: false
+      }
+    };
+  }
+
+  rpc SearchNotes(SearchNotesRequest) returns (SearchNotesResponse) {
+    option (mcp.options.v1.method) = {
+      title: "Search notes"
+      description: "Search notes by text and tags."
+      annotations: {
+        read_only_hint: true
+        open_world_hint: false
+      }
+    };
+  }
+
+  rpc Health(HealthRequest) returns (HealthResponse) {
+    option (mcp.options.v1.method) = {
+      title: "Notebook health"
+      description: "Verify that the notebook MCP server is alive."
+      annotations: {
+        read_only_hint: true
+        open_world_hint: false
+      }
+    };
+  }
+}
+
+message Note {
+  string id = 1 [(mcp.options.v1.field) = {
+    read_only: true
+    description: "Server-assigned note identifier."
+  }];
+
+  string title = 2 [(mcp.options.v1.field) = {
+    description: "Short human-readable note title."
+    min_length: 1
+    max_length: 80
+    examples: [{ string_value: "Ship Python support" }]
+  }];
+
+  string body = 3 [(mcp.options.v1.field) = {
+    description: "Note body in plain text."
+    min_length: 1
+    max_length: 2000
+    examples: [{ string_value: "Verify that generated Python MCP bindings are pleasant to use." }]
+  }];
+
+  repeated string tags = 4 [(mcp.options.v1.field) = {
+    description: "Optional tags used for filtering."
+    unique_items: true
+    examples: [
+      { array_value: { items: [{ string_value: "python" }, { string_value: "mcp" }] } }
+    ]
+  }];
+
+  optional string due_date = 5 [(mcp.options.v1.field) = {
+    description: "Optional due date in ISO 8601 date format."
+    format: "date"
+    examples: [{ string_value: "2026-04-30" }]
+  }];
+
+  google.protobuf.Timestamp created_at = 6 [(mcp.options.v1.field) = {
+    read_only: true
+    description: "Server-assigned creation timestamp."
+  }];
+}
+
+message CreateNoteRequest {
+  string title = 1 [(mcp.options.v1.field) = {
+    description: "Short human-readable note title."
+    min_length: 1
+    max_length: 80
+    examples: [{ string_value: "Ship Python support" }]
+  }];
+
+  string body = 2 [(mcp.options.v1.field) = {
+    description: "Note body in plain text."
+    min_length: 1
+    max_length: 2000
+    examples: [{ string_value: "Verify that generated Python MCP bindings are pleasant to use." }]
+  }];
+
+  repeated string tags = 3 [(mcp.options.v1.field) = {
+    description: "Optional tags used for filtering."
+    unique_items: true
+    examples: [
+      { array_value: { items: [{ string_value: "python" }, { string_value: "mcp" }] } }
+    ]
+  }];
+
+  optional string due_date = 4 [(mcp.options.v1.field) = {
+    description: "Optional due date in ISO 8601 date format."
+    format: "date"
+    examples: [{ string_value: "2026-04-30" }]
+  }];
+}
+
+message CreateNoteResponse {
+  Note note = 1;
+}
+
+message SearchNotesRequest {
+  optional string query = 1 [(mcp.options.v1.field) = {
+    description: "Optional case-insensitive text query matched against title and body."
+    min_length: 1
+    examples: [{ string_value: "python" }]
+  }];
+
+  repeated string tags = 2 [(mcp.options.v1.field) = {
+    description: "Optional tags; a note must have every requested tag."
+    unique_items: true
+    examples: [
+      { array_value: { items: [{ string_value: "mcp" }] } }
+    ]
+  }];
+
+  optional int32 limit = 3 [(mcp.options.v1.field) = {
+    description: "Maximum number of notes to return."
+    minimum: 1.0
+    maximum: 50.0
+    default_value: { integer_value: 10 }
+  }];
+}
+
+message SearchNotesResponse {
+  repeated Note notes = 1;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  bool ok = 1;
+  int32 note_count = 2 [(mcp.options.v1.field) = {
+    read_only: true
+    description: "Current number of notes in memory."
+  }];
+}
