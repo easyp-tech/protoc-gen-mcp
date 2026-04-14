@@ -261,6 +261,63 @@ func TestCollectJVMFileModel_TracksRequirednessNullabilityAndOneofShape(t *testi
 	}
 }
 
+func TestCollectJVMFileModel_NormalizesFilenamePrefixesConsistently(t *testing.T) {
+	plugin := newTempProtogenPlugin(t, map[string]string{
+		"test/v1/shared-file.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/sharedfile;sharedfilev1";`,
+			`message SharedRequest {}`,
+			`message SharedResponse {}`,
+			"",
+		}, "\n"),
+		"test/v1/service-file.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/servicefile;servicefilev1";`,
+			`import "test/v1/shared-file.proto";`,
+			`service ServiceAPI {`,
+			`  rpc UseShared(SharedRequest) returns (SharedResponse);`,
+			`}`,
+			"",
+		}, "\n"),
+	}, "test/v1/service-file.proto")
+	file := plugin.FilesByPath["test/v1/service-file.proto"]
+	if file == nil {
+		t.Fatal("service-file proto file not found in plugin")
+	}
+
+	shared, err := CollectFileModel(file, Options{Language: LanguageJava})
+	if err != nil {
+		t.Fatalf("CollectFileModel: %v", err)
+	}
+	jvm, err := CollectJVMFileModel(file, shared)
+	if err != nil {
+		t.Fatalf("CollectJVMFileModel: %v", err)
+	}
+
+	if got, want := jvm.GeneratedFilenamePrefix, "test/v1/service_file"; got != want {
+		t.Fatalf("GeneratedFilenamePrefix = %q, want %q", got, want)
+	}
+	if got, want := jvm.Types.CurrentFile.GeneratedFilenamePrefix, "test/v1/service_file"; got != want {
+		t.Fatalf("CurrentFile.GeneratedFilenamePrefix = %q, want %q", got, want)
+	}
+	if len(jvm.Types.Imports) != 1 {
+		t.Fatalf("import count = %d, want 1", len(jvm.Types.Imports))
+	}
+	if got, want := jvm.Types.Imports[0].GeneratedFilenamePrefix, "test/v1/shared_file"; got != want {
+		t.Fatalf("Imports[0].GeneratedFilenamePrefix = %q, want %q", got, want)
+	}
+
+	method := findJVMMethodByProtoName(t, jvm.Services[0], "UseShared")
+	if got, want := method.Input.Owner.GeneratedFilenamePrefix, "test/v1/shared_file"; got != want {
+		t.Fatalf("Input.Owner.GeneratedFilenamePrefix = %q, want %q", got, want)
+	}
+	if got, want := method.Output.Owner.GeneratedFilenamePrefix, "test/v1/shared_file"; got != want {
+		t.Fatalf("Output.Owner.GeneratedFilenamePrefix = %q, want %q", got, want)
+	}
+}
+
 func TestCollectJVMFileModel_RejectsNonJVMTarget(t *testing.T) {
 	plugin := newExampleProtogenPlugin(t)
 	file := plugin.FilesByPath["internal/testproto/example/v1/example.proto"]

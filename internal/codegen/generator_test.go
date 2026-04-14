@@ -412,6 +412,9 @@ func TestGenerate_PythonUnsupportedDescriptorFails(t *testing.T) {
 	if !strings.Contains(err.Error(), `well-known type "google.protobuf.Type" is not supported`) {
 		t.Fatalf("unexpected generator failure: %v", err)
 	}
+	if len(plugin.Response().GetFile()) != 0 {
+		t.Fatalf("python unsupported descriptor emitted %d files, want 0", len(plugin.Response().GetFile()))
+	}
 }
 
 func TestGenerate_JVMUnsupportedDescriptorFailsBeforeOutput(t *testing.T) {
@@ -541,6 +544,9 @@ func TestGenerate_PythonStreamingRPCFails(t *testing.T) {
 
 	if !strings.Contains(err.Error(), `streaming RPC is not supported`) {
 		t.Fatalf("unexpected generator failure: %v", err)
+	}
+	if len(plugin.Response().GetFile()) != 0 {
+		t.Fatalf("python streaming RPC emitted %d files, want 0", len(plugin.Response().GetFile()))
 	}
 }
 

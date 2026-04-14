@@ -12,9 +12,6 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 	switch opts.Language {
 	case LanguageGo:
 	case LanguagePython:
-		if err := emitPythonSupportFiles(plugin); err != nil {
-			return err
-		}
 	case LanguageKotlin:
 	case LanguageJava:
 	default:
@@ -25,6 +22,9 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 	if opts.Language == LanguagePython {
 		models, orderedFiles, err := collectPythonModels(plugin, opts)
 		if err != nil {
+			return err
+		}
+		if err := emitPythonSupportFiles(plugin); err != nil {
 			return err
 		}
 		for _, file := range orderedFiles {
