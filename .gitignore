@@ -27,6 +27,11 @@ go.work.sum
 # env file
 .env
 
+# Python runtime artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+
 # Editor/IDE
 # .idea/
 # .vscode/
@@ -38,8 +43,8 @@ go.work.sum
 dist/
 
 # Example server binaries
-examples/1-helloworld/helloworld-server
-examples/2-weather-api/weather-server
-examples/3-file-manager/file-server
-examples/4-crm-system/crm-server
+examples/1_helloworld/helloworld-server
+examples/2_weather_api/weather-server
+examples/3_file_manager/file-server
+examples/4_crm_system/crm-server
 .DS_Store

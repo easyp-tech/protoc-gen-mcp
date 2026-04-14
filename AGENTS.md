@@ -2,26 +2,42 @@
 
 ## Scope
 
-This repository implements a protobuf-first MCP generator and runtime for Go.
-The MVP is intentionally narrow and must stay decision-consistent with the
-current architecture unless explicitly revised.
+This repository implements a protobuf-first MCP generator and runtime for Go
+and Python MCP server bindings. The MVP is intentionally narrow and must stay
+decision-consistent with the current architecture unless explicitly revised.
 
 ## Stack
 
 - Go 1.24+
+- Python 3.10+ for generated-runtime verification and example servers
 - `easyp v0.15.2-rc1` for repository linting and code generation workflows
 - `google.golang.org/protobuf` for code generation, reflection, and ProtoJSON
+- `google.protobuf` for Python generated modules and ProtoJSON conversion
 - `github.com/modelcontextprotocol/go-sdk/mcp` as the MCP runtime
+- `mcp>=1.27,<2` as the official Python MCP SDK target
 - `github.com/google/jsonschema-go/jsonschema` for JSON Schema parsing and
   validation
+- `github.com/bufbuild/protocompile` for in-process descriptor compilation in
+  generator tests, so `go test` does not require an external `protoc` binary
 
 ## Layout
 
 - `cmd/protoc-gen-mcp`: protoc plugin entrypoint for `--mcp_out`
 - `cmd/example-mcp-server`: runnable stdio MCP server for manual agent/client checks
+- `cmd/example-python-mcp-server`: runnable stdio MCP server for Python SDK parity checks
 - `mcpruntime`: public runtime helpers used by generated code
 - `.github/workflows`: GitHub Actions CI and release workflows
 - `.goreleaser.yaml`: release packaging for the plugin binary
+- `examples`: standalone Go/Python integration projects; example directories
+  use numeric underscore prefixes such as `1_helloworld`, `4_crm_system`, and
+  `5_python_standalone`
+- `examples/easyp.lock`: pinned Easyp dependency lock for standalone examples
+- `examples/mcp`: generated Python `mcp.options.*` protobuf modules for
+  standalone examples; generated from the GitHub dependency declared in
+  `examples/easyp.yaml`, not from the local repository root
+- `examples/5_python_standalone`: Python-only user-style example with its own
+  `pyproject.toml`, `easyp.yaml`, generated `proto`/`mcp` packages, and stdio
+  server
 - `easyp.yaml`: main repository config for shipped protobuf APIs
 - `easyp.test.yaml`: development and test config for fixture generation
 - `mcp/options/v1/options.proto`: custom protobuf options for MCP metadata
@@ -29,6 +45,17 @@ current architecture unless explicitly revised.
 - `internal/examplemcp`: reusable example MCP server wiring and stdio smoke test
 - `internal/schema`: protobuf descriptor to JSON Schema conversion
 - `internal/testproto`: protobuf fixtures and generated code used in repository tests
+- `internal/testproto/example/v1/__init__.py`: generated Python package marker
+  for the shared test fixture package
+- `mcp/__init__.py`: generated Python package bridge that lets `mcp.options.*`
+  protobuf modules coexist with the official Python MCP SDK package
+- `mcp/options/v1/options_mcp.py`: generated Python dataclass/runtime bindings
+  for the shipped MCP options protobuf API
+- `mcp/options/v1/__init__.py`: generated Python package marker for the shipped
+  options package
+- Python generation emits package `__init__.py` files next to generated
+  `*_mcp.py` modules so generated directories can be imported as Python
+  packages
 - `testdata/golden`: golden snapshots for generated `*.mcp.go` files
 - `testdata/unsupported`: negative fixtures for fail-fast generator coverage
 
@@ -68,18 +95,78 @@ current architecture unless explicitly revised.
 
 - Generated code exposes `<Service>ToolHandler`
 - Generated code exposes `Register<Service>Tools(server, impl, opts...) error`
+- Generated Python modules expose `<Service>ToolHandler`
+- Generated Python modules expose `register_<service_name>_tools(server, impl, *, namespace=None)`
+- Generated Python modules expose dataclasses, `UNSET`, and explicit `oneof`
+  wrapper variants from `*_mcp.py`; user handler code should not depend on
+  `*_pb2.py`
 - Runtime exposes only the minimal registration options used by generated code
 - Generated MCP tool names must not contain dots; namespace prefixes and method
   names are joined with underscores, and any dots in configured segments are
   normalized to underscores
+- Generated tool annotations are forwarded exactly as declared in proto
+  options; omitted hints stay omitted, so external clients may apply their own
+  display defaults for missing values
 
 ## Current Status
 
 - Implemented:
   - `cmd/protoc-gen-mcp` plugin scaffold and generated `*.mcp.go` bindings
+  - typed plugin option parsing for `lang=go|python` and
+    `python_runtime=google.protobuf|betterproto|grpclib`
+  - single-source custom generator option handling through
+    `protogen.Options.ParamFunc`, with fail-fast rejection of unknown
+    `protoc-gen-mcp` params
+  - Python-mode request preparation synthesizes internal `go_package` metadata
+    for `.proto` files that omit it, so Python-only users do not need
+    Go-specific proto options just to run `lang=python`
+  - generated self-contained Python `*_mcp.py` bindings for
+    `lang=python,python_runtime=google.protobuf`, including handler protocols,
+    dataclasses, `UNSET`, explicit `oneof` wrapper variants, schema JSON
+    constants, shared per-server registry wiring, namespace-aware
+    `register_<service_name>_tools(...)`, generated protobuf<->dataclass
+    mappers, and ProtoJSON dict/message conversion via `json_format.ParseDict`
+  - generated Python `mcp/__init__.py` bridge support file so `mcp.options.*`
+    protobuf output coexists with the official `mcp` SDK package namespace
+  - generated Python package `__init__.py` files next to `*_mcp.py` output so
+    examples can import generated bindings through package imports such as
+    `from proto import helloworld_mcp`
+  - checked-in generated Python package markers and Python bindings for shipped
+    and test protobuf APIs, including `mcp/options/v1/options_mcp.py` and
+    `internal/testproto/example/v1/__init__.py`
+  - Python generator-level parity coverage against the shared semantic IR,
+    including Python golden output, public API-shape assertions, and
+    fail-fast negative tests for unsupported runtimes, unsupported protobuf
+    descriptors, and streaming RPCs
+  - runnable Python stdio example server in `cmd/example-python-mcp-server`
+    backed by generated dataclass-based `example_mcp.py` bindings and the
+    official MCP Python SDK
+  - standalone Python examples in `examples/` implemented against generated
+    dataclasses from `*_mcp.py`, with checked-in Python example artifacts
+    regenerated through `examples/Makefile`
+  - `examples/5_python_standalone` models an external Python-only project with
+    its own `pyproject.toml`, `easyp.yaml`, generated package `__init__.py`
+    files, generated local `mcp.options.*` modules, and `server.py` without
+    `sys.path` bootstrap code
+  - standalone examples use `examples/easyp.yaml` `deps` plus
+    `examples/easyp.lock` to resolve `mcp/options/v1/options.proto` from
+    `github.com/easyp-tech/protoc-gen-mcp` instead of depending on the local
+    repository root
+  - end-to-end stdio integration coverage that runs the shared example MCP
+    contract checks against both the Go server and the Python SDK server,
+    including `CallToolResult` text/structured parity and output-validation
+    failure coverage for Python
   - custom MCP protobuf options in `mcp/options/v1/options.proto`
   - generated tool metadata includes `ToolAnnotations` (`read_only_hint`, `destructive_hint`, `idempotent_hint`, `open_world_hint`) and `Icon` mappings directly to the Go SDK
-  - dedicated `examples/` directory featuring 4 standalone integration projects spanning quickstarts to complex CRM mocks
+  - `read_only_hint` now propagates correctly into both generated Go and
+    Python tool annotations
+  - Python generation augments each file's public type module with only the
+    current-file types actually referenced by other generated files, so
+    cross-file imports work without forcing unrelated hidden-only types into
+    the public API surface
+  - dedicated `examples/` directory featuring 5 standalone integration
+    projects spanning quickstarts to complex CRM mocks and a pure Python
+    user-style project
   - support for `oneof` explicit requiredness through `mcp.options.v1.oneof` options
   - strict schema generation correctly differentiating zero-values (`0`, `0.0`, `""`) using pointer constraints
   - runtime registration and JSON Schema validation in `mcpruntime`
@@ -122,11 +209,25 @@ current architecture unless explicitly revised.
 - Verified:
   - `easyp` lint and generation flows for `mcp` and `internal/testproto`
   - `go test ./...`
-  - stdio smoke test via `internal/examplemcp/stdio_test.go`
+  - stdio smoke tests via `internal/examplemcp/stdio_test.go`
+  - Python stdio integration coverage for the shared server:
+    `go test ./internal/examplemcp -run 'TestPythonServerOverStdio|TestPythonServerRejectsInvalidOutputOverStdio' -count=1`
+  - Python stdio integration coverage for standalone examples:
+    `go test ./examples -run TestPythonExamplesOverStdio -count=1`
+  - Python stdio integration coverage for the Python-only standalone example:
+    `go test ./examples -run TestStandalonePythonExampleOverStdio -count=1`
+  - `internal/codegen` tests build descriptor requests in-process through
+    `protocompile`, so `go test ./...` no longer depends on `protoc` being in
+    `PATH`
   - client-side schema acceptance checks against advertised `tools/list`
     `inputSchema` for canonical valid payloads, including recursive objects and
     explicit `null` on fields that are not schema-required
+  - end-to-end official MCP Python SDK execution over stdio using generated
+    Python bindings, including runtime output-validation failure handling
   - manual Cursor validation of `example_Health` and `example_CreateReport`
+  - manual Inspector CLI verification of standalone `tools/list` annotations,
+    including `notebook_SearchNotes` `readOnlyHint=true` and
+    `openWorldHint=false`
 - Open:
   - automate broader client compatibility checks beyond Go SDK + Cursor manual
     verification
@@ -162,10 +263,16 @@ current architecture unless explicitly revised.
 - Generate shipped protobuf API: `easyp --cfg easyp.yaml generate -p mcp -r .`
 - Lint test fixtures: `easyp --cfg easyp.test.yaml lint -p internal/testproto -r .`
 - Generate test fixtures: `easyp --cfg easyp.test.yaml generate -p internal/testproto -r .`
+- Generate standalone example artifacts:
+  - `cd examples && make generate`
+- Run Python-only standalone example:
+  - `cd examples/5_python_standalone && make setup && make run`
 - Build plugin: `go build ./cmd/protoc-gen-mcp`
 - Validate GoReleaser config: `goreleaser check`
 - Build example MCP server binary:
   - `go build -o example-mcp-server ./cmd/example-mcp-server/main.go`
 - Run example MCP server: `go -C /abs/path/to/protoc-gen-mcp run ./cmd/example-mcp-server`
+- Run Python example MCP server:
+  - `python /abs/path/to/protoc-gen-mcp/cmd/example-python-mcp-server/main.py`
 - Run built example MCP server binary: `./example-mcp-server`
 - Run tests: `go test ./...`
