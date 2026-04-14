@@ -10,6 +10,8 @@ type Language string
 const (
 	LanguageGo     Language = "go"
 	LanguagePython Language = "python"
+	LanguageKotlin Language = "kotlin"
+	LanguageJava   Language = "java"
 )
 
 type PythonRuntime string
@@ -59,6 +61,10 @@ func (p *OptionsParser) Set(name, value string) error {
 func (p *OptionsParser) Options() (Options, error) {
 	switch p.opts.Language {
 	case LanguageGo:
+		if p.sawPythonRuntime {
+			return Options{}, fmt.Errorf("python_runtime is only supported when lang=python")
+		}
+	case LanguageKotlin, LanguageJava:
 		if p.sawPythonRuntime {
 			return Options{}, fmt.Errorf("python_runtime is only supported when lang=python")
 		}
