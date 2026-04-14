@@ -1,0 +1,22 @@
+[project]
+name = "protoc-gen-mcp-python-standalone-example"
+version = "0.1.0"
+description = "Standalone Python MCP server generated from protobuf with protoc-gen-mcp."
+requires-python = ">=3.10"
+dependencies = [
+    "anyio>=4,<5",
+    "jsonschema>=4,<5",
+    "mcp>=1.27,<2",
+    "protobuf>=6,<7",
+]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = []
+
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"

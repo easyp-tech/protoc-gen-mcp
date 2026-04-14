@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package weather.api.v1;
+
+import "mcp/options/v1/options.proto";
+
+option go_package = "github.com/easyp-tech/protoc-gen-mcp/examples/2_weather_api/proto;weatherv1";
+
+service WeatherAPI {
+  option (mcp.options.v1.service) = {
+    namespace: "weather"
+    description: "A read-only weather data service."
+  };
+
+  rpc GetCurrentWeather (GetCurrentWeatherRequest) returns (GetCurrentWeatherResponse) {
+    option (mcp.options.v1.method) = {
+      description: "Gets the current weather for a specific location."
+      annotations: {
+        read_only_hint: true
+        open_world_hint: true
+      }
+    };
+  }
+}
+
+message GetCurrentWeatherRequest {
+  oneof location {
+    option (mcp.options.v1.oneof) = {
+      description: "The location to query. Must provide either a city name or latitude/longitude coordinates."
+      required: true
+    };
+    
+    string city = 1 [(mcp.options.v1.field) = {
+      description: "Name of the city (e.g., 'London', 'Tokyo')."
+      min_length: 2
+      examples: [{ string_value: "Paris" }]
+    }];
+
+    Coordinates coordinates = 2;
+  }
+}
+
+message Coordinates {
+  double latitude = 1 [(mcp.options.v1.field) = {
+    description: "Latitude in decimal degrees."
+    minimum: -90.0
+    maximum: 90.0
+  }];
+  
+  double longitude = 2 [(mcp.options.v1.field) = {
+    description: "Longitude in decimal degrees."
+    minimum: -180.0
+    maximum: 180.0
+  }];
+}
+
+message GetCurrentWeatherResponse {
+  string condition = 1;
+  double temperature = 2 [(mcp.options.v1.field) = {
+    description: "Current temperature in Celsius."
+  }];
+}

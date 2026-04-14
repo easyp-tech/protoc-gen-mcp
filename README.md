@@ -1,12 +1,15 @@
 # protoc-gen-mcp
 
-`protoc-gen-mcp` generates Go MCP tool bindings from protobuf services.
+`protoc-gen-mcp` generates Go and Python MCP tool bindings from protobuf services.
 
 ## MVP
 
 - protobuf is the source of truth
-- generator emits typed Go MCP bindings
-- runtime uses the official Go MCP SDK
+- generator emits typed Go and Python MCP bindings
+- Go runtime uses the official Go MCP SDK
+- Python runtime targets the official MCP Python SDK with `google.protobuf`
+- generated Python handlers use dataclasses and explicit `oneof` wrapper types
+  from `*_mcp.py`; `*_pb2.py` stays an internal runtime dependency
 - request and response JSON follows ProtoJSON rules
 - runtime validation is driven by generated JSON Schema
 
@@ -45,10 +48,11 @@ checks:
 
 ```bash
 go run ./cmd/example-mcp-server
+python ./cmd/example-python-mcp-server/main.py
 ```
 
 It serves the generated tools from `internal/testproto/example/v1` and is used
-by the stdio smoke test in `internal/examplemcp/stdio_test.go`.
+by the stdio smoke tests in `internal/examplemcp/stdio_test.go`.
 The example server currently exposes:
 
 - `example_CreateReport`
@@ -58,11 +62,12 @@ The example server currently exposes:
 
 ## Examples
 
-We provide several standalone, runnable examples demonstrating the power of generated MCP tools, protobuf `options`, validation constraints, and integration with the official Go SDK. Check out the [examples/](examples/) directory for:
-- [1-helloworld](examples/1-helloworld/) - Minimal Quickstart setup.
-- [2-weather-api](examples/2-weather-api/) - Read-only queries, validation limits, Oneofs.
-- [3-file-manager](examples/3-file-manager/) - Destructive tools and schema-based string parameter constraints.
-- [4-crm-system](examples/4-crm-system/) - A full mock system with FieldMask partial updates, custom icons mapping, schemas nested types, and advanced array filters.
+We provide several standalone, runnable examples demonstrating the power of generated MCP tools, protobuf `options`, validation constraints, and integration with the official Go and Python SDKs. Check out the [examples/](examples/) directory for:
+- [1_helloworld](examples/1_helloworld/) - Minimal Quickstart setup.
+- [2_weather_api](examples/2_weather_api/) - Read-only queries, validation limits, Oneofs.
+- [3_file_manager](examples/3_file_manager/) - Destructive tools and schema-based string parameter constraints.
+- [4_crm_system](examples/4_crm_system/) - A full mock system with FieldMask partial updates, custom icons mapping, schemas nested types, and advanced array filters.
+- [5_python_standalone](examples/5_python_standalone/) - A Python-only user-style project with its own `pyproject.toml`, `easyp.yaml`, generated bindings, and stdio server.
 
 ## Agent Skill
 
@@ -82,9 +87,16 @@ policy, ProtoJSON contract, and common patterns.
 
 ## Generation With Easyp
 
-The intended workflow is `easyp`, not manual `protoc` invocation. `easyp`
-drives both `protoc-gen-go` and `protoc-gen-mcp` with the same repository
-config.
+The intended workflow is `easyp`, not manual `protoc` invocation. For mixed
+Go/Python projects, `easyp` can drive `protoc-gen-go`, the standard Python
+protobuf generator, and `protoc-gen-mcp` from one config.
+
+Before running generation, make sure `protoc-gen-go` is installed and available
+in `PATH` if your config uses the standard Go plugin:
+
+```bash
+go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+```
 
 Example `easyp.yaml`:
 
@@ -106,10 +118,19 @@ generate:
       out: .
       opts:
         paths: source_relative
+    - name: python
+      with_imports: true
+      out: .
     - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@latest"]
       out: .
       opts:
         paths: source_relative
+    - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@latest"]
+      out: .
+      opts:
+        paths: source_relative
+        lang: python
+        python_runtime: google.protobuf
 ```
 
 Typical commands:
@@ -120,10 +141,67 @@ easyp --cfg easyp.yaml lint -p mcp -r .
 easyp --cfg easyp.yaml generate -p mcp -r .
 ```
 
-That generates both `*.pb.go` and `*.mcp.go` next to the source `.proto` files.
-No special Easyp override is required for `mcp.options.v1`, because the
-package declares `go_package` directly in `options.proto`. For reproducible
-builds, prefer pinning a specific tag instead of `@latest`.
+That generates `*.pb.go`, `*_pb2.py`, `*.mcp.go`, `*_mcp.py`, and package
+`__init__.py` files next to the source `.proto` files. The Python target
+currently supports only `python_runtime=google.protobuf`. Generated Python
+output also emits a small `mcp/__init__.py` bridge so `mcp.options.*` protobuf
+modules can coexist with the official `mcp` SDK package in one import tree. No
+special Easyp override is required for `mcp.options.v1`, because the package
+declares `go_package` directly in `options.proto`. For reproducible builds,
+prefer pinning a specific tag instead of `@latest`.
+
+For Python-only projects, omit the Go plugins and keep only the standard
+`python` plugin plus `protoc-gen-mcp` with `lang=python`. User-authored Python
+protos do not need a `go_package` option just to satisfy the generator; the
+plugin synthesizes internal Go package metadata before building the descriptor
+model. See [examples/5_python_standalone](examples/5_python_standalone/) for a
+complete Python-only project with its own virtualenv setup.
+
+When you generate Python handlers, implement against the dataclasses from
+`*_mcp.py`, not the raw protobuf classes from `*_pb2.py`. The generated Python
+runtime maps MCP JSON -> ProtoJSON -> `pb2` -> dataclasses before calling your
+handler, then maps your dataclass response back through protobuf serialization
+and output-schema validation.
+
+For optional fields and `oneof` groups, the handler-facing absence sentinel is
+`UNSET`, not `None`. JSON `null` for a schema-optional field is mapped to
+`UNSET` on input, and handlers should return `UNSET` when a field should remain
+unset in the serialized protobuf output.
+
+If your Python package imports other `.proto` files that must also resolve as
+Python modules at runtime, make sure the standard Python generator emits those
+imports too. In `easyp`, that typically means enabling `with_imports: true` on
+the Python plugin for that package.
+
+Generated `ToolAnnotations` are forwarded as declared in protobuf options. The
+generator does not synthesize extra hint values that were not set in source
+proto. Some MCP clients, including `@modelcontextprotocol/inspector`, display
+omitted hints using their own client-side defaults. If you want UI badges to
+stay unambiguous, set hints like `destructive_hint: false` explicitly instead
+of relying on omission.
+
+Example Python handler:
+
+```python
+import mcp.server.lowlevel
+from weather_mcp import (
+    GetCurrentWeatherRequest,
+    GetCurrentWeatherRequestLocationCityVariant,
+    GetCurrentWeatherResponse,
+    register_weather_api_tools,
+)
+
+
+class WeatherAPI:
+    def get_current_weather(self, _ctx, req: GetCurrentWeatherRequest) -> GetCurrentWeatherResponse:
+        if not isinstance(req.location, GetCurrentWeatherRequestLocationCityVariant):
+            raise ValueError("city lookup is required")
+        return GetCurrentWeatherResponse(condition="Sunny", temperature=22.5)
+
+
+server = mcp.server.lowlevel.Server("weather-mcp-server", version="1.0.0")
+register_weather_api_tools(server, WeatherAPI())
+```
 
 Generated tool names never contain dots. The runtime joins the optional service
 namespace and RPC tool name with underscores, so a service namespace
@@ -356,6 +434,8 @@ Used via: `option (mcp.options.v1.method) = { ... };`
 - `description`: Overrides the RPC description inferred from proto comments.
 - `hidden`: Suppresses tool generation for this RPC method completely.
 - `annotations`: Provides `ToolAnnotations` hints for agents (like `read_only_hint`, `destructive_hint`, `idempotent_hint`, `open_world_hint`).
+  Omitted hints are left omitted in generated output; some clients render their
+  own defaults for missing values.
 - `icons`: Provides an array of `Icon` metadata for the tool, overriding the service default.
 - `execution`: Defines `ExecutionOptions` like `task_support`.
 

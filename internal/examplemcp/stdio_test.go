@@ -3,10 +3,13 @@ package examplemcp_test
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/easyp-tech/protoc-gen-mcp/internal/examplemcp"
@@ -20,11 +23,53 @@ func TestServerOverStdio(t *testing.T) {
 	}
 
 	root := repoRoot(t)
-	ctx := context.Background()
-
 	cmd := exec.Command("go", "run", filepath.Join(root, "cmd/example-mcp-server"))
 	cmd.Dir = root
+	runServerOverStdioContract(t, cmd)
+}
 
+func TestPythonServerOverStdio(t *testing.T) {
+	root := repoRoot(t)
+	runServerOverStdioContract(t, pythonExampleServerCommand(t, root))
+}
+
+func TestPythonServerRejectsInvalidOutputOverStdio(t *testing.T) {
+	root := repoRoot(t)
+	cmd := pythonExampleServerCommand(t, root)
+	cmd.Env = append(cmd.Env, "PROTOC_GEN_MCP_PYTHON_INVALID_OUTPUT=create_report")
+
+	ctx := context.Background()
+	client := mcp.NewClient(&mcp.Implementation{
+		Name:    "protoc-gen-mcp-python-invalid-output-test-client",
+		Version: "v0.0.1",
+	}, nil)
+
+	session, err := client.Connect(ctx, &mcp.CommandTransport{Command: cmd}, nil)
+	if err != nil {
+		t.Fatalf("client.Connect() over stdio failed: %v", err)
+	}
+	defer session.Close()
+
+	_, err = session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "example_CreateReport",
+		Arguments: map[string]any{
+			"city":    "Paris",
+			"count":   2,
+			"details": map[string]any{"label": "today"},
+		},
+	})
+	if err == nil {
+		t.Fatal("CallTool(CreateReport) unexpectedly succeeded with invalid output schema")
+	}
+	if !strings.Contains(err.Error(), "mcpruntime: validate output for tool") || !strings.Contains(err.Error(), "example_CreateReport") {
+		t.Fatalf("CallTool(CreateReport) error = %v, want output validation failure", err)
+	}
+}
+
+func runServerOverStdioContract(t *testing.T, cmd *exec.Cmd) {
+	t.Helper()
+
+	ctx := context.Background()
 	client := mcp.NewClient(&mcp.Implementation{
 		Name:    "protoc-gen-mcp-stdio-test-client",
 		Version: "v0.0.1",
@@ -141,6 +186,7 @@ func TestServerOverStdio(t *testing.T) {
 		t.Fatalf("CreateReport returned tool error over stdio: %+v", result)
 	}
 
+	assertTextStructuredContentMatch(t, "example_CreateReport", result)
 	structured := decodeMap(t, result.StructuredContent)
 	if got := structured["totalCount"]; got != "42" {
 		t.Fatalf("totalCount = %v, want ProtoJSON string \"42\"", got)
@@ -184,6 +230,7 @@ func TestServerOverStdio(t *testing.T) {
 		t.Fatalf("DescribeAdvancedShapes returned tool error over stdio: %+v", advancedResult)
 	}
 
+	assertTextStructuredContentMatch(t, "example_DescribeAdvancedShapes", advancedResult)
 	advancedStructured := decodeMap(t, advancedResult.StructuredContent)
 	if got := advancedStructured["ratio"]; got != "NaN" {
 		t.Fatalf("ratio = %v, want NaN", got)
@@ -233,6 +280,7 @@ func TestServerOverStdio(t *testing.T) {
 		t.Fatalf("DescribeScalarShapes returned tool error over stdio: %+v", scalarResult)
 	}
 
+	assertTextStructuredContentMatch(t, "example_DescribeScalarShapes", scalarResult)
 	scalarStructured := decodeMap(t, scalarResult.StructuredContent)
 	if got := scalarStructured["int64Value"]; got != "-4567890123" {
 		t.Fatalf("int64Value = %v, want -4567890123", got)
@@ -254,6 +302,39 @@ func repoRoot(t *testing.T) string {
 	}
 
 	return filepath.Clean(filepath.Join(filepath.Dir(filename), "..", ".."))
+}
+
+func pythonExampleServerCommand(t *testing.T, root string) *exec.Cmd {
+	t.Helper()
+
+	python := pythonCommand(t)
+	probe := exec.Command(python, "-c", "import anyio, google.protobuf, jsonschema, mcp")
+	probe.Dir = root
+	if output, err := probe.CombinedOutput(); err != nil {
+		t.Fatalf("python runtime dependencies are not available: %v\n%s", err, output)
+	}
+
+	cmd := exec.Command(python, filepath.Join(root, "cmd/example-python-mcp-server/main.py"))
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(),
+		"PYTHONPATH="+root,
+		"PYTHONUNBUFFERED=1",
+	)
+	return cmd
+}
+
+func pythonCommand(t *testing.T) string {
+	t.Helper()
+
+	if path, err := exec.LookPath("python3"); err == nil {
+		return path
+	}
+	if path, err := exec.LookPath("python"); err == nil {
+		return path
+	}
+
+	t.Fatal("python3/python not found in PATH")
+	return ""
 }
 
 func decodeMap(t *testing.T, value any) map[string]any {
@@ -298,6 +379,29 @@ func validateToolInputSchema(t *testing.T, tools []*mcp.Tool, toolName string, a
 	}
 	if err := resolved.Validate(arguments); err != nil {
 		t.Fatalf("input schema for tool %q rejected valid arguments %v: %v", toolName, arguments, err)
+	}
+}
+
+func assertTextStructuredContentMatch(t *testing.T, toolName string, result *mcp.CallToolResult) {
+	t.Helper()
+
+	if len(result.Content) != 1 {
+		t.Fatalf("%s returned %d content items, want 1", toolName, len(result.Content))
+	}
+
+	textContent, ok := result.Content[0].(*mcp.TextContent)
+	if !ok {
+		t.Fatalf("%s content[0] has type %T, want *mcp.TextContent", toolName, result.Content[0])
+	}
+
+	var fromText map[string]any
+	if err := json.Unmarshal([]byte(textContent.Text), &fromText); err != nil {
+		t.Fatalf("decode text content for %s: %v", toolName, err)
+	}
+
+	fromStructured := decodeMap(t, result.StructuredContent)
+	if !reflect.DeepEqual(fromText, fromStructured) {
+		t.Fatalf("%s text content %v does not match structured content %v", toolName, fromText, fromStructured)
 	}
 }
 

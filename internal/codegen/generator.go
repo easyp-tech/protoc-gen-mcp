@@ -2,327 +2,149 @@ package codegen
 
 import (
 	"fmt"
-	"strings"
+	"path"
 
-	"github.com/easyp-tech/protoc-gen-mcp/internal/schema"
-	mcpoptionsv1 "github.com/easyp-tech/protoc-gen-mcp/mcp/options/v1"
-	"github.com/google/jsonschema-go/jsonschema"
 	"google.golang.org/protobuf/compiler/protogen"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-type methodSpec struct {
-	Method           *protogen.Method
-	Name             string
-	Title            string
-	Description      string
-	Examples         []string
-	Deprecated       bool
-	InputSchemaJSON  string
-	OutputSchemaJSON string
-	Annotations      *mcpoptionsv1.ToolAnnotations
-	Icons            []*mcpoptionsv1.Icon
-}
-
-type serviceSpec struct {
-	Service     *protogen.Service
-	Namespace   string
-	Description string
-	Icons       []*mcpoptionsv1.Icon
-	Methods     []methodSpec
-}
-
 // Generate emits MCP bindings for protobuf services in generated files.
-func Generate(plugin *protogen.Plugin) error {
+func Generate(plugin *protogen.Plugin, opts Options) error {
+	switch opts.Language {
+	case LanguageGo:
+	case LanguagePython:
+		if err := emitPythonSupportFiles(plugin); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported lang %q", opts.Language)
+	}
+
+	pythonPackageInitFiles := map[string]bool{}
+	if opts.Language == LanguagePython {
+		models, orderedFiles, err := collectPythonModels(plugin, opts)
+		if err != nil {
+			return err
+		}
+		for _, file := range orderedFiles {
+			model := models[file.Desc.Path()]
+			if !pythonModelRequiresOutput(model) {
+				continue
+			}
+			emitPythonPackageInitFile(plugin, pythonPackageInitFiles, pythonOutputPath(file))
+			if err := renderPythonFile(plugin, model); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
 	for _, file := range plugin.Files {
 		if !file.Generate {
 			continue
 		}
 
-		if file.Desc.Syntax() != protoreflect.Proto3 {
-			return fmt.Errorf("only proto3 files are supported in MVP: %s", file.Desc.Path())
-		}
-
-		serviceSpecs, err := collectFileSpecs(file)
+		model, err := CollectFileModel(file, opts)
 		if err != nil {
 			return err
 		}
-		if len(serviceSpecs) == 0 {
+
+		switch opts.Language {
+		case LanguageGo:
+			if len(model.Services) == 0 {
+				continue
+			}
+			if err := renderGoFile(plugin, model); err != nil {
+				return err
+			}
+		case LanguagePython:
+			if !pythonModelRequiresOutput(model) {
+				continue
+			}
+			emitPythonPackageInitFile(plugin, pythonPackageInitFiles, pythonOutputPath(file))
+			if err := renderPythonFile(plugin, model); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func collectPythonModels(plugin *protogen.Plugin, opts Options) (map[string]FileModel, []*protogen.File, error) {
+	models := make(map[string]FileModel)
+	orderedFiles := make([]*protogen.File, 0, len(plugin.Files))
+
+	for _, file := range plugin.Files {
+		if !file.Generate {
 			continue
 		}
 
-		if err := generateFile(plugin, file, serviceSpecs); err != nil {
-			return err
+		model, err := CollectFileModel(file, opts)
+		if err != nil {
+			return nil, nil, err
 		}
+		models[file.Desc.Path()] = model
+		orderedFiles = append(orderedFiles, file)
 	}
 
-	return nil
-}
-
-func collectFileSpecs(file *protogen.File) ([]serviceSpec, error) {
-	serviceSpecs := make([]serviceSpec, 0, len(file.Services))
-
-	for _, service := range file.Services {
-		serviceMetadata, err := loadServiceMetadata(service)
-		if err != nil {
-			return nil, err
+	extraRefs := make(map[string]map[string]struct{})
+	for _, file := range orderedFiles {
+		graph := models[file.Desc.Path()].PythonTypes
+		if graph == nil {
+			continue
 		}
-
-		spec := serviceSpec{
-			Service:     service,
-			Namespace:   serviceMetadata.Namespace,
-			Description: serviceMetadata.Description,
-			Icons:       serviceMetadata.Icons,
-		}
-
-		for _, method := range service.Methods {
-			if method.Desc.IsStreamingClient() || method.Desc.IsStreamingServer() {
-				return nil, fmt.Errorf("streaming RPC is not supported: %s", method.Desc.FullName())
-			}
-
-			methodMetadata, err := loadMethodMetadata(method)
-			if err != nil {
-				return nil, err
-			}
-			if methodMetadata.Hidden || methodMetadata.Disabled {
+		for _, typ := range graph.Types {
+			if typ.Owner.IsCurrentFile {
 				continue
 			}
-
-			inputSchema, err := generateSchema(method.Input)
-			if err != nil {
-				return nil, fmt.Errorf("input schema for %s: %w", method.Desc.FullName(), err)
+			if extraRefs[typ.Owner.ProtoPath] == nil {
+				extraRefs[typ.Owner.ProtoPath] = make(map[string]struct{})
 			}
-			if len(methodMetadata.Examples) > 0 {
-				inputSchema.Examples = make([]any, 0, len(methodMetadata.Examples))
-				for _, example := range methodMetadata.Examples {
-					inputSchema.Examples = append(inputSchema.Examples, example)
-				}
-			}
-
-			if methodMetadata.Deprecated {
-				inputSchema.Deprecated = true
-			}
-
-			outputSchema, err := generateSchema(method.Output)
-			if err != nil {
-				return nil, fmt.Errorf("output schema for %s: %w", method.Desc.FullName(), err)
-			}
-
-			inputSchemaJSON, err := schema.MarshalJSON(inputSchema)
-			if err != nil {
-				return nil, fmt.Errorf("marshal input schema for %s: %w", method.Desc.FullName(), err)
-			}
-			outputSchemaJSON, err := schema.MarshalJSON(outputSchema)
-			if err != nil {
-				return nil, fmt.Errorf("marshal output schema for %s: %w", method.Desc.FullName(), err)
-			}
-
-			spec.Methods = append(spec.Methods, methodSpec{
-				Method:           method,
-				Name:             methodMetadata.Name,
-				Title:            methodMetadata.Title,
-				Description:      methodMetadata.Description,
-				Examples:         methodMetadata.Examples,
-				Deprecated:       methodMetadata.Deprecated,
-				InputSchemaJSON:  inputSchemaJSON,
-				OutputSchemaJSON: outputSchemaJSON,
-				Annotations:      methodMetadata.Annotations,
-				Icons:            methodMetadata.Icons,
-			})
-		}
-
-		if len(spec.Methods) > 0 {
-			serviceSpecs = append(serviceSpecs, spec)
+			extraRefs[typ.Owner.ProtoPath][typ.ProtoFullName] = struct{}{}
 		}
 	}
 
-	for i := range serviceSpecs {
-		for j := range serviceSpecs[i].Methods {
-			if len(serviceSpecs[i].Methods[j].Icons) == 0 {
-				serviceSpecs[i].Methods[j].Icons = serviceSpecs[i].Icons
-			}
+	for _, file := range orderedFiles {
+		refs := extraRefs[file.Desc.Path()]
+		if len(refs) == 0 {
+			continue
 		}
+		model := models[file.Desc.Path()]
+		if err := augmentPythonModelWithCurrentTypeRefs(file, &model, refs); err != nil {
+			return nil, nil, err
+		}
+		models[file.Desc.Path()] = model
 	}
 
-	return serviceSpecs, nil
+	return models, orderedFiles, nil
 }
 
-func generateSchema(message *protogen.Message) (*jsonschema.Schema, error) {
-	var fieldErr error
-
-	generatedSchema, err := schema.GenerateMessageSchema(message, schema.Options{
-		MessageMetadata: func(current *protogen.Message) schema.Metadata {
-			metadata, err := loadMessageMetadata(current)
-			if err != nil && fieldErr == nil {
-				fieldErr = err
-			}
-			commentMetadata := parseCommentBlock(current.Comments.Leading)
-			return schema.Metadata{
-				Title:         metadata.Title,
-				Description:   metadata.Description,
-				Examples:      commentMetadata.Examples,
-				TypedExamples: metadata.TypedExamples,
-			}
-		},
-		FieldMetadata: func(field *protogen.Field) schema.FieldMetadata {
-			metadata, err := loadFieldMetadata(field)
-			if err != nil && fieldErr == nil {
-				fieldErr = err
-			}
-			return metadata.FieldMetadata
-		},
-		EnumMetadata: func(enum *protogen.Enum) schema.EnumMetadata {
-			metadata, err := loadEnumMetadata(enum)
-			if err != nil && fieldErr == nil {
-				fieldErr = err
-			}
-			return schema.EnumMetadata{
-				Title:       metadata.Title,
-				Description: metadata.Description,
-			}
-		},
-		EnumValueMetadata: func(enumValue *protogen.EnumValue) schema.EnumValueMetadata {
-			metadata, err := loadEnumValueMetadata(enumValue)
-			if err != nil && fieldErr == nil {
-				fieldErr = err
-			}
-			return schema.EnumValueMetadata{
-				Description: metadata.Description,
-				Hidden:      metadata.Hidden,
-			}
-		},
-	})
-	if err != nil {
-		return nil, err
+func pythonModelRequiresOutput(model FileModel) bool {
+	if len(model.Services) > 0 {
+		return true
 	}
-	if fieldErr != nil {
-		return nil, fieldErr
+	if model.PythonTypes == nil {
+		return false
 	}
-
-	return generatedSchema, nil
-}
-
-func generateFile(plugin *protogen.Plugin, file *protogen.File, services []serviceSpec) error {
-	filename := file.GeneratedFilenamePrefix + ".mcp.go"
-	generated := plugin.NewGeneratedFile(filename, file.GoImportPath)
-
-	generated.P("// Code generated by protoc-gen-mcp. DO NOT EDIT.")
-	generated.P("// source: ", file.Desc.Path())
-	generated.P()
-	generated.P("package ", file.GoPackageName)
-	generated.P()
-
-	contextIdent := generated.QualifiedGoIdent(protogen.GoImportPath("context").Ident("Context"))
-	errorsIdent := generated.QualifiedGoIdent(protogen.GoImportPath("errors").Ident("New"))
-	mcpServerIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("Server"))
-	mcpruntimeImport := protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime")
-	registerOptionIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("RegisterOption"))
-	registerToolIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("RegisterProtoTool"))
-	toolSpecIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("ToolSpec"))
-
-	for _, service := range services {
-		interfaceName := service.Service.GoName + "ToolHandler"
-		generated.P("// ", interfaceName, " defines the business logic required by generated MCP tools.")
-		generated.P("type ", interfaceName, " interface {")
-		for _, method := range service.Methods {
-			inputType := generated.QualifiedGoIdent(method.Method.Input.GoIdent)
-			outputType := generated.QualifiedGoIdent(method.Method.Output.GoIdent)
-			generated.P(method.Method.GoName, "(ctx ", contextIdent, ", req *", inputType, ") (*", outputType, ", error)")
-		}
-		generated.P("}")
-		generated.P()
-
-		registerName := "Register" + service.Service.GoName + "Tools"
-		generated.P("// ", registerName, " registers generated MCP tools for ", service.Service.GoName, ".")
-		generated.P("func ", registerName, "(server *", mcpServerIdent, ", impl ", interfaceName, ", opts ...", registerOptionIdent, ") error {")
-		generated.P("if impl == nil {")
-		generated.P("return ", errorsIdent, "(\"", registerName, ": impl is nil\")")
-		generated.P("}")
-		for _, method := range service.Methods {
-			specName := service.Service.GoName + "_" + method.Method.GoName + "_ToolSpec"
-			generated.P("if err := ", registerToolIdent, "(server, ", toolSpecIdent, "[*", generated.QualifiedGoIdent(method.Method.Input.GoIdent), ", *", generated.QualifiedGoIdent(method.Method.Output.GoIdent), "]{")
-			generated.P("Name: ", quote(method.Name), ",")
-			generated.P("Title: ", quote(method.Title), ",")
-			generated.P("Description: ", quote(method.Description), ",")
-			generated.P("Namespace: ", quote(service.Namespace), ",")
-			generated.P("InputSchemaJSON: ", specName, "InputSchemaJSON,")
-			generated.P("OutputSchemaJSON: ", specName, "OutputSchemaJSON,")
-			generated.P("Annotations: ", stringifyAnnotations(generated, method.Annotations), ",")
-			generated.P("Icons: ", stringifyIcons(generated, method.Icons), ",")
-			generated.P("NewRequest: func() *", generated.QualifiedGoIdent(method.Method.Input.GoIdent), " { return &", generated.QualifiedGoIdent(method.Method.Input.GoIdent), "{} },")
-			generated.P("NewResponse: func() *", generated.QualifiedGoIdent(method.Method.Output.GoIdent), " { return &", generated.QualifiedGoIdent(method.Method.Output.GoIdent), "{} },")
-			generated.P("Handler: impl.", method.Method.GoName, ",")
-			generated.P("}, opts...); err != nil {")
-			generated.P("return err")
-			generated.P("}")
-		}
-		generated.P("return nil")
-		generated.P("}")
-		generated.P()
-
-		for _, method := range service.Methods {
-			specName := service.Service.GoName + "_" + method.Method.GoName + "_ToolSpec"
-			generated.P("const ", specName, "InputSchemaJSON = ", quote(method.InputSchemaJSON))
-			generated.P()
-			generated.P("const ", specName, "OutputSchemaJSON = ", quote(method.OutputSchemaJSON))
-			generated.P()
+	for _, typ := range model.PythonTypes.Types {
+		if typ.Owner.IsCurrentFile {
+			return true
 		}
 	}
-
-	return nil
+	return false
 }
 
-func quote(value string) string {
-	return fmt.Sprintf("%q", value)
-}
+func emitPythonPackageInitFile(plugin *protogen.Plugin, emitted map[string]bool, outputPath string) {
+	dir := path.Dir(outputPath)
+	if dir == "." || dir == "/" {
+		return
+	}
+	filename := path.Join(dir, "__init__.py")
+	if emitted[filename] {
+		return
+	}
+	emitted[filename] = true
 
-func stringifyAnnotations(generated *protogen.GeneratedFile, ann *mcpoptionsv1.ToolAnnotations) string {
-	if ann == nil {
-		return "nil"
-	}
-	mcpAnnIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("ToolAnnotations"))
-
-	var fields []string
-	if ann.DestructiveHint != nil {
-		protoBoolIdent := generated.QualifiedGoIdent(protogen.GoImportPath("google.golang.org/protobuf/proto").Ident("Bool"))
-		fields = append(fields, fmt.Sprintf("DestructiveHint: %s(%t),", protoBoolIdent, *ann.DestructiveHint))
-	}
-	if ann.IdempotentHint != false {
-		fields = append(fields, fmt.Sprintf("IdempotentHint: %t,", ann.IdempotentHint))
-	}
-	if ann.OpenWorldHint != nil {
-		protoBoolIdent := generated.QualifiedGoIdent(protogen.GoImportPath("google.golang.org/protobuf/proto").Ident("Bool"))
-		fields = append(fields, fmt.Sprintf("OpenWorldHint: %s(%t),", protoBoolIdent, *ann.OpenWorldHint))
-	}
-	if ann.Title != "" {
-		protoStringIdent := generated.QualifiedGoIdent(protogen.GoImportPath("google.golang.org/protobuf/proto").Ident("String"))
-		fields = append(fields, fmt.Sprintf("Title: %s(%q),", protoStringIdent, ann.Title))
-	}
-
-	if len(fields) == 0 {
-		return "&" + mcpAnnIdent + "{}"
-	}
-	return "&" + mcpAnnIdent + "{" + strings.Join(fields, " ") + "}"
-}
-
-func stringifyIcons(generated *protogen.GeneratedFile, icons []*mcpoptionsv1.Icon) string {
-	if len(icons) == 0 {
-		return "nil"
-	}
-	mcpIconIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("Icon"))
-
-	var items []string
-	for _, icon := range icons {
-		sizesStr := "nil"
-		if len(icon.GetSizes()) > 0 {
-			var quotedSizes []string
-			for _, s := range icon.GetSizes() {
-				quotedSizes = append(quotedSizes, fmt.Sprintf("%q", s))
-			}
-			sizesStr = "[]string{" + strings.Join(quotedSizes, ", ") + "}"
-		}
-		items = append(items, fmt.Sprintf("%s{Source: %q, MIMEType: %q, Sizes: %s, Theme: %q},",
-			mcpIconIdent, icon.GetSrc(), icon.GetMimeType(), sizesStr, icon.GetTheme()))
-	}
-	return "[]" + mcpIconIdent + "{" + strings.Join(items, " ") + "}"
+	generated := plugin.NewGeneratedFile(filename, "")
+	generated.P("# Code generated by protoc-gen-mcp. DO NOT EDIT.")
 }
