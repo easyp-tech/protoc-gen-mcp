@@ -41,6 +41,34 @@ func TestGeneratePythonExampleGolden(t *testing.T) {
 	}
 }
 
+func TestGenerate_JVMTargetsCollectWithoutOutput(t *testing.T) {
+	tests := []struct {
+		name     string
+		language Language
+	}{
+		{
+			name:     "kotlin",
+			language: LanguageKotlin,
+		},
+		{
+			name:     "java",
+			language: LanguageJava,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			plugin := newExampleProtogenPlugin(t)
+			if err := Generate(plugin, Options{Language: tt.language}); err != nil {
+				t.Fatalf("Generate: %v", err)
+			}
+			if len(plugin.Response().GetFile()) != 0 {
+				t.Fatalf("JVM foundation dispatch emitted %d files, want 0", len(plugin.Response().GetFile()))
+			}
+		})
+	}
+}
+
 func TestGenerate_PythonEmitsMCPNamespaceBridge(t *testing.T) {
 	plugin := newExampleProtogenPlugin(t)
 	if err := Generate(plugin, Options{

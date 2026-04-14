@@ -15,6 +15,8 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 		if err := emitPythonSupportFiles(plugin); err != nil {
 			return err
 		}
+	case LanguageKotlin:
+	case LanguageJava:
 	default:
 		return fmt.Errorf("unsupported lang %q", opts.Language)
 	}
@@ -32,6 +34,23 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 			}
 			emitPythonPackageInitFile(plugin, pythonPackageInitFiles, pythonOutputPath(file))
 			if err := renderPythonFile(plugin, model); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	switch opts.Language {
+	case LanguageKotlin, LanguageJava:
+		for _, file := range plugin.Files {
+			if !file.Generate {
+				continue
+			}
+			model, err := CollectFileModel(file, opts)
+			if err != nil {
+				return err
+			}
+			if _, err := CollectJVMFileModel(file, model); err != nil {
 				return err
 			}
 		}
