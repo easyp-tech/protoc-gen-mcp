@@ -97,10 +97,10 @@ func TestKotlinContract_JavaPackageAndWrapperImports(t *testing.T) {
 		"import com.example.shared.SharedTypes",
 		"import com.example.sharedmulti.MultiRequest",
 		"import com.example.sharedmulti.MultiResponse",
-		"import com.example.defaultouter.SharedDefaultOuterOuterClass",
+		"import com.example.defaultouter.SharedDefaultOuter",
 		"suspend fun useShared(ctx: ClientConnection, request: SharedTypes.SharedRequest): SharedTypes.SharedResponse",
 		"suspend fun useMulti(ctx: ClientConnection, request: MultiRequest): MultiResponse",
-		"suspend fun useDefault(ctx: ClientConnection, request: SharedDefaultOuterOuterClass.DefaultRequest): SharedDefaultOuterOuterClass.DefaultResponse",
+		"suspend fun useDefault(ctx: ClientConnection, request: SharedDefaultOuter.DefaultRequest): SharedDefaultOuter.DefaultResponse",
 	}
 	assertKotlinContains(t, generated, wantSnippets...)
 }
@@ -118,6 +118,35 @@ func TestKotlinContract_RawSchemaProjectionAndValidation(t *testing.T) {
 		"CallToolResult(content = listOf(TextContent(text = textPayload)), structuredContent = payload)",
 	}
 	assertKotlinContains(t, generated, wantSnippets...)
+}
+
+func TestKotlinContract_UsesPublicServerClientConnection(t *testing.T) {
+	generated := renderBasicKotlinFixture(t)
+
+	assertKotlinContains(t, generated, "server.clientConnection(session.sessionId)")
+	assertKotlinOmits(t, generated, "session.clientConnection")
+}
+
+func TestKotlinContract_UsesNetworkntJsonSchemaValidation(t *testing.T) {
+	generated := renderBasicKotlinFixture(t)
+
+	wantSnippets := []string{
+		"import com.networknt.schema.InputFormat",
+		"import com.networknt.schema.JsonSchemaFactory",
+		"import com.networknt.schema.SpecVersion",
+		"private val jsonSchemaFactory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)",
+		"jsonSchemaFactory.getSchema(rawSchemaJson).validate(payload.toString(), InputFormat.JSON)",
+		`invalidParams(tool.name, error.message ?: error.toString())`,
+		`IllegalStateException("mcpruntime: validate output for tool '${tool.name}': ${error.message}", error)`,
+	}
+	assertKotlinContains(t, generated, wantSnippets...)
+}
+
+func TestKotlinContract_EscapesSchemaDollarSigns(t *testing.T) {
+	generated := renderRepositoryExampleKotlinFixture(t)
+
+	assertKotlinContains(t, generated, `\$ref`, `\$defs`)
+	assertKotlinOmits(t, generated, `\"$ref\"`, `\"$defs\"`)
 }
 
 func TestKotlinContract_AnnotationsIconsAndThemeValidation(t *testing.T) {
@@ -230,6 +259,17 @@ func renderBasicKotlinFixture(t *testing.T) string {
 	}, "test/v1/example.proto")
 
 	return renderKotlinFileFromPlugin(t, plugin, "test/v1/example.proto")
+}
+
+func renderRepositoryExampleKotlinFixture(t *testing.T) string {
+	t.Helper()
+
+	plugin := newExampleProtogenPlugin(t)
+	if err := Generate(plugin, Options{Language: LanguageKotlin}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	return string(generatedFileContent(t, plugin, "internal/testproto/example/v1/example_mcp.kt"))
 }
 
 func renderKotlinFileFromPlugin(t *testing.T, plugin *protogen.Plugin, protoPath string) string {
