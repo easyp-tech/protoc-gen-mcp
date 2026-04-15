@@ -41,31 +41,52 @@ func TestGeneratePythonExampleGolden(t *testing.T) {
 	}
 }
 
-func TestGenerate_JVMTargetsCollectWithoutOutput(t *testing.T) {
-	tests := []struct {
-		name     string
-		language Language
-	}{
-		{
-			name:     "kotlin",
-			language: LanguageKotlin,
-		},
-		{
-			name:     "java",
-			language: LanguageJava,
-		},
+func TestGenerateKotlinExampleGolden(t *testing.T) {
+	plugin := newExampleProtogenPlugin(t)
+	if err := Generate(plugin, Options{Language: LanguageKotlin}); err != nil {
+		t.Fatalf("Generate: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			plugin := newExampleProtogenPlugin(t)
-			if err := Generate(plugin, Options{Language: tt.language}); err != nil {
-				t.Fatalf("Generate: %v", err)
-			}
-			if len(plugin.Response().GetFile()) != 0 {
-				t.Fatalf("JVM foundation dispatch emitted %d files, want 0", len(plugin.Response().GetFile()))
-			}
-		})
+	got := generatedFileContent(t, plugin, "internal/testproto/example/v1/example_mcp.kt")
+	want := readExampleKotlinGolden(t, repoRoot(t))
+	if !bytes.Equal(got, want) {
+		t.Fatalf("fresh Kotlin renderer output differs from golden:\n%s", diffBytes(want, got))
+	}
+}
+
+func TestGenerate_JavaTargetCollectsWithoutOutput(t *testing.T) {
+	plugin := newExampleProtogenPlugin(t)
+	if err := Generate(plugin, Options{Language: LanguageJava}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if len(plugin.Response().GetFile()) != 0 {
+		t.Fatalf("Java foundation dispatch emitted %d files, want 0", len(plugin.Response().GetFile()))
+	}
+}
+
+func TestGenerate_KotlinTargetEmitsOutput(t *testing.T) {
+	plugin := newExampleProtogenPlugin(t)
+	if err := Generate(plugin, Options{Language: LanguageKotlin}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	generated := string(generatedFileContent(t, plugin, "internal/testproto/example/v1/example_mcp.kt"))
+	wantSnippets := []string{
+		"interface ExampleAPIToolHandler",
+		"fun registerExampleAPITools(server: Server, impl: ExampleAPIToolHandler, namespace: String? = null)",
+		"installMcpHandlers(server)",
+		"private class ServerToolRegistry",
+		"private suspend fun dispatchToolCall",
+		"ListToolsRequest",
+		"CallToolRequest",
+	}
+	for _, snippet := range wantSnippets {
+		if !strings.Contains(generated, snippet) {
+			t.Fatalf("generated Kotlin missing snippet %q\n%s", snippet, generated)
+		}
+	}
+	if strings.Contains(generated, "server."+"addTool(") {
+		t.Fatalf("generated Kotlin must not use high-level server tool registration\n%s", generated)
 	}
 }
 
@@ -676,6 +697,17 @@ func readExamplePythonGolden(t *testing.T, root string) []byte {
 	t.Helper()
 
 	wantPath := filepath.Join(root, "testdata/golden/example_mcp.py.golden")
+	want, err := os.ReadFile(wantPath)
+	if err != nil {
+		t.Fatalf("read golden file %q: %v", wantPath, err)
+	}
+	return want
+}
+
+func readExampleKotlinGolden(t *testing.T, root string) []byte {
+	t.Helper()
+
+	wantPath := filepath.Join(root, "testdata/golden/example_mcp.kt.golden")
 	want, err := os.ReadFile(wantPath)
 	if err != nil {
 		t.Fatalf("read golden file %q: %v", wantPath, err)

@@ -2,9 +2,10 @@
 
 ## Scope
 
-This repository implements a protobuf-first MCP generator and runtime for Go
-and Python MCP server bindings. The MVP is intentionally narrow and must stay
-decision-consistent with the current architecture unless explicitly revised.
+This repository implements a protobuf-first MCP generator and runtime for Go,
+Python, and Kotlin MCP server bindings. The MVP is intentionally narrow and
+must stay decision-consistent with the current architecture unless explicitly
+revised.
 
 ## Stack
 
@@ -15,6 +16,8 @@ decision-consistent with the current architecture unless explicitly revised.
 - `google.protobuf` for Python generated modules and ProtoJSON conversion
 - `github.com/modelcontextprotocol/go-sdk/mcp` as the MCP runtime
 - `mcp>=1.27,<2` as the official Python MCP SDK target
+- `io.modelcontextprotocol:kotlin-sdk-server` as the official Kotlin MCP SDK
+  target
 - `github.com/google/jsonschema-go/jsonschema` for JSON Schema parsing and
   validation
 - `github.com/bufbuild/protocompile` for in-process descriptor compilation in
@@ -43,7 +46,10 @@ decision-consistent with the current architecture unless explicitly revised.
 - `mcp/options/v1/options.proto`: custom protobuf options for MCP metadata
 - `internal/codegen`: code generation logic
 - `internal/codegen/jvm_*.go`: shared JVM semantic model, naming, and collector
-  foundation used by future Kotlin/Java renderers
+  foundation used by the Kotlin renderer and future Java renderer
+- `internal/codegen/render_kotlin.go`: self-contained Kotlin sidecar renderer
+- `internal/codegen/kotlin_contract_test.go`: Kotlin public API, SDK wiring,
+  schema-path, and JVM import contract tests
 - `internal/examplemcp`: reusable example MCP server wiring and stdio smoke test
 - `internal/schema`: protobuf descriptor to JSON Schema conversion
 - `internal/testproto`: protobuf fixtures and generated code used in repository tests
@@ -58,7 +64,8 @@ decision-consistent with the current architecture unless explicitly revised.
 - Python generation emits package `__init__.py` files next to generated
   `*_mcp.py` modules so generated directories can be imported as Python
   packages
-- `testdata/golden`: golden snapshots for generated `*.mcp.go` files
+- `testdata/golden`: golden snapshots for generated Go, Python, and Kotlin
+  binding files
 - `testdata/unsupported`: negative fixtures for fail-fast generator coverage
 
 ## MVP Rules
@@ -102,6 +109,9 @@ decision-consistent with the current architecture unless explicitly revised.
 - Generated Python modules expose dataclasses, `UNSET`, and explicit `oneof`
   wrapper variants from `*_mcp.py`; user handler code should not depend on
   `*_pb2.py`
+- Generated Kotlin files expose `<Service>ToolHandler`
+- Generated Kotlin files expose
+  `register<Service>Tools(server: Server, impl: <Service>ToolHandler, namespace: String? = null)`
 - Runtime exposes only the minimal registration options used by generated code
 - Generated MCP tool names must not contain dots; namespace prefixes and method
   names are joined with underscores, and any dots in configured segments are
@@ -117,10 +127,16 @@ decision-consistent with the current architecture unless explicitly revised.
   - typed plugin option parsing for `lang=go|python|kotlin|java` and
     `python_runtime=google.protobuf|betterproto|grpclib`
   - shared JVM foundation for `lang=kotlin` and `lang=java`: parser and
-    generator dispatch accept both targets, collect SDK-neutral `internal/codegen/jvm_*.go`
-    models, preserve existing `FileModel` schema JSON/annotations/icons/type
-    semantics, and emit no JVM files until Kotlin/Java renderers are implemented
-    in later phases
+    generator dispatch accept both targets, collect SDK-neutral
+    `internal/codegen/jvm_*.go` models, preserve existing `FileModel` schema
+    JSON/annotations/icons/type semantics, and keep Java collect-only until its
+    renderer phase
+  - generated self-contained Kotlin `*_mcp.kt` bindings for `lang=kotlin`,
+    targeting `io.modelcontextprotocol:kotlin-sdk-server`, including
+    protobuf-typed handler interfaces, namespace-aware
+    `register<Service>Tools(...)`, generated low-level `tools/list` and
+    `tools/call` helper wiring, raw schema JSON constants, ProtoJSON
+    parse/marshal helpers, annotations, icons, and task-support mapping
   - single-source custom generator option handling through
     `protogen.Options.ParamFunc`, with fail-fast rejection of unknown
     `protoc-gen-mcp` params
@@ -215,7 +231,10 @@ decision-consistent with the current architecture unless explicitly revised.
     proto3 `optional` scalar/enum fields
 - Verified:
   - `easyp` lint and generation flows for `mcp` and `internal/testproto`
-  - `go test ./internal/codegen -count=1` for generator, Go/Python, and shared JVM foundation coverage
+  - `go test ./internal/codegen -count=1` for generator, Go/Python, Kotlin,
+    and shared JVM foundation coverage
+  - `go test ./internal/codegen -run 'TestGenerateKotlinExampleGolden|TestKotlinContract_.*' -count=1`
+    for Kotlin golden output and focused Kotlin renderer contracts
   - `go test ./...`
   - stdio smoke tests via `internal/examplemcp/stdio_test.go`
   - Python stdio integration coverage for the shared server:
