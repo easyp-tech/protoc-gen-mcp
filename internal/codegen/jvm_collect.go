@@ -77,6 +77,7 @@ func newJVMMethodModel(serviceName string, method MethodModel, descriptorMethod 
 		OutputSchemaJSON: method.OutputSchemaJSON,
 		Annotations:      method.Annotations,
 		Icons:            method.Icons,
+		TaskSupport:      method.TaskSupport,
 	}
 	if descriptorMethod != nil {
 		methodModel.Input = newJVMTypeRefFromMessage(descriptorMethod.Input, currentProtoPath)

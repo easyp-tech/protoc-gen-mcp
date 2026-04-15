@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	mcpoptionsv1 "github.com/easyp-tech/protoc-gen-mcp/mcp/options/v1"
 )
 
 func TestJVMModel_StructuralIRDoesNotContainRawProtogenDescriptors(t *testing.T) {
@@ -182,6 +184,66 @@ func TestCollectJVMFileModel_PreservesAnnotationsAndIcons(t *testing.T) {
 	}
 }
 
+func TestCollectJVMFileModel_PreservesTaskSupport(t *testing.T) {
+	plugin := newTempProtogenPlugin(t, map[string]string{
+		"test/v1/task_support.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/tasksupport;tasksupportv1";`,
+			`import "mcp/options/v1/options.proto";`,
+			`message Request {}`,
+			`message Response {}`,
+			`service TaskSupportService {`,
+			`  rpc OptionalTask(Request) returns (Response) {`,
+			`    option (mcp.options.v1.method) = {`,
+			`      execution: { task_support: TASK_SUPPORT_OPTIONAL }`,
+			`    };`,
+			`  }`,
+			`  rpc RequiredTask(Request) returns (Response) {`,
+			`    option (mcp.options.v1.method) = {`,
+			`      execution: { task_support: TASK_SUPPORT_REQUIRED }`,
+			`    };`,
+			`  }`,
+			`  rpc PlainTask(Request) returns (Response);`,
+			`}`,
+			"",
+		}, "\n"),
+	}, "test/v1/task_support.proto")
+	file := plugin.FilesByPath["test/v1/task_support.proto"]
+	if file == nil {
+		t.Fatal("task_support proto file not found in plugin")
+	}
+
+	shared, err := CollectFileModel(file, Options{Language: LanguageKotlin})
+	if err != nil {
+		t.Fatalf("CollectFileModel: %v", err)
+	}
+	jvm, err := CollectJVMFileModel(file, shared)
+	if err != nil {
+		t.Fatalf("CollectJVMFileModel: %v", err)
+	}
+
+	sharedService := shared.Services[0]
+	for _, tc := range []struct {
+		protoName string
+		want      mcpoptionsv1.TaskSupport
+	}{
+		{protoName: "OptionalTask", want: mcpoptionsv1.TaskSupport_TASK_SUPPORT_OPTIONAL},
+		{protoName: "RequiredTask", want: mcpoptionsv1.TaskSupport_TASK_SUPPORT_REQUIRED},
+		{protoName: "PlainTask", want: mcpoptionsv1.TaskSupport_TASK_SUPPORT_NONE},
+	} {
+		sharedMethod := findSharedMethodByProtoName(t, sharedService, tc.protoName)
+		if got := sharedMethod.TaskSupport; got != tc.want {
+			t.Fatalf("shared %s TaskSupport = %v, want %v", tc.protoName, got, tc.want)
+		}
+
+		jvmMethod := findJVMMethodByProtoName(t, jvm.Services[0], tc.protoName)
+		if got := jvmMethod.TaskSupport; got != tc.want {
+			t.Fatalf("jvm %s TaskSupport = %v, want %v", tc.protoName, got, tc.want)
+		}
+	}
+}
+
 func TestCollectJVMFileModel_TracksRequirednessNullabilityAndOneofShape(t *testing.T) {
 	plugin := newExampleProtogenPlugin(t)
 	file := plugin.FilesByPath["internal/testproto/example/v1/example.proto"]
@@ -336,6 +398,19 @@ func TestCollectJVMFileModel_RejectsNonJVMTarget(t *testing.T) {
 	if !strings.Contains(err.Error(), "jvm model requires lang=kotlin or lang=java") {
 		t.Fatalf("CollectJVMFileModel error = %v, want non-JVM target rejection", err)
 	}
+}
+
+func findSharedMethodByProtoName(t *testing.T, service ServiceModel, protoName string) MethodModel {
+	t.Helper()
+
+	for _, method := range service.Methods {
+		if method.ProtoName == protoName {
+			return method
+		}
+	}
+
+	t.Fatalf("shared method %q not found", protoName)
+	return MethodModel{}
 }
 
 func findJVMMethodByProtoName(t *testing.T, service JVMServiceModel, protoName string) JVMMethodModel {

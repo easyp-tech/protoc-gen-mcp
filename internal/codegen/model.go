@@ -36,6 +36,7 @@ type MethodModel struct {
 	OutputSchemaJSON string
 	Annotations      *mcpoptionsv1.ToolAnnotations
 	Icons            []*mcpoptionsv1.Icon
+	TaskSupport      mcpoptionsv1.TaskSupport
 }
 
 type TypeRef struct {

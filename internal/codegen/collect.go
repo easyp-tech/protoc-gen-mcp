@@ -91,6 +91,7 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 				OutputSchemaJSON: outputSchemaJSON,
 				Annotations:      methodMetadata.Annotations,
 				Icons:            methodMetadata.Icons,
+				TaskSupport:      methodMetadata.TaskSupport,
 			}
 			if len(methodModel.Icons) == 0 {
 				methodModel.Icons = serviceModel.Icons
