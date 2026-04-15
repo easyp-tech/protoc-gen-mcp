@@ -209,11 +209,11 @@ private fun toolName(namespace: String, methodName: String): String {
 }
 
 interface ExampleAPIToolHandler {
-    suspend fun createReport(ctx: ClientConnection, request: ExampleOuterClass.CreateReportRequest): ExampleOuterClass.CreateReportResponse
-    suspend fun ping(ctx: ClientConnection, request: ExampleOuterClass.PingRequest): ExampleOuterClass.PingResponse
-    suspend fun describeAdvancedShapes(ctx: ClientConnection, request: ExampleOuterClass.DescribeAdvancedShapesRequest): ExampleOuterClass.DescribeAdvancedShapesResponse
-    suspend fun describeScalarShapes(ctx: ClientConnection, request: ExampleOuterClass.DescribeScalarShapesRequest): ExampleOuterClass.DescribeScalarShapesResponse
-    suspend fun hiddenThing(ctx: ClientConnection, request: ExampleOuterClass.HiddenThingRequest): ExampleOuterClass.HiddenThingResponse
+    suspend fun createReport(ctx: ClientConnection, request: Example.CreateReportRequest): Example.CreateReportResponse
+    suspend fun ping(ctx: ClientConnection, request: Example.PingRequest): Example.PingResponse
+    suspend fun describeAdvancedShapes(ctx: ClientConnection, request: Example.DescribeAdvancedShapesRequest): Example.DescribeAdvancedShapesResponse
+    suspend fun describeScalarShapes(ctx: ClientConnection, request: Example.DescribeScalarShapesRequest): Example.DescribeScalarShapesResponse
+    suspend fun hiddenThing(ctx: ClientConnection, request: Example.HiddenThingRequest): Example.HiddenThingResponse
 }
 
 fun registerExampleAPITools(server: Server, impl: ExampleAPIToolHandler, namespace: String? = null) {
@@ -226,8 +226,8 @@ fun registerExampleAPITools(server: Server, impl: ExampleAPIToolHandler, namespa
             description = "Create a report for a city.",
             inputSchemaJson = EXAMPLE_API_CREATE_REPORT_INPUT_SCHEMA_JSON,
             outputSchemaJson = EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON,
-            requestBuilder = { ExampleOuterClass.CreateReportRequest.newBuilder() },
-            handler = { ctx, request -> impl.createReport(ctx, request as ExampleOuterClass.CreateReportRequest) as Message },
+            requestBuilder = { Example.CreateReportRequest.newBuilder() },
+            handler = { ctx, request -> impl.createReport(ctx, request as Example.CreateReportRequest) as Message },
             annotations = null,
             icons = emptyList(),
             execution = toolExecutionOrNull("none"),
@@ -240,8 +240,8 @@ fun registerExampleAPITools(server: Server, impl: ExampleAPIToolHandler, namespa
             description = "Ping returns an empty response.",
             inputSchemaJson = EXAMPLE_API_PING_INPUT_SCHEMA_JSON,
             outputSchemaJson = EXAMPLE_API_PING_OUTPUT_SCHEMA_JSON,
-            requestBuilder = { ExampleOuterClass.PingRequest.newBuilder() },
-            handler = { ctx, request -> impl.ping(ctx, request as ExampleOuterClass.PingRequest) as Message },
+            requestBuilder = { Example.PingRequest.newBuilder() },
+            handler = { ctx, request -> impl.ping(ctx, request as Example.PingRequest) as Message },
             annotations = null,
             icons = emptyList(),
             execution = toolExecutionOrNull("none"),
@@ -254,8 +254,8 @@ fun registerExampleAPITools(server: Server, impl: ExampleAPIToolHandler, namespa
             description = "Exercise maps and well-known protobuf types.",
             inputSchemaJson = EXAMPLE_API_DESCRIBE_ADVANCED_SHAPES_INPUT_SCHEMA_JSON,
             outputSchemaJson = EXAMPLE_API_DESCRIBE_ADVANCED_SHAPES_OUTPUT_SCHEMA_JSON,
-            requestBuilder = { ExampleOuterClass.DescribeAdvancedShapesRequest.newBuilder() },
-            handler = { ctx, request -> impl.describeAdvancedShapes(ctx, request as ExampleOuterClass.DescribeAdvancedShapesRequest) as Message },
+            requestBuilder = { Example.DescribeAdvancedShapesRequest.newBuilder() },
+            handler = { ctx, request -> impl.describeAdvancedShapes(ctx, request as Example.DescribeAdvancedShapesRequest) as Message },
             annotations = null,
             icons = emptyList(),
             execution = toolExecutionOrNull("none"),
@@ -268,8 +268,8 @@ fun registerExampleAPITools(server: Server, impl: ExampleAPIToolHandler, namespa
             description = "Exercise plain protobuf scalar kinds.",
             inputSchemaJson = EXAMPLE_API_DESCRIBE_SCALAR_SHAPES_INPUT_SCHEMA_JSON,
             outputSchemaJson = EXAMPLE_API_DESCRIBE_SCALAR_SHAPES_OUTPUT_SCHEMA_JSON,
-            requestBuilder = { ExampleOuterClass.DescribeScalarShapesRequest.newBuilder() },
-            handler = { ctx, request -> impl.describeScalarShapes(ctx, request as ExampleOuterClass.DescribeScalarShapesRequest) as Message },
+            requestBuilder = { Example.DescribeScalarShapesRequest.newBuilder() },
+            handler = { ctx, request -> impl.describeScalarShapes(ctx, request as Example.DescribeScalarShapesRequest) as Message },
             annotations = null,
             icons = emptyList(),
             execution = toolExecutionOrNull("none"),
@@ -282,8 +282,8 @@ fun registerExampleAPITools(server: Server, impl: ExampleAPIToolHandler, namespa
             description = "HiddenThing is intentionally hidden from generated tools.\nNote: the `hidden` method option was removed in this iteration.",
             inputSchemaJson = EXAMPLE_API_HIDDEN_THING_INPUT_SCHEMA_JSON,
             outputSchemaJson = EXAMPLE_API_HIDDEN_THING_OUTPUT_SCHEMA_JSON,
-            requestBuilder = { ExampleOuterClass.HiddenThingRequest.newBuilder() },
-            handler = { ctx, request -> impl.hiddenThing(ctx, request as ExampleOuterClass.HiddenThingRequest) as Message },
+            requestBuilder = { Example.HiddenThingRequest.newBuilder() },
+            handler = { ctx, request -> impl.hiddenThing(ctx, request as Example.HiddenThingRequest) as Message },
             annotations = null,
             icons = emptyList(),
             execution = toolExecutionOrNull("none"),

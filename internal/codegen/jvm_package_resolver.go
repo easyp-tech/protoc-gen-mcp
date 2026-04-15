@@ -36,7 +36,7 @@ func resolveJVMDescriptorFilePackage(file protoreflect.FileDescriptor) (jvmResol
 
 	outerClassName := strings.TrimSpace(options.GetJavaOuterClassname())
 	if outerClassName == "" {
-		outerClassName = defaultJVMOuterClassName(file.Path())
+		outerClassName = defaultJVMOuterClassName(file)
 	}
 
 	return jvmResolvedFilePackage{
@@ -88,7 +88,8 @@ func resolveJVMTypeRef(file protoreflect.FileDescriptor, publicName, currentProt
 	}, nil
 }
 
-func defaultJVMOuterClassName(protoPath string) string {
+func defaultJVMOuterClassName(file protoreflect.FileDescriptor) string {
+	protoPath := file.Path()
 	base := strings.TrimSuffix(path.Base(protoPath), path.Ext(protoPath))
 	var b strings.Builder
 	nextUpper := true
@@ -105,8 +106,30 @@ func defaultJVMOuterClassName(protoPath string) string {
 		b.WriteRune(r)
 	}
 	if b.Len() == 0 {
-		return "ProtoOuterClass"
+		b.WriteString("Proto")
 	}
-	b.WriteString("OuterClass")
-	return b.String()
+	candidate := b.String()
+	if jvmOuterClassNameConflicts(file, candidate) {
+		return candidate + "OuterClass"
+	}
+	return candidate
+}
+
+func jvmOuterClassNameConflicts(file protoreflect.FileDescriptor, candidate string) bool {
+	for i := 0; i < file.Messages().Len(); i++ {
+		if string(file.Messages().Get(i).Name()) == candidate {
+			return true
+		}
+	}
+	for i := 0; i < file.Enums().Len(); i++ {
+		if string(file.Enums().Get(i).Name()) == candidate {
+			return true
+		}
+	}
+	for i := 0; i < file.Services().Len(); i++ {
+		if string(file.Services().Get(i).Name()) == candidate {
+			return true
+		}
+	}
+	return false
 }
