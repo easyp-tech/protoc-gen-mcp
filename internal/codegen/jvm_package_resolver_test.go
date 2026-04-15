@@ -45,8 +45,84 @@ func TestResolveJVMFilePackage_UsesJavaPackageAndProtoFallback(t *testing.T) {
 	if got, want := fallback.Package, "fallback.v1"; got != want {
 		t.Fatalf("fallback Package = %q, want %q", got, want)
 	}
-	if got, want := fallback.OuterClassName, "ProtoFallbackOuterClass"; got != want {
+	if got, want := fallback.OuterClassName, "ProtoFallback"; got != want {
 		t.Fatalf("fallback OuterClassName = %q, want %q", got, want)
+	}
+}
+
+func TestResolveJVMFilePackage_DefaultOuterClassnameMatchesProtoc(t *testing.T) {
+	plugin := newTempProtogenPlugin(t, map[string]string{
+		"test/v1/example.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/example;examplev1";`,
+			`message PingRequest {}`,
+			"",
+		}, "\n"),
+		"test/v1/default_outer.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/defaultouter;defaultouterv1";`,
+			`message DefaultRequest {}`,
+			"",
+		}, "\n"),
+		"test/v1/message_conflict/example.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.messageconflict.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/messageconflict;messageconflictv1";`,
+			`message Example {}`,
+			"",
+		}, "\n"),
+		"test/v1/enum_conflict/example.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.enumconflict.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/enumconflict;enumconflictv1";`,
+			`enum Example { EXAMPLE_UNSPECIFIED = 0; }`,
+			"",
+		}, "\n"),
+		"test/v1/service_conflict/example.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.serviceconflict.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/serviceconflict;serviceconflictv1";`,
+			`message PingRequest {}`,
+			`message PingResponse {}`,
+			`service Example {`,
+			`  rpc Ping(PingRequest) returns (PingResponse);`,
+			`}`,
+			"",
+		}, "\n"),
+		"test/v1/wrapped.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/wrapped;wrappedv1";`,
+			`option java_outer_classname = "WrappedTypes";`,
+			`message WrappedRequest {}`,
+			"",
+		}, "\n"),
+	}, "test/v1/example.proto", "test/v1/default_outer.proto", "test/v1/message_conflict/example.proto", "test/v1/enum_conflict/example.proto", "test/v1/service_conflict/example.proto", "test/v1/wrapped.proto")
+
+	testCases := []struct {
+		path string
+		want string
+	}{
+		{path: "test/v1/example.proto", want: "Example"},
+		{path: "test/v1/default_outer.proto", want: "DefaultOuter"},
+		{path: "test/v1/message_conflict/example.proto", want: "ExampleOuterClass"},
+		{path: "test/v1/enum_conflict/example.proto", want: "ExampleOuterClass"},
+		{path: "test/v1/service_conflict/example.proto", want: "ExampleOuterClass"},
+		{path: "test/v1/wrapped.proto", want: "WrappedTypes"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.path, func(t *testing.T) {
+			got, err := resolveJVMFilePackage(plugin.FilesByPath[tc.path])
+			if err != nil {
+				t.Fatalf("resolveJVMFilePackage(%q): %v", tc.path, err)
+			}
+			if got.OuterClassName != tc.want {
+				t.Fatalf("OuterClassName = %q, want %q", got.OuterClassName, tc.want)
+			}
+		})
 	}
 }
 
@@ -142,10 +218,10 @@ func TestResolveJVMMessageTypeRef_UsesDefaultOuterClassname(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve default outer message: %v", err)
 	}
-	if got, want := ref.ImportPath, "com.example.defaultouter.DefaultOuterOuterClass"; got != want {
+	if got, want := ref.ImportPath, "com.example.defaultouter.DefaultOuter"; got != want {
 		t.Fatalf("ImportPath = %q, want %q", got, want)
 	}
-	if got, want := ref.Expr, "DefaultOuterOuterClass.DefaultRequest"; got != want {
+	if got, want := ref.Expr, "DefaultOuter.DefaultRequest"; got != want {
 		t.Fatalf("Expr = %q, want %q", got, want)
 	}
 }
