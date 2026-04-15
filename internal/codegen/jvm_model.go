@@ -40,7 +40,8 @@ type JVMMethodModel struct {
 	OutputSchemaJSON string
 	Annotations      *mcpoptionsv1.ToolAnnotations
 	Icons            []*mcpoptionsv1.Icon
-	TaskSupport      mcpoptionsv1.TaskSupport
+	// TaskSupport mcpoptionsv1.TaskSupport mirrors the shared method contract.
+	TaskSupport mcpoptionsv1.TaskSupport
 }
 
 type JVMTypeGraph struct {
