@@ -51,6 +51,9 @@ func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 	}
 
 	kotlinImports := []string{
+		"com.networknt.schema.InputFormat",
+		"com.networknt.schema.JsonSchemaFactory",
+		"com.networknt.schema.SpecVersion",
 		"com.google.protobuf.Message",
 		"com.google.protobuf.util.JsonFormat",
 		"io.modelcontextprotocol.kotlin.sdk.server.ClientConnection",
@@ -141,9 +144,9 @@ func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 		generated.P()
 
 		for methodIdx, method := range service.Methods {
-			generated.P("private const val ", method.SchemaConst, "_INPUT_SCHEMA_JSON = ", quote(method.InputSchemaJSON))
+			generated.P("private const val ", method.SchemaConst, "_INPUT_SCHEMA_JSON = ", kotlinStringLiteral(method.InputSchemaJSON))
 			generated.P()
-			generated.P("private const val ", method.SchemaConst, "_OUTPUT_SCHEMA_JSON = ", quote(method.OutputSchemaJSON))
+			generated.P("private const val ", method.SchemaConst, "_OUTPUT_SCHEMA_JSON = ", kotlinStringLiteral(method.OutputSchemaJSON))
 			if methodIdx < len(service.Methods)-1 || serviceIdx < len(model.Services)-1 {
 				generated.P()
 			}
@@ -229,6 +232,7 @@ func renderKotlinRuntime(generated *protogen.GeneratedFile) {
 	generated.P("}")
 	generated.P()
 	generated.P("private val serverRegistries = WeakHashMap<Server, ServerToolRegistry>()")
+	generated.P("private val jsonSchemaFactory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)")
 	generated.P()
 	generated.P("private fun installMcpHandlers(server: Server): ServerToolRegistry {")
 	generated.P("    val registry = serverRegistries.getOrPut(server) { ServerToolRegistry() }")
@@ -251,7 +255,7 @@ func renderKotlinRuntime(generated *protogen.GeneratedFile) {
 	generated.P("            listRegisteredTools(registry, request)")
 	generated.P("        }")
 	generated.P("        session.setRequestHandler(Method.Defined.ToolsCall) { request: CallToolRequest, _ ->")
-	generated.P("            dispatchToolCall(registry, session.clientConnection, request)")
+	generated.P("            dispatchToolCall(registry, server.clientConnection(session.sessionId), request)")
 	generated.P("        }")
 	generated.P("    }")
 	generated.P("}")
@@ -263,15 +267,27 @@ func renderKotlinRuntime(generated *protogen.GeneratedFile) {
 	generated.P("private suspend fun dispatchToolCall(registry: ServerToolRegistry, ctx: ClientConnection, request: CallToolRequest): CallToolResult {")
 	generated.P("    val tool = registry.tool(request.params.name) ?: invalidParams(request.params.name, \"unknown tool\")")
 	generated.P("    val arguments = request.params.arguments ?: buildJsonObject {}")
-	generated.P("    validateJson(tool.inputSchemaJson, arguments)")
-	generated.P("    val requestMessage = parseProtoJson(arguments.toString(), tool.requestBuilder())")
+	generated.P("    try {")
+	generated.P("        validateJson(tool.inputSchemaJson, arguments)")
+	generated.P("    } catch (error: Exception) {")
+	generated.P("        invalidParams(tool.name, error.message ?: error.toString())")
+	generated.P("    }")
+	generated.P("    val requestMessage = try {")
+	generated.P("        parseProtoJson(arguments.toString(), tool.requestBuilder())")
+	generated.P("    } catch (error: Exception) {")
+	generated.P("        invalidParams(tool.name, error.message ?: error.toString())")
+	generated.P("    }")
 	generated.P("    val responseMessage = try {")
 	generated.P("        tool.handler(ctx, requestMessage)")
 	generated.P("    } catch (error: Exception) {")
 	generated.P("        return CallToolResult(content = listOf(TextContent(text = error.message ?: error.toString())), isError = true)")
 	generated.P("    }")
 	generated.P("    val payload = marshalProtoJson(responseMessage)")
-	generated.P("    validateJson(tool.outputSchemaJson, payload)")
+	generated.P("    try {")
+	generated.P("        validateJson(tool.outputSchemaJson, payload)")
+	generated.P("    } catch (error: Exception) {")
+	generated.P("        throw IllegalStateException(\"mcpruntime: validate output for tool '${tool.name}': ${error.message}\", error)")
+	generated.P("    }")
 	generated.P("    val textPayload = payload.toString()")
 	generated.P("    return CallToolResult(content = listOf(TextContent(text = textPayload)), structuredContent = payload)")
 	generated.P("}")
@@ -312,14 +328,9 @@ func renderKotlinRuntime(generated *protogen.GeneratedFile) {
 	generated.P("}")
 	generated.P()
 	generated.P("private fun validateJson(rawSchemaJson: String, payload: JsonElement) {")
-	generated.P("    val schema = loadSchema(rawSchemaJson)")
-	generated.P("    val required = schema[\"required\"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()")
-	generated.P("    if (payload !is JsonObject) {")
-	generated.P("        invalidParams(\"<unknown>\", \"payload must be a JSON object\")")
-	generated.P("    }")
-	generated.P("    val missing = required.filterNot { payload.containsKey(it) }")
-	generated.P("    if (missing.isNotEmpty()) {")
-	generated.P("        invalidParams(\"<unknown>\", \"missing required fields: ${missing.joinToString(\", \")}\")")
+	generated.P("    val errors = jsonSchemaFactory.getSchema(rawSchemaJson).validate(payload.toString(), InputFormat.JSON)")
+	generated.P("    if (errors.isNotEmpty()) {")
+	generated.P("        throw IllegalArgumentException(errors.joinToString(\"; \") { it.message })")
 	generated.P("    }")
 	generated.P("}")
 	generated.P()
@@ -474,6 +485,10 @@ func kotlinNullableString(value string) string {
 		return "null"
 	}
 	return quote(value)
+}
+
+func kotlinStringLiteral(value string) string {
+	return strings.ReplaceAll(quote(value), "$", `\$`)
 }
 
 func kotlinImportPackage(importPath string) string {
