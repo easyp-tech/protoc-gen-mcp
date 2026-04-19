@@ -1,12 +1,17 @@
 # protoc-gen-mcp Examples
 
-This directory contains standalone, runnable examples of how to build and expose Model Context Protocol (MCP) tools using Protocol Buffers with both the Go SDK and the official Python SDK.
+This directory contains standalone, runnable examples of how to build and
+expose Model Context Protocol (MCP) tools using Protocol Buffers with the Go,
+Python, Kotlin, and Java SDKs.
 
 ## Prerequisites
 - **easyp**: Ensure you have [easyp](https://github.com/easyp-tech/easyp) installed for code generation.
+- **JDK 17+ and Gradle 9.2+**: Required for the dedicated JVM workspace under
+  [`examples/jvm`](./jvm/README.md).
 
 ## Running the Examples
-1. Generate the Go and Python code from the `.proto` definitions. Run this from the root of the repository or from the examples directory:
+1. Generate the Go and Python example artifacts from the `.proto` definitions.
+   Run this from the root of the repository or from the examples directory:
    ```bash
    cd examples
    make generate
@@ -37,6 +42,10 @@ This directory contains standalone, runnable examples of how to build and expose
    make setup
    make run
    ```
+5. Run the Java/Kotlin workspace:
+   Follow [`examples/jvm/README.md`](./jvm/README.md) for the tested
+   `compileJava` / `compileKotlin`, `installDist`, and installed-script stdio
+   flow.
 
 When you inspect tools in clients like `@modelcontextprotocol/inspector`,
 remember that omitted tool-annotation hints are often rendered with
@@ -77,3 +86,15 @@ protobuf contract, generated bindings, and stdio server.
 - **Independent environment**: `make setup` creates a local `.venv` and installs the official Python MCP SDK plus protobuf/jsonschema dependencies.
 - **No import hacks**: `server.py` imports generated code with `from proto import notebook_mcp` and does not edit `sys.path`.
 - **Python-only proto**: the user-authored proto does not need `go_package`; `protoc-gen-mcp` synthesizes internal metadata for Python generation.
+
+### [jvm](./jvm/README.md) (Java & Kotlin Official SDK Workspace)
+An isolated Gradle workspace that generates and runs Java and Kotlin MCP
+servers against the official JVM SDKs.
+- **Compile gate**: `gradle --no-daemon -p examples/jvm :java-server:compileJava :kotlin-server:compileKotlin`
+- **Installable scripts**: `gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist`
+- **Verified runtime path**: installed scripts under `build/install/.../bin/...`
+- **Kotlin dual generation**: Java protobuf output, Kotlin protobuf output,
+  and the `lang=kotlin` MCP sidecar all participate in the tested build graph
+
+See [`examples/jvm/README.md`](./jvm/README.md) for the full runnable
+walkthrough.

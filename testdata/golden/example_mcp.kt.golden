@@ -3,6 +3,7 @@
 
 package internal.testproto.example.v1
 
+import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import com.google.protobuf.util.JsonFormat
 import com.networknt.schema.InputFormat
@@ -65,6 +66,37 @@ private class ServerToolRegistry {
 
 private val serverRegistries = WeakHashMap<Server, ServerToolRegistry>()
 private val jsonSchemaFactory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)
+private val protoTypeRegistry = buildTypeRegistry()
+
+private fun buildTypeRegistry(): JsonFormat.TypeRegistry {
+    val builder = JsonFormat.TypeRegistry.newBuilder()
+    val seenFiles = linkedSetOf<String>()
+    registerFileTypes(builder, seenFiles, Example.getDescriptor())
+    return builder.build()
+}
+
+private fun registerFileTypes(
+    builder: JsonFormat.TypeRegistry.Builder,
+    seenFiles: MutableSet<String>,
+    file: Descriptors.FileDescriptor,
+) {
+    if (!seenFiles.add(file.fullName)) {
+        return
+    }
+    for (descriptor in file.messageTypes) {
+        registerMessageType(builder, descriptor)
+    }
+}
+
+private fun registerMessageType(
+    builder: JsonFormat.TypeRegistry.Builder,
+    descriptor: Descriptors.Descriptor,
+) {
+    builder.add(descriptor)
+    for (nested in descriptor.nestedTypes) {
+        registerMessageType(builder, nested)
+    }
+}
 
 private fun installMcpHandlers(server: Server): ServerToolRegistry {
     val registry = serverRegistries.getOrPut(server) { ServerToolRegistry() }
@@ -156,7 +188,8 @@ private fun projectToolSchema(rawSchemaJson: String): ToolSchema {
     val schema = loadSchema(rawSchemaJson)
     val properties = schema["properties"]?.jsonObject ?: buildJsonObject {}
     val required = schema["required"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
-    return ToolSchema(properties = properties, required = required)
+    val defs = schema["\$defs"]?.jsonObject
+    return ToolSchema(properties = properties, required = required, defs = defs)
 }
 
 private fun validateJson(rawSchemaJson: String, payload: JsonElement) {
@@ -168,7 +201,7 @@ private fun validateJson(rawSchemaJson: String, payload: JsonElement) {
 
 private fun parseProtoJson(payload: String, builder: Message.Builder): Message {
     try {
-        JsonFormat.parser().merge(payload, builder)
+        JsonFormat.parser().usingTypeRegistry(protoTypeRegistry).merge(payload, builder)
         return builder.build()
     } catch (error: Exception) {
         invalidParams("<unknown>", error.message ?: error.toString())
@@ -176,7 +209,7 @@ private fun parseProtoJson(payload: String, builder: Message.Builder): Message {
 }
 
 private fun marshalProtoJson(message: Message): JsonObject {
-    val jsonPayload = JsonFormat.printer().includingDefaultValueFields().print(message)
+    val jsonPayload = JsonFormat.printer().usingTypeRegistry(protoTypeRegistry).includingDefaultValueFields().print(message)
     return Json.parseToJsonElement(jsonPayload).jsonObject
 }
 

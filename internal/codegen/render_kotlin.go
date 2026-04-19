@@ -38,6 +38,15 @@ func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 			}
 		}
 	}
+	descriptorAccessors, err := collectJavaDescriptorAccessors(info.file.Desc, filePackage.Package)
+	if err != nil {
+		return err
+	}
+	for _, accessor := range descriptorAccessors {
+		if accessor.ImportPath != "" {
+			imports[accessor.ImportPath] = true
+		}
+	}
 
 	filename := model.GeneratedFilenamePrefix + "_mcp.kt"
 	generated := plugin.NewGeneratedFile(filename, "")
@@ -54,6 +63,7 @@ func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 		"com.networknt.schema.InputFormat",
 		"com.networknt.schema.JsonSchemaFactory",
 		"com.networknt.schema.SpecVersion",
+		"com.google.protobuf.Descriptors",
 		"com.google.protobuf.Message",
 		"com.google.protobuf.util.JsonFormat",
 		"io.modelcontextprotocol.kotlin.sdk.server.ClientConnection",
@@ -90,7 +100,7 @@ func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 	}
 	generated.P()
 
-	renderKotlinRuntime(generated)
+	renderKotlinRuntime(generated, descriptorAccessors)
 
 	for serviceIdx, service := range model.Services {
 		generated.P("interface ", service.HandlerName, " {")
@@ -200,7 +210,7 @@ func (k kotlinRenderInfo) kotlinMessageTypeExpr(ref JVMTypeRef, imports map[stri
 	return resolved.Expr, nil
 }
 
-func renderKotlinRuntime(generated *protogen.GeneratedFile) {
+func renderKotlinRuntime(generated *protogen.GeneratedFile, descriptorAccessors []javaDescriptorAccessor) {
 	generated.P("private data class RegisteredTool(")
 	generated.P("    val name: String,")
 	generated.P("    val title: String?,")
@@ -233,6 +243,39 @@ func renderKotlinRuntime(generated *protogen.GeneratedFile) {
 	generated.P()
 	generated.P("private val serverRegistries = WeakHashMap<Server, ServerToolRegistry>()")
 	generated.P("private val jsonSchemaFactory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)")
+	generated.P("private val protoTypeRegistry = buildTypeRegistry()")
+	generated.P()
+	generated.P("private fun buildTypeRegistry(): JsonFormat.TypeRegistry {")
+	generated.P("    val builder = JsonFormat.TypeRegistry.newBuilder()")
+	generated.P("    val seenFiles = linkedSetOf<String>()")
+	for _, accessor := range descriptorAccessors {
+		generated.P("    registerFileTypes(builder, seenFiles, ", accessor.Expr, ")")
+	}
+	generated.P("    return builder.build()")
+	generated.P("}")
+	generated.P()
+	generated.P("private fun registerFileTypes(")
+	generated.P("    builder: JsonFormat.TypeRegistry.Builder,")
+	generated.P("    seenFiles: MutableSet<String>,")
+	generated.P("    file: Descriptors.FileDescriptor,")
+	generated.P(") {")
+	generated.P("    if (!seenFiles.add(file.fullName)) {")
+	generated.P("        return")
+	generated.P("    }")
+	generated.P("    for (descriptor in file.messageTypes) {")
+	generated.P("        registerMessageType(builder, descriptor)")
+	generated.P("    }")
+	generated.P("}")
+	generated.P()
+	generated.P("private fun registerMessageType(")
+	generated.P("    builder: JsonFormat.TypeRegistry.Builder,")
+	generated.P("    descriptor: Descriptors.Descriptor,")
+	generated.P(") {")
+	generated.P("    builder.add(descriptor)")
+	generated.P("    for (nested in descriptor.nestedTypes) {")
+	generated.P("        registerMessageType(builder, nested)")
+	generated.P("    }")
+	generated.P("}")
 	generated.P()
 	generated.P("private fun installMcpHandlers(server: Server): ServerToolRegistry {")
 	generated.P("    val registry = serverRegistries.getOrPut(server) { ServerToolRegistry() }")
@@ -324,7 +367,8 @@ func renderKotlinRuntime(generated *protogen.GeneratedFile) {
 	generated.P("    val schema = loadSchema(rawSchemaJson)")
 	generated.P("    val properties = schema[\"properties\"]?.jsonObject ?: buildJsonObject {}")
 	generated.P("    val required = schema[\"required\"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()")
-	generated.P("    return ToolSchema(properties = properties, required = required)")
+	generated.P("    val defs = schema[\"\\$defs\"]?.jsonObject")
+	generated.P("    return ToolSchema(properties = properties, required = required, defs = defs)")
 	generated.P("}")
 	generated.P()
 	generated.P("private fun validateJson(rawSchemaJson: String, payload: JsonElement) {")
@@ -336,7 +380,7 @@ func renderKotlinRuntime(generated *protogen.GeneratedFile) {
 	generated.P()
 	generated.P("private fun parseProtoJson(payload: String, builder: Message.Builder): Message {")
 	generated.P("    try {")
-	generated.P("        JsonFormat.parser().merge(payload, builder)")
+	generated.P("        JsonFormat.parser().usingTypeRegistry(protoTypeRegistry).merge(payload, builder)")
 	generated.P("        return builder.build()")
 	generated.P("    } catch (error: Exception) {")
 	generated.P("        invalidParams(\"<unknown>\", error.message ?: error.toString())")
@@ -344,7 +388,7 @@ func renderKotlinRuntime(generated *protogen.GeneratedFile) {
 	generated.P("}")
 	generated.P()
 	generated.P("private fun marshalProtoJson(message: Message): JsonObject {")
-	generated.P("    val jsonPayload = JsonFormat.printer().includingDefaultValueFields().print(message)")
+	generated.P("    val jsonPayload = JsonFormat.printer().usingTypeRegistry(protoTypeRegistry).includingDefaultValueFields().print(message)")
 	generated.P("    return Json.parseToJsonElement(jsonPayload).jsonObject")
 	generated.P("}")
 	generated.P()

@@ -57,15 +57,16 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 		}
 		return nil
 	case LanguageJava:
-		for _, file := range plugin.Files {
-			if !file.Generate {
+		models, orderedFiles, err := collectJavaModels(plugin, opts)
+		if err != nil {
+			return err
+		}
+		for _, file := range orderedFiles {
+			model := models[file.Desc.Path()]
+			if len(model.Services) == 0 {
 				continue
 			}
-			model, err := CollectFileModel(file, opts)
-			if err != nil {
-				return err
-			}
-			if _, err := CollectJVMFileModel(file, model); err != nil {
+			if err := renderJavaFile(plugin, model); err != nil {
 				return err
 			}
 		}
@@ -122,6 +123,33 @@ func collectKotlinModels(plugin *protogen.Plugin, opts Options) (map[string]JVMF
 			return nil, nil, err
 		}
 		if err := validateKotlinMetadata(jvmModel); err != nil {
+			return nil, nil, err
+		}
+		models[file.Desc.Path()] = jvmModel
+		orderedFiles = append(orderedFiles, file)
+	}
+
+	return models, orderedFiles, nil
+}
+
+func collectJavaModels(plugin *protogen.Plugin, opts Options) (map[string]JVMFileModel, []*protogen.File, error) {
+	models := make(map[string]JVMFileModel)
+	orderedFiles := make([]*protogen.File, 0, len(plugin.Files))
+
+	for _, file := range plugin.Files {
+		if !file.Generate {
+			continue
+		}
+
+		model, err := CollectFileModel(file, opts)
+		if err != nil {
+			return nil, nil, err
+		}
+		jvmModel, err := CollectJVMFileModel(file, model)
+		if err != nil {
+			return nil, nil, err
+		}
+		if err := validateJavaMetadata(jvmModel); err != nil {
 			return nil, nil, err
 		}
 		models[file.Desc.Path()] = jvmModel

@@ -3,6 +3,7 @@
 
 package internal.testproto.example.v1;
 
+import com.google.protobuf.Descriptors;
 import com.google.protobuf.Message;
 import com.google.protobuf.util.JsonFormat;
 import io.modelcontextprotocol.json.McpJsonDefaults;
@@ -23,9 +24,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.function.Supplier;
@@ -153,7 +156,36 @@ public final class ExampleMcp {
   };
   private static final McpJsonMapper JSON_MAPPER = McpJsonDefaults.getMapper();
   private static final JsonSchemaValidator JSON_SCHEMA_VALIDATOR = McpJsonDefaults.getSchemaValidator();
+  private static final JsonFormat.TypeRegistry PROTO_TYPE_REGISTRY = buildTypeRegistry();
   private static final Map<McpServerTransportProvider, ServerToolRegistry> SERVER_REGISTRIES = Collections.synchronizedMap(new WeakHashMap<>());
+
+  private static JsonFormat.TypeRegistry buildTypeRegistry() {
+    JsonFormat.TypeRegistry.Builder builder = JsonFormat.TypeRegistry.newBuilder();
+    Set<String> seenFiles = new HashSet<>();
+    registerFileTypes(builder, seenFiles, Example.getDescriptor());
+    return builder.build();
+  }
+
+  private static void registerFileTypes(
+      JsonFormat.TypeRegistry.Builder builder,
+      Set<String> seenFiles,
+      Descriptors.FileDescriptor file) {
+    if (!seenFiles.add(file.getFullName())) {
+      return;
+    }
+    for (Descriptors.Descriptor descriptor : file.getMessageTypes()) {
+      registerMessageType(builder, descriptor);
+    }
+  }
+
+  private static void registerMessageType(
+      JsonFormat.TypeRegistry.Builder builder,
+      Descriptors.Descriptor descriptor) {
+    builder.add(descriptor);
+    for (Descriptors.Descriptor nested : descriptor.getNestedTypes()) {
+      registerMessageType(builder, nested);
+    }
+  }
 
   @FunctionalInterface
   private interface ToolInvoker {
@@ -383,7 +415,7 @@ public final class ExampleMcp {
 
   private static Message parseProtoJson(String argumentsJson, Message.Builder builder) {
     try {
-      JsonFormat.parser().merge(argumentsJson, builder);
+      JsonFormat.parser().usingTypeRegistry(PROTO_TYPE_REGISTRY).merge(argumentsJson, builder);
       return builder.build();
     }
     catch (Exception error) {
@@ -394,6 +426,7 @@ public final class ExampleMcp {
   private static String marshalProtoJson(Message responseMessage) {
     try {
       return JsonFormat.printer()
+          .usingTypeRegistry(PROTO_TYPE_REGISTRY)
           .alwaysPrintFieldsWithNoPresence()
           .omittingInsignificantWhitespace()
           .print(responseMessage);

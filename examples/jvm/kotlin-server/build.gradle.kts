@@ -2,6 +2,7 @@ import com.google.protobuf.gradle.*
 import org.gradle.api.tasks.Sync
 
 plugins {
+    application
     id("org.jetbrains.kotlin.jvm")
     java
     id("com.google.protobuf")
@@ -13,6 +14,7 @@ dependencies {
     implementation("com.google.protobuf:protobuf-kotlin:4.34.1")
     implementation("com.google.protobuf:protobuf-java-util:4.34.1")
     implementation("com.networknt:json-schema-validator:1.5.9")
+    runtimeOnly("org.slf4j:slf4j-nop:2.0.17")
 }
 
 java {
@@ -20,8 +22,11 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
 }
 
+application {
+    mainClass.set("internal.examplemcp.kotlin.ExampleKotlinServerKt")
+}
+
 val repoRoot = rootProject.projectDir.resolve("../..").canonicalFile
-layout.buildDirectory.set(repoRoot.parentFile.resolve(".protoc-gen-mcp-jvm-build").resolve(project.name))
 val protocGenMcpBinary = rootProject.layout.buildDirectory.file("tools/protoc-gen-mcp")
 val stagedProtoDir = layout.buildDirectory.dir("staged-proto")
 val stageProtoSources = tasks.register<Sync>("stageProtoSources") {
@@ -79,4 +84,8 @@ protobuf {
 
 tasks.named("compileKotlin") {
     dependsOn(tasks.named("generateProto"))
+}
+
+tasks.named("processResources") {
+    dependsOn(stageProtoSources)
 }

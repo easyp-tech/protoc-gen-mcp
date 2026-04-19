@@ -1,15 +1,24 @@
 # protoc-gen-mcp
 
-`protoc-gen-mcp` generates Go and Python MCP tool bindings from protobuf services.
+`protoc-gen-mcp` generates Go, Python, Kotlin, and Java MCP tool bindings
+from protobuf services.
 
 ## MVP
 
 - protobuf is the source of truth
-- generator emits typed Go and Python MCP bindings
+- generator emits typed Go, Python, Kotlin, and Java MCP bindings
 - Go runtime uses the official Go MCP SDK
 - Python runtime targets the official MCP Python SDK with `google.protobuf`
+- Kotlin runtime targets the official `io.modelcontextprotocol:kotlin-sdk-server`
+  SDK
+- Java runtime targets the official `io.modelcontextprotocol.sdk:mcp` SDK
 - generated Python handlers use dataclasses and explicit `oneof` wrapper types
   from `*_mcp.py`; `*_pb2.py` stays an internal runtime dependency
+- generated Kotlin handlers implement `<Service>ToolHandler` and are registered
+  through `register<Service>Tools(server: Server, impl: <Service>ToolHandler, namespace: String? = null)`
+- generated Java handlers implement nested `<Service>ToolHandler` interfaces
+  inside a generated `<ProtoFile>Mcp` sidecar and are registered through
+  `register<Service>Tools(McpServerTransportProvider transportProvider, <Service>ToolHandler impl, String namespace)`
 - request and response JSON follows ProtoJSON rules
 - runtime validation is driven by generated JSON Schema
 
@@ -23,6 +32,9 @@ easyp --cfg easyp.yaml lint -p mcp -r .
 easyp --cfg easyp.yaml generate -p mcp -r .
 easyp --cfg easyp.test.yaml lint -p internal/testproto -r .
 easyp --cfg easyp.test.yaml generate -p internal/testproto -r .
+gradle --no-daemon -p examples/jvm :java-server:compileJava :kotlin-server:compileKotlin
+gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist
+go test ./internal/examplemcp -run 'Test(Java|Kotlin).*OverStdio' -count=1
 go test ./...
 goreleaser check
 ```
@@ -36,10 +48,34 @@ the MCP options package.
 
 CI is implemented in [tests.yml](.github/workflows/tests.yml)
 and runs config validation, Easyp lint, Easyp generation, a generated-file
-freshness check, and `go test ./...`. Releases are implemented in
+freshness check, JVM compile/install gates, JVM stdio parity checks, and
+`go test ./...`. Releases are implemented in
 [release.yml](.github/workflows/release.yml)
 and use [`.goreleaser.yaml`](.goreleaser.yaml)
-to publish tagged builds of `protoc-gen-mcp`.
+to publish tagged builds of the `protoc-gen-mcp` binary. This repository does
+not publish separate Java or Kotlin runtime artifacts.
+
+## JVM Support
+
+JVM support is implemented and CI-verified through the runnable
+[`examples/jvm`](examples/jvm/README.md) workspace.
+
+- JVM prerequisites for the in-repo walkthrough are Go 1.24+, JDK 17+, and
+  Gradle 9.2+.
+- The JVM generator modes are `lang=java` and `lang=kotlin`.
+- The Java path compiles generated protobuf Java output plus a generated
+  `lang=java` MCP sidecar against the official
+  `io.modelcontextprotocol.sdk:mcp` SDK.
+- The Kotlin path follows the tested dual-generation flow from
+  `examples/jvm/kotlin-server/build.gradle.kts`: Java protobuf output, Kotlin
+  protobuf output, and then the `lang=kotlin` MCP sidecar are all required.
+- The canonical runnable JVM verification path uses `installDist` plus the
+  installed scripts under `examples/jvm/*/build/install/.../bin/*`, matching
+  `internal/examplemcp/jvm_stdio_test.go` and CI.
+
+Use the root README for the language matrix and repository workflow, then go to
+[examples/jvm/README.md](examples/jvm/README.md) for the exact Java/Kotlin
+walkthrough.
 
 ## Test MCP Server
 
@@ -62,12 +98,18 @@ The example server currently exposes:
 
 ## Examples
 
-We provide several standalone, runnable examples demonstrating the power of generated MCP tools, protobuf `options`, validation constraints, and integration with the official Go and Python SDKs. Check out the [examples/](examples/) directory for:
+We provide several standalone, runnable examples demonstrating generated MCP
+tools, protobuf `options`, validation constraints, and integration with the
+official Go, Python, Kotlin, and Java SDKs. Check out the
+[examples/](examples/) directory for:
 - [1_helloworld](examples/1_helloworld/) - Minimal Quickstart setup.
 - [2_weather_api](examples/2_weather_api/) - Read-only queries, validation limits, Oneofs.
 - [3_file_manager](examples/3_file_manager/) - Destructive tools and schema-based string parameter constraints.
 - [4_crm_system](examples/4_crm_system/) - A full mock system with FieldMask partial updates, custom icons mapping, schemas nested types, and advanced array filters.
 - [5_python_standalone](examples/5_python_standalone/) - A Python-only user-style project with its own `pyproject.toml`, `easyp.yaml`, generated bindings, and stdio server.
+- [jvm](examples/jvm/README.md) - A Java/Kotlin official SDK workspace with
+  Gradle-managed protobuf generation, `lang=java` / `lang=kotlin` sidecars,
+  `installDist` scripts, and stdio verification.
 
 ## Agent Skill
 
@@ -88,7 +130,7 @@ policy, ProtoJSON contract, and common patterns.
 ## Generation With Easyp
 
 The intended workflow is `easyp`, not manual `protoc` invocation. For mixed
-Go/Python projects, `easyp` can drive `protoc-gen-go`, the standard Python
+Go/Python/JVM projects, `easyp` can drive `protoc-gen-go`, the standard Python
 protobuf generator, and `protoc-gen-mcp` from one config.
 
 Before running generation, make sure `protoc-gen-go` is installed and available
@@ -131,6 +173,16 @@ generate:
         paths: source_relative
         lang: python
         python_runtime: google.protobuf
+    - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@latest"]
+      out: .
+      opts:
+        paths: source_relative
+        lang: java
+    - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@latest"]
+      out: .
+      opts:
+        paths: source_relative
+        lang: kotlin
 ```
 
 Typical commands:
@@ -149,6 +201,14 @@ modules can coexist with the official `mcp` SDK package in one import tree. No
 special Easyp override is required for `mcp.options.v1`, because the package
 declares `go_package` directly in `options.proto`. For reproducible builds,
 prefer pinning a specific tag instead of `@latest`.
+
+For JVM consumers, the language selectors are `lang=java` and `lang=kotlin`.
+The Java path generates a Java sidecar alongside protobuf Java output. The
+Kotlin path must follow the same rule as the in-repo Gradle example: Java
+protobuf output, Kotlin protobuf output, and the `lang=kotlin` MCP sidecar are
+all part of the working build graph. See
+[examples/jvm/README.md](examples/jvm/README.md) for the runnable, tested
+workspace.
 
 For Python-only projects, omit the Go plugins and keep only the standard
 `python` plugin plus `protoc-gen-mcp` with `lang=python`. User-authored Python

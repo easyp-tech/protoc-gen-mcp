@@ -54,13 +54,16 @@ func TestGenerateKotlinExampleGolden(t *testing.T) {
 	}
 }
 
-func TestGenerate_JavaTargetCollectsWithoutOutput(t *testing.T) {
+func TestGenerateJavaExampleGolden(t *testing.T) {
 	plugin := newExampleProtogenPlugin(t)
 	if err := Generate(plugin, Options{Language: LanguageJava}); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	if len(plugin.Response().GetFile()) != 0 {
-		t.Fatalf("Java foundation dispatch emitted %d files, want 0", len(plugin.Response().GetFile()))
+
+	got := generatedFileContent(t, plugin, exampleJavaOutputPath())
+	want := readExampleJavaGolden(t, repoRoot(t))
+	if !bytes.Equal(got, want) {
+		t.Fatalf("fresh Java renderer output differs from golden:\n%s", diffBytes(want, got))
 	}
 }
 
@@ -87,6 +90,35 @@ func TestGenerate_KotlinTargetEmitsOutput(t *testing.T) {
 	}
 	if strings.Contains(generated, "server."+"addTool(") {
 		t.Fatalf("generated Kotlin must not use high-level server tool registration\n%s", generated)
+	}
+}
+
+func TestGenerate_JavaTargetEmitsOutput(t *testing.T) {
+	plugin := newExampleProtogenPlugin(t)
+	if err := Generate(plugin, Options{Language: LanguageJava}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	generated := string(generatedFileContent(t, plugin, exampleJavaOutputPath()))
+	wantSnippets := []string{
+		"public final class ExampleMcp {",
+		"public interface ExampleAPIToolHandler {",
+		"public static void registerExampleAPITools(",
+		"transportProvider.setSessionFactory(",
+		"requestHandlers.put(McpSchema.METHOD_TOOLS_LIST",
+		"requestHandlers.put(McpSchema.METHOD_TOOLS_CALL",
+		"JsonFormat.parser().usingTypeRegistry(PROTO_TYPE_REGISTRY).merge(",
+		"alwaysPrintFieldsWithNoPresence()",
+	}
+	for _, snippet := range wantSnippets {
+		if !strings.Contains(generated, snippet) {
+			t.Fatalf("generated Java missing snippet %q\n%s", snippet, generated)
+		}
+	}
+	for _, snippet := range []string{"addTool(", "Tool.builder("} {
+		if strings.Contains(generated, snippet) {
+			t.Fatalf("generated Java must not use convenience registration snippet %q\n%s", snippet, generated)
+		}
 	}
 }
 
@@ -616,6 +648,52 @@ func TestGenerate_JVMStreamingRPCFailsBeforeOutput(t *testing.T) {
 	}
 }
 
+func TestGenerateJavaExampleHandlerCompileSmoke(t *testing.T) {
+	if _, err := exec.LookPath("javac"); err != nil {
+		t.Skipf("javac not found in PATH: %v", err)
+	}
+
+	plugin := newExampleProtogenPlugin(t)
+	if err := Generate(plugin, Options{Language: LanguageJava}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	exampleFile := plugin.FilesByPath["internal/testproto/example/v1/example.proto"]
+	if exampleFile == nil {
+		t.Fatal("example proto file not found in plugin")
+	}
+	shared, err := CollectFileModel(exampleFile, Options{Language: LanguageJava})
+	if err != nil {
+		t.Fatalf("CollectFileModel: %v", err)
+	}
+	jvm, err := CollectJVMFileModel(exampleFile, shared)
+	if err != nil {
+		t.Fatalf("CollectJVMFileModel: %v", err)
+	}
+	info, err := newJavaRenderInfo(plugin, jvm)
+	if err != nil {
+		t.Fatalf("newJavaRenderInfo: %v", err)
+	}
+	filePackage, err := resolveJVMFilePackage(exampleFile)
+	if err != nil {
+		t.Fatalf("resolveJVMFilePackage: %v", err)
+	}
+
+	tempDir := t.TempDir()
+	writeJavaTestSource(t, tempDir, exampleJavaOutputPath(), generatedFileContent(t, plugin, exampleJavaOutputPath()))
+	writeJavaTestSource(t, tempDir, filepath.Join("internal/testproto/example/v1", "ExampleHandler.java"), []byte(generateExampleJavaHandlerSource(t, jvm, info, filePackage.Package)))
+	writeJavaProtoStubs(t, tempDir, exampleFile, jvm)
+	writeJavaSDKStubs(t, tempDir)
+
+	sources := collectJavaSources(t, tempDir)
+	cmd := exec.Command("javac", sources...)
+	cmd.Dir = tempDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("javac failed: %v\n%s", err, output)
+	}
+}
+
 func TestGenerate_RejectsUnknownCustomParamAndAllowsBuiltInParams(t *testing.T) {
 	root := repoRoot(t)
 
@@ -662,6 +740,10 @@ func runEasyp(t *testing.T, dir string, config string, args ...string) string {
 	}
 
 	return string(output)
+}
+
+func exampleJavaOutputPath() string {
+	return javaSidecarOutputPath(jvmGeneratedFilenamePrefixForProtoPath("internal/testproto/example/v1/example.proto"))
 }
 
 func runEasypGenerateExpectFailure(t *testing.T, dir string, config string, pkg string) (string, error) {
@@ -715,6 +797,17 @@ func readExampleKotlinGolden(t *testing.T, root string) []byte {
 	return want
 }
 
+func readExampleJavaGolden(t *testing.T, root string) []byte {
+	t.Helper()
+
+	wantPath := filepath.Join(root, "testdata/golden/example_mcp.java.golden")
+	want, err := os.ReadFile(wantPath)
+	if err != nil {
+		t.Fatalf("read golden file %q: %v", wantPath, err)
+	}
+	return want
+}
+
 func generatedFileContent(t *testing.T, plugin *protogen.Plugin, path string) []byte {
 	t.Helper()
 
@@ -726,6 +819,574 @@ func generatedFileContent(t *testing.T, plugin *protogen.Plugin, path string) []
 
 	t.Fatalf("generated file %q not found in plugin response", path)
 	return nil
+}
+
+func writeJavaTestSource(t *testing.T, root string, relativePath string, content []byte) {
+	t.Helper()
+
+	target := filepath.Join(root, filepath.FromSlash(relativePath))
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		t.Fatalf("mkdir %q: %v", filepath.Dir(target), err)
+	}
+	if err := os.WriteFile(target, content, 0o600); err != nil {
+		t.Fatalf("write %q: %v", target, err)
+	}
+}
+
+func collectJavaSources(t *testing.T, root string) []string {
+	t.Helper()
+
+	var sources []string
+	if err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if filepath.Ext(path) == ".java" {
+			sources = append(sources, path)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("walk java sources: %v", err)
+	}
+	return sources
+}
+
+func generateExampleJavaHandlerSource(t *testing.T, model JVMFileModel, info javaRenderInfo, currentPackage string) string {
+	t.Helper()
+
+	if len(model.Services) != 1 {
+		t.Fatalf("example JVM service count = %d, want 1", len(model.Services))
+	}
+
+	service := model.Services[0]
+	className := javaSidecarClassName(model.GeneratedFilenamePrefix)
+	var body strings.Builder
+	body.WriteString("package " + currentPackage + ";\n\n")
+	body.WriteString("import io.modelcontextprotocol.server.McpAsyncServerExchange;\n\n")
+	body.WriteString("public final class ExampleHandler implements " + className + "." + service.HandlerName + " {\n")
+	for _, method := range service.Methods {
+		inputType, err := info.javaTypeExpr(method.Input, map[string]bool{}, currentPackage)
+		if err != nil {
+			t.Fatalf("java input type expr for %s: %v", method.MethodName, err)
+		}
+		outputType, err := info.javaTypeExpr(method.Output, map[string]bool{}, currentPackage)
+		if err != nil {
+			t.Fatalf("java output type expr for %s: %v", method.MethodName, err)
+		}
+		body.WriteString("  @Override\n")
+		body.WriteString("  public " + outputType + " " + method.MethodName + "(McpAsyncServerExchange ctx, " + inputType + " request) throws Exception {\n")
+		body.WriteString("    return " + outputType + ".newBuilder().build();\n")
+		body.WriteString("  }\n")
+	}
+	body.WriteString("}\n")
+	return body.String()
+}
+
+func writeJavaProtoStubs(t *testing.T, root string, file *protogen.File, model JVMFileModel) {
+	t.Helper()
+
+	filePackage, err := resolveJVMFilePackage(file)
+	if err != nil {
+		t.Fatalf("resolveJVMFilePackage: %v", err)
+	}
+
+	typeNames := map[string]struct{}{}
+	for _, service := range model.Services {
+		for _, method := range service.Methods {
+			if method.Input.Owner.IsCurrentFile {
+				typeNames[method.Input.PublicName] = struct{}{}
+			}
+			if method.Output.Owner.IsCurrentFile {
+				typeNames[method.Output.PublicName] = struct{}{}
+			}
+		}
+	}
+
+	names := make([]string, 0, len(typeNames))
+	for name := range typeNames {
+		names = append(names, name)
+	}
+
+	packagePath := filepath.Join(strings.Split(filePackage.Package, ".")...)
+	if filePackage.MultipleFiles {
+		for _, name := range names {
+			writeJavaTestSource(t, root, filepath.Join(packagePath, name+".java"), []byte(javaTopLevelMessageStub(filePackage.Package, name)))
+		}
+		return
+	}
+
+	writeJavaTestSource(t, root, filepath.Join(packagePath, filePackage.OuterClassName+".java"), []byte(javaOuterClassStub(filePackage.Package, filePackage.OuterClassName, names)))
+}
+
+func javaTopLevelMessageStub(pkg string, name string) string {
+	return strings.Join([]string{
+		"package " + pkg + ";",
+		"",
+		"import com.google.protobuf.Message;",
+		"",
+		"public final class " + name + " implements Message {",
+		"  public static Builder newBuilder() {",
+		"    return new Builder();",
+		"  }",
+		"",
+		"  public static final class Builder implements Message.Builder {",
+		"    @Override",
+		"    public " + name + " build() {",
+		"      return new " + name + "();",
+		"    }",
+		"  }",
+		"}",
+		"",
+	}, "\n")
+}
+
+func javaOuterClassStub(pkg string, outerClassName string, names []string) string {
+	var body strings.Builder
+	body.WriteString("package " + pkg + ";\n\n")
+	body.WriteString("import com.google.protobuf.Descriptors;\n")
+	body.WriteString("import com.google.protobuf.Message;\n\n")
+	body.WriteString("public final class " + outerClassName + " {\n")
+	body.WriteString("  private " + outerClassName + "() {\n")
+	body.WriteString("  }\n\n")
+	body.WriteString("  public static Descriptors.FileDescriptor getDescriptor() {\n")
+	body.WriteString("    return new Descriptors.FileDescriptor();\n")
+	body.WriteString("  }\n\n")
+	for _, name := range names {
+		body.WriteString("  public static final class " + name + " implements Message {\n")
+		body.WriteString("    public static Builder newBuilder() {\n")
+		body.WriteString("      return new Builder();\n")
+		body.WriteString("    }\n\n")
+		body.WriteString("    public static final class Builder implements Message.Builder {\n")
+		body.WriteString("      @Override\n")
+		body.WriteString("      public " + name + " build() {\n")
+		body.WriteString("        return new " + name + "();\n")
+		body.WriteString("      }\n")
+		body.WriteString("    }\n")
+		body.WriteString("  }\n\n")
+	}
+	body.WriteString("}\n")
+	return body.String()
+}
+
+func writeJavaSDKStubs(t *testing.T, root string) {
+	t.Helper()
+
+	stubs := map[string]string{
+		"com/google/protobuf/Message.java": strings.Join([]string{
+			"package com.google.protobuf;",
+			"",
+			"public interface Message {",
+			"  interface Builder {",
+			"    Message build();",
+			"  }",
+			"}",
+			"",
+		}, "\n"),
+		"com/google/protobuf/Descriptors.java": strings.Join([]string{
+			"package com.google.protobuf;",
+			"",
+			"import java.util.List;",
+			"",
+			"public final class Descriptors {",
+			"  private Descriptors() {",
+			"  }",
+			"",
+			"  public static final class FileDescriptor {",
+			"    public String getFullName() {",
+			"      return \"stub\";",
+			"    }",
+			"",
+			"    public List<Descriptor> getMessageTypes() {",
+			"      return List.of();",
+			"    }",
+			"  }",
+			"",
+			"  public static final class Descriptor {",
+			"    public List<Descriptor> getNestedTypes() {",
+			"      return List.of();",
+			"    }",
+			"  }",
+			"}",
+			"",
+		}, "\n"),
+		"com/google/protobuf/util/JsonFormat.java": strings.Join([]string{
+			"package com.google.protobuf.util;",
+			"",
+			"import com.google.protobuf.Descriptors;",
+			"import com.google.protobuf.Message;",
+			"",
+			"public final class JsonFormat {",
+			"  private JsonFormat() {",
+			"  }",
+			"",
+			"  public static Parser parser() {",
+			"    return new Parser();",
+			"  }",
+			"",
+			"  public static Printer printer() {",
+			"    return new Printer();",
+			"  }",
+			"",
+			"  public static final class TypeRegistry {",
+			"    public static Builder newBuilder() {",
+			"      return new Builder();",
+			"    }",
+			"",
+			"    public static final class Builder {",
+			"      public Builder add(Descriptors.Descriptor descriptor) {",
+			"        return this;",
+			"      }",
+			"",
+			"      public TypeRegistry build() {",
+			"        return new TypeRegistry();",
+			"      }",
+			"    }",
+			"  }",
+			"",
+			"  public static final class Parser {",
+			"    public Parser usingTypeRegistry(TypeRegistry registry) {",
+			"      return this;",
+			"    }",
+			"",
+			"    public void merge(String payload, Message.Builder builder) throws Exception {",
+			"    }",
+			"  }",
+			"",
+			"  public static final class Printer {",
+			"    public Printer usingTypeRegistry(TypeRegistry registry) {",
+			"      return this;",
+			"    }",
+			"",
+			"    public Printer alwaysPrintFieldsWithNoPresence() {",
+			"      return this;",
+			"    }",
+			"",
+			"    public Printer omittingInsignificantWhitespace() {",
+			"      return this;",
+			"    }",
+			"",
+			"    public String print(Message message) throws Exception {",
+			"      return \"{}\";",
+			"    }",
+			"  }",
+			"}",
+			"",
+		}, "\n"),
+		"io/modelcontextprotocol/json/TypeRef.java": strings.Join([]string{
+			"package io.modelcontextprotocol.json;",
+			"",
+			"public abstract class TypeRef<T> {",
+			"}",
+			"",
+		}, "\n"),
+		"io/modelcontextprotocol/json/McpJsonMapper.java": strings.Join([]string{
+			"package io.modelcontextprotocol.json;",
+			"",
+			"import java.io.IOException;",
+			"",
+			"public interface McpJsonMapper {",
+			"  <T> T readValue(String content, TypeRef<T> type) throws IOException;",
+			"  <T> T convertValue(Object fromValue, Class<T> type);",
+			"  String writeValueAsString(Object value) throws IOException;",
+			"}",
+			"",
+		}, "\n"),
+		"io/modelcontextprotocol/json/McpJsonDefaults.java": strings.Join([]string{
+			"package io.modelcontextprotocol.json;",
+			"",
+			"import io.modelcontextprotocol.json.schema.JsonSchemaValidator;",
+			"",
+			"public final class McpJsonDefaults {",
+			"  private static final McpJsonMapper MAPPER = new McpJsonMapper() {",
+			"    @Override",
+			"    public <T> T readValue(String content, TypeRef<T> type) {",
+			"      return null;",
+			"    }",
+			"",
+			"    @Override",
+			"    public <T> T convertValue(Object fromValue, Class<T> type) {",
+			"      return null;",
+			"    }",
+			"",
+			"    @Override",
+			"    public String writeValueAsString(Object value) {",
+			"      return \"{}\";",
+			"    }",
+			"  };",
+			"",
+			"  private static final JsonSchemaValidator VALIDATOR = (schema, structuredContent) -> JsonSchemaValidator.ValidationResponse.asValid(\"{}\");",
+			"",
+			"  private McpJsonDefaults() {",
+			"  }",
+			"",
+			"  public static McpJsonMapper getMapper() {",
+			"    return MAPPER;",
+			"  }",
+			"",
+			"  public static JsonSchemaValidator getSchemaValidator() {",
+			"    return VALIDATOR;",
+			"  }",
+			"}",
+			"",
+		}, "\n"),
+		"io/modelcontextprotocol/json/schema/JsonSchemaValidator.java": strings.Join([]string{
+			"package io.modelcontextprotocol.json.schema;",
+			"",
+			"import java.util.Map;",
+			"",
+			"public interface JsonSchemaValidator {",
+			"  ValidationResponse validate(Map<String, Object> schema, Object structuredContent);",
+			"",
+			"  final class ValidationResponse {",
+			"    private final boolean valid;",
+			"    private final String errorMessage;",
+			"",
+			"    private ValidationResponse(boolean valid, String errorMessage) {",
+			"      this.valid = valid;",
+			"      this.errorMessage = errorMessage;",
+			"    }",
+			"",
+			"    public static ValidationResponse asValid(String ignored) {",
+			"      return new ValidationResponse(true, null);",
+			"    }",
+			"",
+			"    public static ValidationResponse asInvalid(String errorMessage) {",
+			"      return new ValidationResponse(false, errorMessage);",
+			"    }",
+			"",
+			"    public boolean valid() {",
+			"      return this.valid;",
+			"    }",
+			"",
+			"    public String errorMessage() {",
+			"      return this.errorMessage;",
+			"    }",
+			"  }",
+			"}",
+			"",
+		}, "\n"),
+		"io/modelcontextprotocol/server/McpAsyncServerExchange.java": strings.Join([]string{
+			"package io.modelcontextprotocol.server;",
+			"",
+			"public class McpAsyncServerExchange {",
+			"}",
+			"",
+		}, "\n"),
+		"io/modelcontextprotocol/server/McpInitRequestHandler.java": strings.Join([]string{
+			"package io.modelcontextprotocol.server;",
+			"",
+			"import io.modelcontextprotocol.spec.McpSchema;",
+			"import reactor.core.publisher.Mono;",
+			"",
+			"public interface McpInitRequestHandler {",
+			"  Mono<McpSchema.InitializeResult> handle(McpSchema.InitializeRequest request);",
+			"}",
+			"",
+		}, "\n"),
+		"io/modelcontextprotocol/server/McpNotificationHandler.java": strings.Join([]string{
+			"package io.modelcontextprotocol.server;",
+			"",
+			"import reactor.core.publisher.Mono;",
+			"",
+			"public interface McpNotificationHandler {",
+			"  Mono<Void> handle(McpAsyncServerExchange exchange, Object params);",
+			"}",
+			"",
+		}, "\n"),
+		"io/modelcontextprotocol/server/McpRequestHandler.java": strings.Join([]string{
+			"package io.modelcontextprotocol.server;",
+			"",
+			"import reactor.core.publisher.Mono;",
+			"",
+			"public interface McpRequestHandler<T> {",
+			"  Mono<T> handle(McpAsyncServerExchange exchange, Object params);",
+			"}",
+			"",
+		}, "\n"),
+		"io/modelcontextprotocol/spec/McpServerTransport.java": strings.Join([]string{
+			"package io.modelcontextprotocol.spec;",
+			"",
+			"public interface McpServerTransport {",
+			"}",
+			"",
+		}, "\n"),
+		"io/modelcontextprotocol/spec/McpServerTransportProvider.java": strings.Join([]string{
+			"package io.modelcontextprotocol.spec;",
+			"",
+			"import java.util.List;",
+			"",
+			"public interface McpServerTransportProvider {",
+			"  default List<String> protocolVersions() {",
+			"    return List.of(\"2024-11-05\");",
+			"  }",
+			"",
+			"  void setSessionFactory(McpServerSession.Factory sessionFactory);",
+			"}",
+			"",
+		}, "\n"),
+		"io/modelcontextprotocol/spec/McpServerSession.java": strings.Join([]string{
+			"package io.modelcontextprotocol.spec;",
+			"",
+			"import java.time.Duration;",
+			"import java.util.Map;",
+			"",
+			"import io.modelcontextprotocol.server.McpInitRequestHandler;",
+			"import io.modelcontextprotocol.server.McpNotificationHandler;",
+			"import io.modelcontextprotocol.server.McpRequestHandler;",
+			"",
+			"public class McpServerSession {",
+			"  public McpServerSession(String id, Duration requestTimeout, McpServerTransport transport, McpInitRequestHandler initHandler, Map<String, McpRequestHandler<?>> requestHandlers, Map<String, McpNotificationHandler> notificationHandlers) {",
+			"  }",
+			"",
+			"  @FunctionalInterface",
+			"  public interface Factory {",
+			"    McpServerSession create(McpServerTransport sessionTransport);",
+			"  }",
+			"}",
+			"",
+		}, "\n"),
+		"io/modelcontextprotocol/spec/McpError.java": strings.Join([]string{
+			"package io.modelcontextprotocol.spec;",
+			"",
+			"public class McpError extends RuntimeException {",
+			"  public McpError(String message) {",
+			"    super(message);",
+			"  }",
+			"",
+			"  public static Builder builder(int code) {",
+			"    return new Builder(code);",
+			"  }",
+			"",
+			"  public static final class Builder {",
+			"    private final int code;",
+			"    private String message;",
+			"",
+			"    private Builder(int code) {",
+			"      this.code = code;",
+			"    }",
+			"",
+			"    public Builder message(String message) {",
+			"      this.message = message;",
+			"      return this;",
+			"    }",
+			"",
+			"    public McpError build() {",
+			"      return new McpError(this.message == null ? String.valueOf(this.code) : this.message);",
+			"    }",
+			"  }",
+			"}",
+			"",
+		}, "\n"),
+		"io/modelcontextprotocol/spec/McpSchema.java": strings.Join([]string{
+			"package io.modelcontextprotocol.spec;",
+			"",
+			"import java.util.List;",
+			"import java.util.Map;",
+			"",
+			"public final class McpSchema {",
+			"  private McpSchema() {",
+			"  }",
+			"",
+			"  public static final String METHOD_TOOLS_LIST = \"tools/list\";",
+			"  public static final String METHOD_TOOLS_CALL = \"tools/call\";",
+			"",
+			"  public static final class ErrorCodes {",
+			"    public static final int INVALID_PARAMS = -32602;",
+			"  }",
+			"",
+			"  public static final class InitializeRequest {",
+			"  }",
+			"",
+			"  public static final class InitializeResult {",
+			"    public InitializeResult(String protocolVersion, ServerCapabilities capabilities, Implementation serverInfo, String instructions) {",
+			"    }",
+			"  }",
+			"",
+			"  public static final class Implementation {",
+			"    public Implementation(String name, String title, String version) {",
+			"    }",
+			"  }",
+			"",
+			"  public static final class ServerCapabilities {",
+			"    public ServerCapabilities(Object completions, Map<String, Object> experimental, Object logging, Object prompts, Object resources, ToolCapabilities tools) {",
+			"    }",
+			"",
+			"    public static final class ToolCapabilities {",
+			"      public ToolCapabilities(Boolean listChanged) {",
+			"      }",
+			"    }",
+			"  }",
+			"",
+			"  public static final class CallToolRequest {",
+			"    private final String name;",
+			"    private final Map<String, Object> arguments;",
+			"",
+			"    public CallToolRequest() {",
+			"      this(null, null);",
+			"    }",
+			"",
+			"    public CallToolRequest(String name, Map<String, Object> arguments) {",
+			"      this.name = name;",
+			"      this.arguments = arguments;",
+			"    }",
+			"",
+			"    public String name() {",
+			"      return this.name;",
+			"    }",
+			"",
+			"    public Map<String, Object> arguments() {",
+			"      return this.arguments;",
+			"    }",
+			"  }",
+			"",
+			"  public static final class CallToolResult {",
+			"    public static Builder builder() {",
+			"      return new Builder();",
+			"    }",
+			"",
+			"    public static final class Builder {",
+			"      public Builder addTextContent(String text) {",
+			"        return this;",
+			"      }",
+			"",
+			"      public Builder structuredContent(Object structuredContent) {",
+			"        return this;",
+			"      }",
+			"",
+			"      public Builder isError(Boolean isError) {",
+			"        return this;",
+			"      }",
+			"",
+			"      public CallToolResult build() {",
+			"        return new CallToolResult();",
+			"      }",
+			"    }",
+			"  }",
+			"}",
+			"",
+		}, "\n"),
+		"reactor/core/publisher/Mono.java": strings.Join([]string{
+			"package reactor.core.publisher;",
+			"",
+			"public class Mono<T> {",
+			"  public static <T> Mono<T> just(T value) {",
+			"    return new Mono<>();",
+			"  }",
+			"",
+			"  public static <T> Mono<T> error(Throwable error) {",
+			"    return new Mono<>();",
+			"  }",
+			"}",
+			"",
+		}, "\n"),
+	}
+
+	for relativePath, content := range stubs {
+		writeJavaTestSource(t, root, relativePath, []byte(content))
+	}
 }
 
 func diffBytes(want []byte, got []byte) string {

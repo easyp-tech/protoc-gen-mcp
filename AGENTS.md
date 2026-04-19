@@ -3,19 +3,21 @@
 ## Scope
 
 This repository implements a protobuf-first MCP generator and runtime for Go,
-Python, and Kotlin MCP server bindings. The MVP is intentionally narrow and
-must stay decision-consistent with the current architecture unless explicitly
-revised.
+Python, Kotlin, and Java MCP server bindings. The MVP is intentionally narrow
+and must stay decision-consistent with the current architecture unless
+explicitly revised.
 
 ## Stack
 
 - Go 1.24+
 - Python 3.10+ for generated-runtime verification and example servers
+- Gradle 9.2+ and JDK 17+ for JVM compile-gate verification
 - `easyp v0.15.2-rc1` for repository linting and code generation workflows
 - `google.golang.org/protobuf` for code generation, reflection, and ProtoJSON
 - `google.protobuf` for Python generated modules and ProtoJSON conversion
 - `github.com/modelcontextprotocol/go-sdk/mcp` as the MCP runtime
 - `mcp>=1.27,<2` as the official Python MCP SDK target
+- `io.modelcontextprotocol.sdk:mcp` as the official Java MCP SDK target
 - `io.modelcontextprotocol:kotlin-sdk-server` as the official Kotlin MCP SDK
   target
 - `github.com/google/jsonschema-go/jsonschema` for JSON Schema parsing and
@@ -31,9 +33,10 @@ revised.
 - `mcpruntime`: public runtime helpers used by generated code
 - `.github/workflows`: GitHub Actions CI and release workflows
 - `.goreleaser.yaml`: release packaging for the plugin binary
-- `examples`: standalone Go/Python integration projects; example directories
-  use numeric underscore prefixes such as `1_helloworld`, `4_crm_system`, and
-  `5_python_standalone`
+- `examples`: standalone Go/Python/JVM integration projects; example
+  directories use numeric underscore prefixes such as `1_helloworld`,
+  `4_crm_system`, and `5_python_standalone`, plus the dedicated JVM workspace
+  `examples/jvm`
 - `examples/easyp.lock`: pinned Easyp dependency lock for standalone examples
 - `examples/mcp`: generated Python `mcp.options.*` protobuf modules for
   standalone examples; generated from the GitHub dependency declared in
@@ -41,12 +44,31 @@ revised.
 - `examples/5_python_standalone`: Python-only user-style example with its own
   `pyproject.toml`, `easyp.yaml`, generated `proto`/`mcp` packages, and stdio
   server
+- `examples/jvm`: isolated Gradle Kotlin DSL workspace that compiles generated
+  Java/Kotlin JVM sidecars against Maven `protoc`, official MCP SDK artifacts,
+  and the local `cmd/protoc-gen-mcp` binary
+- `examples/jvm/README.md`: user-facing JVM walkthrough covering the tested
+  compile, install, run, and stdio verification path
+- `examples/jvm/settings.gradle.kts`: JVM example workspace and repository policy
+- `examples/jvm/build.gradle.kts`: root JVM helper tasks, including local
+  `protoc-gen-mcp` compilation
+- `examples/jvm/java-server`: installable Java stdio example app driven by
+  generated low-level tool registration
+- `examples/jvm/java-server/build.gradle.kts`: Java compile gate and installed
+  application script using `lang=java`
+- `examples/jvm/kotlin-server`: installable Kotlin stdio example app driven by
+  generated low-level tool registration
+- `examples/jvm/kotlin-server/build.gradle.kts`: Kotlin compile gate and
+  installed application script using `lang=kotlin`
 - `easyp.yaml`: main repository config for shipped protobuf APIs
 - `easyp.test.yaml`: development and test config for fixture generation
 - `mcp/options/v1/options.proto`: custom protobuf options for MCP metadata
 - `internal/codegen`: code generation logic
 - `internal/codegen/jvm_*.go`: shared JVM semantic model, naming, and collector
-  foundation used by the Kotlin renderer and future Java renderer
+  foundation used by the Kotlin and Java renderers
+- `internal/codegen/render_java.go`: self-contained Java sidecar renderer
+- `internal/codegen/java_contract_test.go`: Java public API, low-level SDK seam,
+  schema/ProtoJSON path, metadata projection, and fail-fast contract tests
 - `internal/codegen/render_kotlin.go`: self-contained Kotlin sidecar renderer
 - `internal/codegen/kotlin_contract_test.go`: Kotlin public API, SDK wiring,
   schema-path, and JVM import contract tests
@@ -64,8 +86,8 @@ revised.
 - Python generation emits package `__init__.py` files next to generated
   `*_mcp.py` modules so generated directories can be imported as Python
   packages
-- `testdata/golden`: golden snapshots for generated Go, Python, and Kotlin
-  binding files
+- `testdata/golden`: golden snapshots for generated Go, Python, Kotlin, and
+  Java binding files
 - `testdata/unsupported`: negative fixtures for fail-fast generator coverage
 
 ## MVP Rules
@@ -112,6 +134,12 @@ revised.
 - Generated Kotlin files expose `<Service>ToolHandler`
 - Generated Kotlin files expose
   `register<Service>Tools(server: Server, impl: <Service>ToolHandler, namespace: String? = null)`
+- Generated Java files expose one top-level `public final <ProtoFile>Mcp`
+  sidecar class per proto file
+- Generated Java files expose nested `<Service>ToolHandler` interfaces inside
+  the sidecar class
+- Generated Java files expose
+  `register<Service>Tools(McpServerTransportProvider transportProvider, <Service>ToolHandler impl, String namespace)`
 - Runtime exposes only the minimal registration options used by generated code
 - Generated MCP tool names must not contain dots; namespace prefixes and method
   names are joined with underscores, and any dots in configured segments are
@@ -123,14 +151,23 @@ revised.
 ## Current Status
 
 - Implemented:
-  - `cmd/protoc-gen-mcp` plugin scaffold and generated `*.mcp.go` bindings
+- `cmd/protoc-gen-mcp` plugin scaffold and generated `*.mcp.go` bindings
   - typed plugin option parsing for `lang=go|python|kotlin|java` and
     `python_runtime=google.protobuf|betterproto|grpclib`
   - shared JVM foundation for `lang=kotlin` and `lang=java`: parser and
     generator dispatch accept both targets, collect SDK-neutral
     `internal/codegen/jvm_*.go` models, preserve existing `FileModel` schema
-    JSON/annotations/icons/type semantics, and keep Java collect-only until its
-    renderer phase
+    JSON/annotations/icons/type semantics, and feed both the Kotlin and Java
+    renderers
+  - generated self-contained Java `*.java` sidecars for `lang=java`, targeting
+    the official Java MCP SDK through the low-level
+    `McpServerTransportProvider.setSessionFactory(...)` seam, including one
+    filename-matching `public final` sidecar class per proto file, nested
+    protobuf-typed handler interfaces, namespace-aware
+    `register<Service>Tools(...)`, generated `tools/list`/`tools/call`
+    request-handler wiring, raw schema JSON constants, official ProtoJSON
+    parse/marshal helpers, raw protocol-map metadata projection for
+    annotations/icons/execution, and generator-owned input/output validation
   - generated self-contained Kotlin `*_mcp.kt` bindings for `lang=kotlin`,
     targeting `io.modelcontextprotocol:kotlin-sdk-server`, including
     protobuf-typed handler interfaces, namespace-aware
@@ -220,6 +257,26 @@ revised.
   - underscore-only MCP tool naming; expected example tool names are
     `example_CreateReport`, `example_DescribeAdvancedShapes`,
     `example_DescribeScalarShapes`, and `example_Health`
+  - representative Java output for `lang=java` is locked by
+    `testdata/golden/example_mcp.java.golden`, and generator coverage includes a
+    narrow `javac` compile smoke proving that example handler code compiles
+    against the generated Java API without depending on repository-internal
+    runtime types; full runnable Java example/runtime proof remains deferred to
+    Phase 04
+- `examples/jvm` provides a real Gradle compile gate that builds the local
+  `protoc-gen-mcp` binary, runs Maven `protoc 4.34.1`, and compiles generated
+  Java/Kotlin sidecars against `io.modelcontextprotocol.sdk:mcp:1.1.1`,
+  `io.modelcontextprotocol:kotlin-sdk-server:0.11.1`, and
+  `com.networknt:json-schema-validator:1.5.9`
+- installable Java and Kotlin stdio example servers under `examples/jvm`,
+  built through Gradle `installDist`, that register generated tools through
+  `ExampleMcp.registerExampleAPITools(...)` and
+  `registerExampleAPITools(server, impl, namespace = "example")` instead of
+  SDK `addTool` APIs
+- repository docs now route JVM users through `examples/jvm/README.md`, and
+  rollout messaging states that releases publish the `protoc-gen-mcp binary`
+  while downstream JVM users compile generated sources against the official SDK
+  artifacts
   - `example_DescribeAdvancedShapes` covers the full current advanced contract
     matrix in the test server: maps, timestamps, durations, field masks,
     `Struct`/`Value`/`ListValue`, `Any`, scalar wrappers, raw float ProtoJSON,
@@ -231,14 +288,25 @@ revised.
     proto3 `optional` scalar/enum fields
 - Verified:
   - `easyp` lint and generation flows for `mcp` and `internal/testproto`
-  - `go test ./internal/codegen -count=1` for generator, Go/Python, Kotlin,
+  - `go test ./internal/codegen -count=1` for generator, Go/Python/Kotlin/Java,
     and shared JVM foundation coverage
   - `go test ./internal/codegen -run 'TestGenerateKotlinExampleGolden|TestKotlinContract_.*' -count=1`
     for Kotlin golden output and focused Kotlin renderer contracts
-  - `go test ./...`
-  - stdio smoke tests via `internal/examplemcp/stdio_test.go`
-  - Python stdio integration coverage for the shared server:
-    `go test ./internal/examplemcp -run 'TestPythonServerOverStdio|TestPythonServerRejectsInvalidOutputOverStdio' -count=1`
+- `go test ./internal/codegen -run 'TestJavaContract_.*|TestGenerateJavaExampleGolden|TestGenerateJavaExampleHandlerCompileSmoke|TestGenerate_JavaTargetEmitsOutput' -count=1`
+  for Java golden output, low-level renderer contracts, and the Phase 03
+  narrow `javac` API compile smoke
+- `gradle --no-daemon -p examples/jvm :java-server:compileJava :kotlin-server:compileKotlin`
+  for the Phase 04 JVM compile gate
+- `gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist`
+  for installable JVM example scripts
+- `go test ./...`
+- stdio smoke tests via `internal/examplemcp/stdio_test.go`
+- `go test ./internal/examplemcp -run 'TestJava.*OverStdio' -count=1`
+  for Java installed-script stdio parity, invalid input, and invalid output
+- `go test ./internal/examplemcp -run 'TestKotlin.*OverStdio' -count=1`
+  for Kotlin installed-script stdio parity, invalid input, and invalid output
+- Python stdio integration coverage for the shared server:
+  `go test ./internal/examplemcp -run 'TestPythonServerOverStdio|TestPythonServerRejectsInvalidOutputOverStdio' -count=1`
   - Python stdio integration coverage for standalone examples:
     `go test ./examples -run TestPythonExamplesOverStdio -count=1`
   - Python stdio integration coverage for the Python-only standalone example:
@@ -292,6 +360,10 @@ revised.
 - Generate test fixtures: `easyp --cfg easyp.test.yaml generate -p internal/testproto -r .`
 - Generate standalone example artifacts:
   - `cd examples && make generate`
+- Run JVM compile gate:
+  - `gradle --no-daemon -p examples/jvm :java-server:compileJava :kotlin-server:compileKotlin`
+- Install JVM example scripts:
+  - `gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist`
 - Run Python-only standalone example:
   - `cd examples/5_python_standalone && make setup && make run`
 - Build plugin: `go build ./cmd/protoc-gen-mcp`
@@ -303,3 +375,7 @@ revised.
   - `python /abs/path/to/protoc-gen-mcp/cmd/example-python-mcp-server/main.py`
 - Run built example MCP server binary: `./example-mcp-server`
 - Run tests: `go test ./...`
+- Run Java stdio example tests:
+  - `go test ./internal/examplemcp -run 'TestJava.*OverStdio' -count=1`
+- Run Kotlin stdio example tests:
+  - `go test ./internal/examplemcp -run 'TestKotlin.*OverStdio' -count=1`

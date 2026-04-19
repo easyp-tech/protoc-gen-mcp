@@ -7,41 +7,26 @@ import (
 	"google.golang.org/protobuf/compiler/protogen"
 )
 
-func TestKotlinContract_PublicAPIAndRegistrationShape(t *testing.T) {
-	generated := renderBasicKotlinFixture(t)
+func TestJavaContract_PublicAPIAndRegistrationShape(t *testing.T) {
+	generated := renderBasicJavaFixture(t)
 
 	wantSnippets := []string{
-		"interface ExampleAPIToolHandler",
-		"suspend fun createReport(ctx: ClientConnection, request: CreateReportRequest): CreateReportResponse",
-		"fun registerExampleAPITools(server: Server, impl: ExampleAPIToolHandler, namespace: String? = null)",
-		"installMcpHandlers(server)",
+		"public final class ExampleMcp {",
+		"public interface ExampleAPIToolHandler {",
+		"CreateReportResponse createReport(McpAsyncServerExchange ctx, CreateReportRequest request) throws Exception;",
+		"public static void registerExampleAPITools(",
+		"McpServerTransportProvider transportProvider,",
 	}
-	assertKotlinContains(t, generated, wantSnippets...)
+	assertJavaContains(t, generated, wantSnippets...)
 
 	notWantSnippets := []string{
-		"server." + "addTool(",
-		"addTool" + "(name =",
-		"Dynamic" + "Message",
+		"addTool(",
+		"DynamicMessage",
 	}
-	assertKotlinOmits(t, generated, notWantSnippets...)
+	assertJavaOmits(t, generated, notWantSnippets...)
 }
 
-func TestKotlinContract_LowLevelServerContractShape(t *testing.T) {
-	generated := renderBasicKotlinFixture(t)
-
-	wantSnippets := []string{
-		"private class ServerToolRegistry",
-		"private suspend fun dispatchToolCall",
-		"ListToolsRequest",
-		"CallToolRequest",
-		"private suspend fun listRegisteredTools",
-		"session.setRequestHandler(Method.Defined.ToolsList)",
-		"session.setRequestHandler(Method.Defined.ToolsCall)",
-	}
-	assertKotlinContains(t, generated, wantSnippets...)
-}
-
-func TestKotlinContract_JavaPackageAndWrapperImports(t *testing.T) {
+func TestJavaContract_OnePublicSidecarClassAndImports(t *testing.T) {
 	plugin := newTempProtogenPlugin(t, map[string]string{
 		"test/v1/shared.proto": strings.Join([]string{
 			`syntax = "proto3";`,
@@ -90,73 +75,70 @@ func TestKotlinContract_JavaPackageAndWrapperImports(t *testing.T) {
 		}, "\n"),
 	}, "test/v1/service.proto")
 
-	generated := renderKotlinFileFromPlugin(t, plugin, "test/v1/service.proto")
+	generated := renderJavaFileFromPlugin(t, plugin, "test/v1/service.proto")
 	wantSnippets := []string{
-		"package com.example.service",
-		"import com.example.shared.SharedTypes",
-		"import com.example.sharedmulti.MultiRequest",
-		"import com.example.sharedmulti.MultiResponse",
-		"import com.example.defaultouter.SharedDefaultOuter",
-		"suspend fun useShared(ctx: ClientConnection, request: SharedTypes.SharedRequest): SharedTypes.SharedResponse",
-		"suspend fun useMulti(ctx: ClientConnection, request: MultiRequest): MultiResponse",
-		"suspend fun useDefault(ctx: ClientConnection, request: SharedDefaultOuter.DefaultRequest): SharedDefaultOuter.DefaultResponse",
+		"package com.example.service;",
+		"import com.example.shared.SharedTypes;",
+		"import com.example.sharedmulti.MultiRequest;",
+		"import com.example.sharedmulti.MultiResponse;",
+		"import com.example.defaultouter.SharedDefaultOuter;",
+		"public final class ServiceMcp {",
+		"SharedTypes.SharedRequest",
+		"MultiRequest",
+		"SharedDefaultOuter.DefaultRequest",
 	}
-	assertKotlinContains(t, generated, wantSnippets...)
+	assertJavaContains(t, generated, wantSnippets...)
 }
 
-func TestKotlinContract_RawSchemaProjectionAndValidation(t *testing.T) {
-	generated := renderBasicKotlinFixture(t)
-
-	wantSnippets := []string{
-		"private fun buildListTool(tool: RegisteredTool): Tool",
-		"private fun loadSchema(rawSchemaJson: String): JsonObject",
-		"validateJson(tool.inputSchemaJson, arguments)",
-		"parseProtoJson(arguments.toString(), tool.requestBuilder())",
-		"marshalProtoJson(responseMessage)",
-		"validateJson(tool.outputSchemaJson, payload)",
-		"CallToolResult(content = listOf(TextContent(text = textPayload)), structuredContent = payload)",
-	}
-	assertKotlinContains(t, generated, wantSnippets...)
-}
-
-func TestKotlinContract_UsesPublicServerClientConnection(t *testing.T) {
-	generated := renderBasicKotlinFixture(t)
-
-	assertKotlinContains(t, generated, "server.clientConnection(session.sessionId)")
-	assertKotlinOmits(t, generated, "session.clientConnection")
-}
-
-func TestKotlinContract_UsesNetworkntJsonSchemaValidation(t *testing.T) {
-	generated := renderBasicKotlinFixture(t)
+func TestJavaContract_LowLevelServerContractShape(t *testing.T) {
+	generated := renderBasicJavaFixture(t)
 
 	wantSnippets := []string{
-		"import com.google.protobuf.Descriptors",
-		"import com.networknt.schema.InputFormat",
-		"import com.networknt.schema.JsonSchemaFactory",
-		"import com.networknt.schema.SpecVersion",
-		"private val jsonSchemaFactory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)",
-		"private val protoTypeRegistry = buildTypeRegistry()",
-		"registerFileTypes(builder, seenFiles, Example.getDescriptor())",
-		"builder.add(descriptor)",
-		"JsonFormat.parser().usingTypeRegistry(protoTypeRegistry).merge(payload, builder)",
-		"JsonFormat.printer().usingTypeRegistry(protoTypeRegistry).includingDefaultValueFields().print(message)",
-		"jsonSchemaFactory.getSchema(rawSchemaJson).validate(payload.toString(), InputFormat.JSON)",
-		`schema["\$defs"]?.jsonObject`,
-		"ToolSchema(properties = properties, required = required, defs = defs)",
-		`invalidParams(tool.name, error.message ?: error.toString())`,
-		`IllegalStateException("mcpruntime: validate output for tool '${tool.name}': ${error.message}", error)`,
+		"private static final class RegisteredTool {",
+		"private static final class ServerToolRegistry {",
+		"transportProvider.setSessionFactory(",
+		"new McpServerSession(",
+		"requestHandlers.put(McpSchema.METHOD_TOOLS_LIST",
+		"requestHandlers.put(McpSchema.METHOD_TOOLS_CALL",
 	}
-	assertKotlinContains(t, generated, wantSnippets...)
+	assertJavaContains(t, generated, wantSnippets...)
+
+	notWantSnippets := []string{
+		".tools(",
+		".toolCall(",
+		"addTool(",
+	}
+	assertJavaOmits(t, generated, notWantSnippets...)
 }
 
-func TestKotlinContract_EscapesSchemaDollarSigns(t *testing.T) {
-	generated := renderRepositoryExampleKotlinFixture(t)
+func TestJavaContract_RawSchemaProtoJSONAndValidation(t *testing.T) {
+	generated := renderBasicJavaFixture(t)
 
-	assertKotlinContains(t, generated, `\$ref`, `\$defs`)
-	assertKotlinOmits(t, generated, `\"$ref\"`, `\"$defs\"`)
+	wantSnippets := []string{
+		"private static final JsonFormat.TypeRegistry PROTO_TYPE_REGISTRY = buildTypeRegistry();",
+		"private static JsonFormat.TypeRegistry buildTypeRegistry() {",
+		"registerFileTypes(builder, seenFiles, Example.getDescriptor());",
+		"builder.add(descriptor);",
+		"private static Map<String, Object> loadSchema(String rawSchemaJson) {",
+		"private static void validateJson(Map<String, Object> schema, Object payload) {",
+		"private static Message parseProtoJson(String argumentsJson, Message.Builder builder) {",
+		"private static String marshalProtoJson(Message responseMessage) {",
+		"private static Mono<Object> dispatchToolCall(",
+		"validateJson(tool.inputSchema, arguments);",
+		"parseProtoJson(JSON_MAPPER.writeValueAsString(arguments), tool.requestBuilder.get())",
+		"marshalProtoJson(responseMessage);",
+		"validateJson(tool.outputSchema, structuredContent);",
+		"JsonFormat.parser().usingTypeRegistry(PROTO_TYPE_REGISTRY).merge(",
+		"usingTypeRegistry(PROTO_TYPE_REGISTRY)",
+		"alwaysPrintFieldsWithNoPresence()",
+		"omittingInsignificantWhitespace()",
+		"McpSchema.ErrorCodes.INVALID_PARAMS",
+		".isError(true)",
+	}
+	assertJavaContains(t, generated, wantSnippets...)
 }
 
-func TestKotlinContract_AnnotationsIconsAndThemeValidation(t *testing.T) {
+func TestJavaContract_MetadataProjection(t *testing.T) {
 	plugin := newTempProtogenPlugin(t, map[string]string{
 		"test/v1/metadata.proto": strings.Join([]string{
 			`syntax = "proto3";`,
@@ -186,18 +168,25 @@ func TestKotlinContract_AnnotationsIconsAndThemeValidation(t *testing.T) {
 		}, "\n"),
 	}, "test/v1/metadata.proto")
 
-	generated := renderKotlinFileFromPlugin(t, plugin, "test/v1/metadata.proto")
+	generated := renderJavaFileFromPlugin(t, plugin, "test/v1/metadata.proto")
 	wantSnippets := []string{
-		"ToolAnnotations(readOnlyHint = true, openWorldHint = false)",
-		"ToolExecution(taskSupport = TaskSupport.Optional)",
-		"ToolExecution(taskSupport = TaskSupport.Required)",
-		"Icon.Theme.Light",
-		"Icon.Theme.Dark",
-		`theme = iconThemeOrError("light")`,
-		`theme = iconThemeOrError("dark")`,
+		"private static Map<String, Object> listRegisteredTools(ServerToolRegistry registry) {",
+		"private static Map<String, Object> toolAsProtocolMap(RegisteredTool tool) {",
+		"new LinkedHashMap<>()",
+		"toolAnnotationsMapOrNull(",
+		"toolExecutionMapOrNull(",
+		"iconThemeOrError(",
+		`"icons"`,
+		`"execution"`,
+		`"taskSupport"`,
+		`"light"`,
+		`"dark"`,
 	}
-	assertKotlinContains(t, generated, wantSnippets...)
+	assertJavaContains(t, generated, wantSnippets...)
+	assertJavaOmits(t, generated, "Tool.builder(")
+}
 
+func TestJavaContract_MetadataProjectionRejectsUnknownIconTheme(t *testing.T) {
 	invalidPlugin := newTempProtogenPlugin(t, map[string]string{
 		"test/v1/invalid_theme.proto": strings.Join([]string{
 			`syntax = "proto3";`,
@@ -222,7 +211,7 @@ func TestKotlinContract_AnnotationsIconsAndThemeValidation(t *testing.T) {
 	if invalidFile == nil {
 		t.Fatal("invalid theme proto file not found in plugin")
 	}
-	shared, err := CollectFileModel(invalidFile, Options{Language: LanguageKotlin})
+	shared, err := CollectFileModel(invalidFile, Options{Language: LanguageJava})
 	if err != nil {
 		t.Fatalf("CollectFileModel invalid theme: %v", err)
 	}
@@ -230,19 +219,19 @@ func TestKotlinContract_AnnotationsIconsAndThemeValidation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CollectJVMFileModel invalid theme: %v", err)
 	}
-	err = renderKotlinFile(invalidPlugin, jvm)
+	err = renderJavaFile(invalidPlugin, jvm)
 	if err == nil {
-		t.Fatal("renderKotlinFile unexpectedly succeeded for invalid icon theme")
+		t.Fatal("renderJavaFile unexpectedly succeeded for invalid icon theme")
 	}
-	if !strings.Contains(err.Error(), `unsupported Kotlin icon theme "solarized"`) {
-		t.Fatalf("renderKotlinFile error = %v, want invalid theme rejection", err)
+	if !strings.Contains(err.Error(), `unsupported Java icon theme "solarized"`) {
+		t.Fatalf("renderJavaFile error = %v, want invalid theme rejection", err)
 	}
 	if got := len(invalidPlugin.Response().GetFile()); got != 0 {
 		t.Fatalf("invalid theme emitted %d files before failing, want 0", got)
 	}
 }
 
-func renderBasicKotlinFixture(t *testing.T) string {
+func renderBasicJavaFixture(t *testing.T) string {
 	t.Helper()
 
 	plugin := newTempProtogenPlugin(t, map[string]string{
@@ -265,28 +254,17 @@ func renderBasicKotlinFixture(t *testing.T) string {
 		}, "\n"),
 	}, "test/v1/example.proto")
 
-	return renderKotlinFileFromPlugin(t, plugin, "test/v1/example.proto")
+	return renderJavaFileFromPlugin(t, plugin, "test/v1/example.proto")
 }
 
-func renderRepositoryExampleKotlinFixture(t *testing.T) string {
-	t.Helper()
-
-	plugin := newExampleProtogenPlugin(t)
-	if err := Generate(plugin, Options{Language: LanguageKotlin}); err != nil {
-		t.Fatalf("Generate: %v", err)
-	}
-
-	return string(generatedFileContent(t, plugin, "internal/testproto/example/v1/example_mcp.kt"))
-}
-
-func renderKotlinFileFromPlugin(t *testing.T, plugin *protogen.Plugin, protoPath string) string {
+func renderJavaFileFromPlugin(t *testing.T, plugin *protogen.Plugin, protoPath string) string {
 	t.Helper()
 
 	file := plugin.FilesByPath[protoPath]
 	if file == nil {
 		t.Fatalf("proto file %q not found in plugin", protoPath)
 	}
-	shared, err := CollectFileModel(file, Options{Language: LanguageKotlin})
+	shared, err := CollectFileModel(file, Options{Language: LanguageJava})
 	if err != nil {
 		t.Fatalf("CollectFileModel: %v", err)
 	}
@@ -294,27 +272,27 @@ func renderKotlinFileFromPlugin(t *testing.T, plugin *protogen.Plugin, protoPath
 	if err != nil {
 		t.Fatalf("CollectJVMFileModel: %v", err)
 	}
-	if err := renderKotlinFile(plugin, jvm); err != nil {
-		t.Fatalf("renderKotlinFile: %v", err)
+	if err := renderJavaFile(plugin, jvm); err != nil {
+		t.Fatalf("renderJavaFile: %v", err)
 	}
 
-	return string(generatedFileContent(t, plugin, strings.TrimSuffix(protoPath, ".proto")+"_mcp.kt"))
+	return string(generatedFileContent(t, plugin, javaSidecarOutputPath(jvmGeneratedFilenamePrefixForProtoPath(protoPath))))
 }
 
-func assertKotlinContains(t *testing.T, generated string, snippets ...string) {
+func assertJavaContains(t *testing.T, generated string, snippets ...string) {
 	t.Helper()
 	for _, snippet := range snippets {
 		if !strings.Contains(generated, snippet) {
-			t.Fatalf("generated Kotlin missing snippet %q\n%s", snippet, generated)
+			t.Fatalf("generated Java missing snippet %q\n%s", snippet, generated)
 		}
 	}
 }
 
-func assertKotlinOmits(t *testing.T, generated string, snippets ...string) {
+func assertJavaOmits(t *testing.T, generated string, snippets ...string) {
 	t.Helper()
 	for _, snippet := range snippets {
 		if strings.Contains(generated, snippet) {
-			t.Fatalf("generated Kotlin must not contain snippet %q\n%s", snippet, generated)
+			t.Fatalf("generated Java unexpectedly contains snippet %q\n%s", snippet, generated)
 		}
 	}
 }

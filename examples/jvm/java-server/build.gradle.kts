@@ -2,6 +2,7 @@ import com.google.protobuf.gradle.*
 import org.gradle.api.tasks.Sync
 
 plugins {
+    application
     java
     id("com.google.protobuf")
 }
@@ -17,8 +18,11 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
 }
 
+application {
+    mainClass.set("internal.examplemcp.java.ExampleJavaServer")
+}
+
 val repoRoot = rootProject.projectDir.resolve("../..").canonicalFile
-layout.buildDirectory.set(repoRoot.parentFile.resolve(".protoc-gen-mcp-jvm-build").resolve(project.name))
 val protocGenMcpBinary = rootProject.layout.buildDirectory.file("tools/protoc-gen-mcp")
 val stagedProtoDir = layout.buildDirectory.dir("staged-proto")
 val stageProtoSources = tasks.register<Sync>("stageProtoSources") {
@@ -66,4 +70,8 @@ protobuf {
 
 tasks.named("compileJava") {
     dependsOn(tasks.named("generateProto"))
+}
+
+tasks.named("processResources") {
+    dependsOn(stageProtoSources)
 }
