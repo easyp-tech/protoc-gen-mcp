@@ -58,7 +58,10 @@ not publish separate Java or Kotlin runtime artifacts.
 ## JVM Support
 
 JVM support is implemented and CI-verified through the runnable
-[`examples/jvm`](examples/jvm/README.md) workspace.
+[`examples/jvm`](examples/jvm/README.md) workspace. User-owned standalone
+project layouts are shown in
+[`examples/6_java_standalone`](examples/6_java_standalone/) and
+[`examples/7_kotlin_standalone`](examples/7_kotlin_standalone/).
 
 - JVM prerequisites for the in-repo walkthrough are Go 1.24+, JDK 17+, and
   Gradle 9.2+.
@@ -72,10 +75,14 @@ JVM support is implemented and CI-verified through the runnable
 - The canonical runnable JVM verification path uses `installDist` plus the
   installed scripts under `examples/jvm/*/build/install/.../bin/*`, matching
   `internal/examplemcp/jvm_stdio_test.go` and CI.
+- Standalone JVM protos can be Java/Kotlin-native and omit `go_package`; the
+  generator synthesizes internal protogen metadata for `lang=java` and
+  `lang=kotlin`.
 
-Use the root README for the language matrix and repository workflow, then go to
-[examples/jvm/README.md](examples/jvm/README.md) for the exact Java/Kotlin
-walkthrough.
+Use the root README for the language matrix and repository workflow, inspect
+the standalone Java/Kotlin directories for user-project shape, and use
+[examples/jvm/README.md](examples/jvm/README.md) for the cross-language JVM
+verification workspace.
 
 ## Test MCP Server
 
@@ -96,6 +103,40 @@ The example server currently exposes:
 - `example_DescribeAdvancedShapes`
 - `example_DescribeScalarShapes`
 
+## Testing With MCP Inspector
+
+Use the official
+[MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector) for
+interactive stdio checks while developing a server. The Inspector runs through
+`npx` and starts the MCP server command you pass after the Inspector package.
+
+For the Go example server:
+
+```bash
+npx -y @modelcontextprotocol/inspector go run ./cmd/example-mcp-server
+```
+
+For the Python example server:
+
+```bash
+npx -y @modelcontextprotocol/inspector python ./cmd/example-python-mcp-server/main.py
+```
+
+For installed JVM examples, build the scripts first and then point the
+Inspector at the installed application:
+
+```bash
+gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist
+npx -y @modelcontextprotocol/inspector ./examples/jvm/java-server/build/install/java-server/bin/java-server
+npx -y @modelcontextprotocol/inspector ./examples/jvm/kotlin-server/build/install/kotlin-server/bin/kotlin-server
+```
+
+When the Inspector UI opens, connect to the server, open the Tools tab, run
+List Tools, then call a generated tool such as `example_Health` or
+`example_CreateReport`. This is the fastest manual check that generated tool
+names, schemas, annotations, ProtoJSON inputs, structured outputs, and server
+stdio wiring are visible to an MCP client.
+
 ## Examples
 
 We provide several standalone, runnable examples demonstrating generated MCP
@@ -107,6 +148,8 @@ official Go, Python, Kotlin, and Java SDKs. Check out the
 - [3_file_manager](examples/3_file_manager/) - Destructive tools and schema-based string parameter constraints.
 - [4_crm_system](examples/4_crm_system/) - A full mock system with FieldMask partial updates, custom icons mapping, schemas nested types, and advanced array filters.
 - [5_python_standalone](examples/5_python_standalone/) - A Python-only user-style project with its own `pyproject.toml`, `easyp.yaml`, generated bindings, and stdio server.
+- [6_java_standalone](examples/6_java_standalone/) - A Java user-style project with its own Gradle build, `easyp.yaml`, protobuf contract, and generated MCP sidecar.
+- [7_kotlin_standalone](examples/7_kotlin_standalone/) - A Kotlin user-style project with its own Gradle build, `easyp.yaml`, protobuf contract, and generated MCP sidecar.
 - [jvm](examples/jvm/README.md) - A Java/Kotlin official SDK workspace with
   Gradle-managed protobuf generation, `lang=java` / `lang=kotlin` sidecars,
   `installDist` scripts, and stdio verification.
@@ -206,9 +249,11 @@ For JVM consumers, the language selectors are `lang=java` and `lang=kotlin`.
 The Java path generates a Java sidecar alongside protobuf Java output. The
 Kotlin path must follow the same rule as the in-repo Gradle example: Java
 protobuf output, Kotlin protobuf output, and the `lang=kotlin` MCP sidecar are
-all part of the working build graph. See
-[examples/jvm/README.md](examples/jvm/README.md) for the runnable, tested
-workspace.
+all part of the working build graph. User-authored JVM protos do not need a
+Go `go_package` option just to satisfy `protoc-gen-mcp`. See
+[examples/6_java_standalone](examples/6_java_standalone/),
+[examples/7_kotlin_standalone](examples/7_kotlin_standalone/), and
+[examples/jvm/README.md](examples/jvm/README.md) for runnable layouts.
 
 For Python-only projects, omit the Go plugins and keep only the standard
 `python` plugin plus `protoc-gen-mcp` with `lang=python`. User-authored Python

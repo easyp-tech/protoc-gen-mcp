@@ -49,4 +49,8 @@ examples/3_file_manager/file-server
 examples/4_crm_system/crm-server
 examples/jvm/.gradle/
 examples/jvm/*/build/
+examples/6_java_standalone/.gradle/
+examples/6_java_standalone/build/
+examples/7_kotlin_standalone/.gradle/
+examples/7_kotlin_standalone/build/
 .DS_Store

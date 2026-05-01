@@ -6,11 +6,11 @@ Python, Kotlin, and Java SDKs.
 
 ## Prerequisites
 - **easyp**: Ensure you have [easyp](https://github.com/easyp-tech/easyp) installed for code generation.
-- **JDK 17+ and Gradle 9.2+**: Required for the dedicated JVM workspace under
-  [`examples/jvm`](./jvm/README.md).
+- **JDK 17+ and Gradle 9.2+**: Required for the standalone Java/Kotlin projects
+  and the dedicated JVM workspace under [`examples/jvm`](./jvm/README.md).
 
 ## Running the Examples
-1. Generate the Go and Python example artifacts from the `.proto` definitions.
+1. Generate the example artifacts from the `.proto` definitions.
    Run this from the root of the repository or from the examples directory:
    ```bash
    cd examples
@@ -24,8 +24,9 @@ Python, Kotlin, and Java SDKs.
    through the `deps` entry in `examples/easyp.yaml` and pinned by
    `examples/easyp.lock`, so the examples do not depend on the local
    repository-root options package during generation.
-   `5_python_standalone` has its own `easyp.yaml`, `easyp.lock`, and
-   `pyproject.toml` to model a user-owned Python project.
+   `5_python_standalone`, `6_java_standalone`, and
+   `7_kotlin_standalone` each have their own `easyp.yaml` and lockfile to
+   model user-owned projects.
 2. Run any of the Go servers (e.g. `1_helloworld`):
    ```bash
    cd examples/1_helloworld
@@ -42,7 +43,15 @@ Python, Kotlin, and Java SDKs.
    make setup
    make run
    ```
-5. Run the Java/Kotlin workspace:
+5. Build or run the standalone JVM projects:
+   ```bash
+   cd examples/6_java_standalone
+   make build
+
+   cd ../7_kotlin_standalone
+   make build
+   ```
+6. Run the Java/Kotlin workspace:
    Follow [`examples/jvm/README.md`](./jvm/README.md) for the tested
    `compileJava` / `compileKotlin`, `installDist`, and installed-script stdio
    flow.
@@ -86,6 +95,27 @@ protobuf contract, generated bindings, and stdio server.
 - **Independent environment**: `make setup` creates a local `.venv` and installs the official Python MCP SDK plus protobuf/jsonschema dependencies.
 - **No import hacks**: `server.py` imports generated code with `from proto import notebook_mcp` and does not edit `sys.path`.
 - **Python-only proto**: the user-authored proto does not need `go_package`; `protoc-gen-mcp` synthesizes internal metadata for Python generation.
+
+### [6_java_standalone](./6_java_standalone) (Java User Project)
+A standalone Java MCP server with its own Gradle build, `easyp.yaml`, protobuf
+contract, and handwritten stdio server.
+- **Java-native proto**: the user-authored proto uses `java_package` and does
+  not need a Go `go_package` option.
+- **Local options generation**: `with_imports: true` generates the local
+  `mcp.options.v1` Java class from the Easyp dependency, while the build
+  removes generated Google protobuf sources and relies on the protobuf jar.
+- **Generated API**: the server implements `TodoMcp.TodoAPIToolHandler` and
+  registers tools through `TodoMcp.registerTodoAPITools(...)`.
+
+### [7_kotlin_standalone](./7_kotlin_standalone) (Kotlin User Project)
+A standalone Kotlin MCP server with its own Gradle build, `easyp.yaml`,
+protobuf contract, and handwritten stdio server.
+- **Dual protobuf generation**: `easyp.yaml` generates Java protobuf classes,
+  Kotlin protobuf helpers, and the `lang=kotlin` MCP sidecar.
+- **Kotlin-native handler**: the server implements `TodoAPIToolHandler` and
+  registers tools through `registerTodoAPITools(server, impl, namespace = ...)`.
+- **No Go proto metadata**: JVM request preparation synthesizes internal
+  protogen metadata, so the user-authored proto does not need `go_package`.
 
 ### [jvm](./jvm/README.md) (Java & Kotlin Official SDK Workspace)
 An isolated Gradle workspace that generates and runs Java and Kotlin MCP

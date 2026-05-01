@@ -92,6 +92,7 @@ class _RegisteredTool:
     handler: Any
     annotations: dict[str, Any] | None
     icons: list[dict[str, Any]] | None
+    execution: dict[str, Any] | None = None
 
 class _ServerToolRegistry:
     def __init__(self, server: mcp.server.lowlevel.Server) -> None:
@@ -233,6 +234,11 @@ def _tool_annotations(raw: dict[str, Any] | None) -> mcp.types.ToolAnnotations |
         return None
     return mcp.types.ToolAnnotations(**raw)
 
+def _tool_execution(raw: dict[str, Any] | None) -> mcp.types.ToolExecution | None:
+    if raw is None:
+        return None
+    return mcp.types.ToolExecution(**raw)
+
 def _tool_error_result(message: str) -> mcp.types.CallToolResult:
     return mcp.types.CallToolResult(
         content=[mcp.types.TextContent(type="text", text=message)],
@@ -256,6 +262,7 @@ def _build_tool(tool: _RegisteredTool) -> Any:
         outputSchema=_load_schema(tool.output_schema_json),
         annotations=_tool_annotations(tool.annotations),
         icons=tool.icons,
+        execution=_tool_execution(tool.execution),
     )
 
 async def _maybe_await(result: Any) -> Any:
@@ -481,6 +488,7 @@ def register_weather_api_tools(server: mcp.server.lowlevel.Server, impl: Weather
         handler=impl.get_current_weather,
         annotations={"readOnlyHint": True, "openWorldHint": True},
         icons=None,
+        execution=None,
     ))
 
 WEATHER_API_GET_CURRENT_WEATHER_INPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"city\":{\"type\":[\"string\",\"null\"],\"description\":\"Name of the city (e.g., 'London', 'Tokyo').\",\"examples\":[\"Paris\"],\"minLength\":2},\"coordinates\":{\"type\":[\"object\",\"null\"],\"properties\":{\"latitude\":{\"description\":\"Latitude in decimal degrees.\",\"examples\":[1.25,\"NaN\"],\"anyOf\":[{\"type\":\"number\"},{\"type\":\"string\",\"enum\":[\"NaN\",\"Infinity\",\"-Infinity\"]}]},\"longitude\":{\"description\":\"Longitude in decimal degrees.\",\"examples\":[1.25,\"NaN\"],\"anyOf\":[{\"type\":\"number\"},{\"type\":\"string\",\"enum\":[\"NaN\",\"Infinity\",\"-Infinity\"]}]}},\"examples\":[{\"latitude\":1.25,\"longitude\":1.25}],\"required\":[\"latitude\",\"longitude\"],\"additionalProperties\":false}},\"examples\":[{\"city\":\"example\"}],\"additionalProperties\":false,\"allOf\":[{\"oneOf\":[{\"not\":{\"anyOf\":[{\"required\":[\"city\"],\"not\":{\"properties\":{\"city\":{\"type\":\"null\"}},\"required\":[\"city\"]}},{\"required\":[\"coordinates\"],\"not\":{\"properties\":{\"coordinates\":{\"type\":\"null\"}},\"required\":[\"coordinates\"]}}]}},{\"allOf\":[{\"required\":[\"city\"],\"not\":{\"properties\":{\"city\":{\"type\":\"null\"}},\"required\":[\"city\"]}},{\"not\":{\"anyOf\":[{\"required\":[\"coordinates\"],\"not\":{\"properties\":{\"coordinates\":{\"type\":\"null\"}},\"required\":[\"coordinates\"]}}]}}]},{\"allOf\":[{\"required\":[\"coordinates\"],\"not\":{\"properties\":{\"coordinates\":{\"type\":\"null\"}},\"required\":[\"coordinates\"]}},{\"not\":{\"anyOf\":[{\"required\":[\"city\"],\"not\":{\"properties\":{\"city\":{\"type\":\"null\"}},\"required\":[\"city\"]}}]}}]}]}]}"

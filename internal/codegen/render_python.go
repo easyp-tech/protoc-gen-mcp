@@ -141,6 +141,7 @@ func renderPythonFile(plugin *protogen.Plugin, model FileModel) error {
 			generated.P("        handler=impl.", pythonMethodName(method.ProtoName), ",")
 			generated.P("        annotations=", pythonAnnotations(method.Annotations), ",")
 			generated.P("        icons=", pythonIcons(method.Icons), ",")
+			generated.P("        execution=", pythonTaskSupport(method.TaskSupport), ",")
 			generated.P("    ))")
 		}
 		generated.P()
@@ -383,4 +384,15 @@ func pythonIcons(icons []*mcpoptionsv1.Icon) string {
 	}
 
 	return "[" + strings.Join(items, ", ") + "]"
+}
+
+func pythonTaskSupport(taskSupport mcpoptionsv1.TaskSupport) string {
+	switch taskSupport {
+	case mcpoptionsv1.TaskSupport_TASK_SUPPORT_OPTIONAL:
+		return `{"taskSupport": "optional"}`
+	case mcpoptionsv1.TaskSupport_TASK_SUPPORT_REQUIRED:
+		return `{"taskSupport": "required"}`
+	default:
+		return "None"
+	}
 }

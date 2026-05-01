@@ -272,6 +272,7 @@ class _RegisteredTool:
     handler: Any
     annotations: dict[str, Any] | None
     icons: list[dict[str, Any]] | None
+    execution: dict[str, Any] | None = None
 
 class _ServerToolRegistry:
     def __init__(self, server: mcp.server.lowlevel.Server) -> None:
@@ -413,6 +414,11 @@ def _tool_annotations(raw: dict[str, Any] | None) -> mcp.types.ToolAnnotations |
         return None
     return mcp.types.ToolAnnotations(**raw)
 
+def _tool_execution(raw: dict[str, Any] | None) -> mcp.types.ToolExecution | None:
+    if raw is None:
+        return None
+    return mcp.types.ToolExecution(**raw)
+
 def _tool_error_result(message: str) -> mcp.types.CallToolResult:
     return mcp.types.CallToolResult(
         content=[mcp.types.TextContent(type="text", text=message)],
@@ -436,6 +442,7 @@ def _build_tool(tool: _RegisteredTool) -> Any:
         outputSchema=_load_schema(tool.output_schema_json),
         annotations=_tool_annotations(tool.annotations),
         icons=tool.icons,
+        execution=_tool_execution(tool.execution),
     )
 
 async def _maybe_await(result: Any) -> Any:
@@ -1088,6 +1095,7 @@ def register_example_api_tools(server: mcp.server.lowlevel.Server, impl: Example
         handler=impl.create_report,
         annotations=None,
         icons=None,
+        execution=None,
     ))
     registry.add_tool(_RegisteredTool(
         name=_tool_name(resolved_namespace, "Health"),
@@ -1102,6 +1110,7 @@ def register_example_api_tools(server: mcp.server.lowlevel.Server, impl: Example
         handler=impl.ping,
         annotations=None,
         icons=None,
+        execution=None,
     ))
     registry.add_tool(_RegisteredTool(
         name=_tool_name(resolved_namespace, "DescribeAdvancedShapes"),
@@ -1116,6 +1125,7 @@ def register_example_api_tools(server: mcp.server.lowlevel.Server, impl: Example
         handler=impl.describe_advanced_shapes,
         annotations=None,
         icons=None,
+        execution=None,
     ))
     registry.add_tool(_RegisteredTool(
         name=_tool_name(resolved_namespace, "DescribeScalarShapes"),
@@ -1130,6 +1140,7 @@ def register_example_api_tools(server: mcp.server.lowlevel.Server, impl: Example
         handler=impl.describe_scalar_shapes,
         annotations=None,
         icons=None,
+        execution=None,
     ))
     registry.add_tool(_RegisteredTool(
         name=_tool_name(resolved_namespace, "HiddenThing"),
@@ -1144,6 +1155,7 @@ def register_example_api_tools(server: mcp.server.lowlevel.Server, impl: Example
         handler=impl.hidden_thing,
         annotations=None,
         icons=None,
+        execution=None,
     ))
 
 EXAMPLE_API_CREATE_REPORT_INPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\",\"description\":\"City name.\",\"examples\":[\"Paris\",\"London\"],\"minLength\":1,\"maxLength\":100,\"pattern\":\"^[A-Z]\"},\"count\":{\"type\":\"integer\",\"description\":\"count is the number of requested items.\",\"default\":10,\"examples\":[-1],\"minimum\":1,\"maximum\":1000},\"details\":{\"type\":\"object\",\"properties\":{\"label\":{\"type\":\"string\",\"description\":\"label is an arbitrary label.\",\"examples\":[\"example\"]}},\"title\":\"Report Details\",\"description\":\"details contains nested report options.\\n\\nNested report configuration options.\",\"examples\":[{\"label\":\"example\"}],\"required\":[\"label\"],\"additionalProperties\":false},\"labels\":{\"type\":[\"array\",\"null\"],\"items\":{\"type\":\"string\",\"description\":\"labels adds additional labels.\",\"examples\":[\"example\"]},\"description\":\"labels adds additional labels.\",\"examples\":[[\"example\"]],\"minItems\":1,\"maxItems\":50,\"uniqueItems\":true},\"units\":{\"type\":[\"string\",\"null\"],\"description\":\"units overrides the default units.\",\"examples\":[\"example\"]}},\"description\":\"CreateReportRequest describes a report generation request.\",\"examples\":[\"{\\\"city\\\":\\\"Paris\\\",\\\"count\\\":2,\\\"details\\\":{\\\"label\\\":\\\"today\\\"}}\"],\"required\":[\"city\",\"count\",\"details\"],\"additionalProperties\":false}"

@@ -3,13 +3,13 @@ package examples_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"testing"
 
+	"github.com/easyp-tech/protoc-gen-mcp/internal/pythontest"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -328,16 +328,9 @@ func repoRoot(t *testing.T) string {
 func pythonExampleCommand(t *testing.T, root, script string) *exec.Cmd {
 	t.Helper()
 
-	python := pythonCommand(t)
-	probe := exec.Command(python, "-c", "import anyio, google.protobuf, mcp")
-	probe.Dir = root
-	if output, err := probe.CombinedOutput(); err != nil {
-		t.Fatalf("python runtime dependencies are not available: %v\n%s", err, output)
-	}
-
-	cmd := exec.Command(python, script)
+	cmd := exec.Command(pythontest.Python(t), script)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(),
+	cmd.Env = pythontest.Env(t,
 		"PYTHONPATH=",
 		"PYTHONUNBUFFERED=1",
 	)
@@ -347,50 +340,13 @@ func pythonExampleCommand(t *testing.T, root, script string) *exec.Cmd {
 func standalonePythonExampleCommand(t *testing.T, projectDir string) *exec.Cmd {
 	t.Helper()
 
-	python := standalonePythonCommand(t, projectDir)
-	probe := exec.Command(python, "-c", "import anyio, google.protobuf, jsonschema, mcp")
-	probe.Dir = projectDir
-	if output, err := probe.CombinedOutput(); err != nil {
-		t.Fatalf("python runtime dependencies are not available: %v\n%s", err, output)
-	}
-
-	cmd := exec.Command(python, "server.py")
+	cmd := exec.Command(pythontest.Python(t), "server.py")
 	cmd.Dir = projectDir
-	cmd.Env = append(os.Environ(),
+	cmd.Env = pythontest.Env(t,
 		"PYTHONPATH=",
 		"PYTHONUNBUFFERED=1",
 	)
 	return cmd
-}
-
-func standalonePythonCommand(t *testing.T, projectDir string) string {
-	t.Helper()
-
-	candidates := []string{
-		filepath.Join(projectDir, ".venv", "bin", "python"),
-		filepath.Join(projectDir, ".venv", "Scripts", "python.exe"),
-	}
-	for _, candidate := range candidates {
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-	}
-
-	return pythonCommand(t)
-}
-
-func pythonCommand(t *testing.T) string {
-	t.Helper()
-
-	if path, err := exec.LookPath("python3"); err == nil {
-		return path
-	}
-	if path, err := exec.LookPath("python"); err == nil {
-		return path
-	}
-
-	t.Fatal("python3/python not found in PATH")
-	return ""
 }
 
 func decodeMap(t *testing.T, value any) map[string]any {

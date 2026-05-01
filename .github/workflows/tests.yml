@@ -36,11 +36,6 @@ jobs:
         with:
           gradle-version: "9.2.1"
 
-      - name: Install Python runtime dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install "mcp>=1.27,<2" "protobuf>=6,<7" "jsonschema>=4,<5"
-
       - name: Install easyp
         run: go install github.com/easyp-tech/easyp/cmd/easyp@v0.15.2-rc1
 

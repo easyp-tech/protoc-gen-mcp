@@ -11,6 +11,9 @@ explicitly revised.
 
 - Go 1.24+
 - Python 3.10+ for generated-runtime verification and example servers
+- Python runtime tests bootstrap an isolated virtualenv through
+  `internal/pythontest`; they must not depend on globally installed Python
+  packages such as `protobuf`
 - Gradle 9.2+ and JDK 17+ for JVM compile-gate verification
 - `easyp v0.15.2-rc1` for repository linting and code generation workflows
 - `google.golang.org/protobuf` for code generation, reflection, and ProtoJSON
@@ -35,14 +38,21 @@ explicitly revised.
 - `.goreleaser.yaml`: release packaging for the plugin binary
 - `examples`: standalone Go/Python/JVM integration projects; example
   directories use numeric underscore prefixes such as `1_helloworld`,
-  `4_crm_system`, and `5_python_standalone`, plus the dedicated JVM workspace
-  `examples/jvm`
+  `4_crm_system`, `5_python_standalone`, `6_java_standalone`, and
+  `7_kotlin_standalone`, plus the dedicated JVM workspace `examples/jvm`
 - `examples/easyp.lock`: pinned Easyp dependency lock for standalone examples
 - `examples/mcp`: generated Python `mcp.options.*` protobuf modules for
   standalone examples; generated from the GitHub dependency declared in
   `examples/easyp.yaml`, not from the local repository root
 - `examples/5_python_standalone`: Python-only user-style example with its own
   `pyproject.toml`, `easyp.yaml`, generated `proto`/`mcp` packages, and stdio
+  server
+- `examples/6_java_standalone`: Java user-style standalone project with its
+  own Gradle build, `easyp.yaml`, protobuf contract, generated Java protobuf
+  classes, generated `lang=java` MCP sidecar, and handwritten stdio server
+- `examples/7_kotlin_standalone`: Kotlin user-style standalone project with
+  its own Gradle build, `easyp.yaml`, protobuf contract, generated Java/Kotlin
+  protobuf classes, generated `lang=kotlin` MCP sidecar, and handwritten stdio
   server
 - `examples/jvm`: isolated Gradle Kotlin DSL workspace that compiles generated
   Java/Kotlin JVM sidecars against Maven `protoc`, official MCP SDK artifacts,
@@ -73,6 +83,8 @@ explicitly revised.
 - `internal/codegen/kotlin_contract_test.go`: Kotlin public API, SDK wiring,
   schema-path, and JVM import contract tests
 - `internal/examplemcp`: reusable example MCP server wiring and stdio smoke test
+- `internal/pythontest`: hermetic Python test runtime bootstrap used by Go
+  tests that execute generated Python code
 - `internal/schema`: protobuf descriptor to JSON Schema conversion
 - `internal/testproto`: protobuf fixtures and generated code used in repository tests
 - `internal/testproto/example/v1/__init__.py`: generated Python package marker
@@ -177,9 +189,9 @@ explicitly revised.
   - single-source custom generator option handling through
     `protogen.Options.ParamFunc`, with fail-fast rejection of unknown
     `protoc-gen-mcp` params
-  - Python-mode request preparation synthesizes internal `go_package` metadata
-    for `.proto` files that omit it, so Python-only users do not need
-    Go-specific proto options just to run `lang=python`
+  - non-Go request preparation synthesizes internal `go_package` metadata for
+    `.proto` files that omit it, so Python/JVM users do not need Go-specific
+    proto options just to run `lang=python`, `lang=java`, or `lang=kotlin`
   - generated self-contained Python `*_mcp.py` bindings for
     `lang=python,python_runtime=google.protobuf`, including handler protocols,
     dataclasses, `UNSET`, explicit `oneof` wrapper variants, schema JSON
@@ -224,9 +236,9 @@ explicitly revised.
     current-file types actually referenced by other generated files, so
     cross-file imports work without forcing unrelated hidden-only types into
     the public API surface
-  - dedicated `examples/` directory featuring 5 standalone integration
-    projects spanning quickstarts to complex CRM mocks and a pure Python
-    user-style project
+  - dedicated `examples/` directory featuring 7 standalone integration
+    projects spanning quickstarts to complex CRM mocks and pure Python, Java,
+    and Kotlin user-style projects
   - support for `oneof` explicit requiredness through `mcp.options.v1.oneof` options
   - strict schema generation correctly differentiating zero-values (`0`, `0.0`, `""`) using pointer constraints
   - runtime registration and JSON Schema validation in `mcpruntime`
@@ -273,6 +285,10 @@ explicitly revised.
   `ExampleMcp.registerExampleAPITools(...)` and
   `registerExampleAPITools(server, impl, namespace = "example")` instead of
   SDK `addTool` APIs
+- standalone Java and Kotlin user-style projects under
+  `examples/6_java_standalone` and `examples/7_kotlin_standalone`, each with
+  its own `easyp.yaml`, lockfile, Gradle build, handwritten stdio server, and
+  generated-source cleanup for Google protobuf classes supplied by Maven
 - repository docs now route JVM users through `examples/jvm/README.md`, and
   rollout messaging states that releases publish the `protoc-gen-mcp binary`
   while downstream JVM users compile generated sources against the official SDK
@@ -299,6 +315,10 @@ explicitly revised.
   for the Phase 04 JVM compile gate
 - `gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist`
   for installable JVM example scripts
+- `cd examples/6_java_standalone && make lint && make clean build`
+  for the standalone Java user-project generation and compile flow
+- `cd examples/7_kotlin_standalone && make lint && make clean build`
+  for the standalone Kotlin user-project generation and compile flow
 - `go test ./...`
 - stdio smoke tests via `internal/examplemcp/stdio_test.go`
 - `go test ./internal/examplemcp -run 'TestJava.*OverStdio' -count=1`
@@ -366,6 +386,10 @@ explicitly revised.
   - `gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist`
 - Run Python-only standalone example:
   - `cd examples/5_python_standalone && make setup && make run`
+- Build standalone Java example:
+  - `cd examples/6_java_standalone && make build`
+- Build standalone Kotlin example:
+  - `cd examples/7_kotlin_standalone && make build`
 - Build plugin: `go build ./cmd/protoc-gen-mcp`
 - Validate GoReleaser config: `goreleaser check`
 - Build example MCP server binary:

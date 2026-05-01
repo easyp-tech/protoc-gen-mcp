@@ -616,6 +616,62 @@ func TestPythonRenderer_EmitsPythonBoolLiteralsInAnnotations(t *testing.T) {
 	}
 }
 
+func TestPythonRenderer_ProjectsTaskSupportExecution(t *testing.T) {
+	plugin := newTempProtogenPlugin(t, map[string]string{
+		"test/v1/execution.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.v1;`,
+			`import "mcp/options/v1/options.proto";`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/execution;executionv1";`,
+			`message ExecutionRequest {}`,
+			`message ExecutionResponse {}`,
+			`service ExecutionAPI {`,
+			`  rpc OptionalTask(ExecutionRequest) returns (ExecutionResponse) {`,
+			`    option (mcp.options.v1.method) = {`,
+			`      execution: { task_support: TASK_SUPPORT_OPTIONAL }`,
+			`    };`,
+			`  }`,
+			`  rpc RequiredTask(ExecutionRequest) returns (ExecutionResponse) {`,
+			`    option (mcp.options.v1.method) = {`,
+			`      execution: { task_support: TASK_SUPPORT_REQUIRED }`,
+			`    };`,
+			`  }`,
+			`}`,
+			``,
+		}, "\n"),
+	}, "test/v1/execution.proto")
+
+	file := plugin.FilesByPath["test/v1/execution.proto"]
+	if file == nil {
+		t.Fatal("execution proto file not found in plugin")
+	}
+
+	model, err := CollectFileModel(file, Options{
+		Language:      LanguagePython,
+		PythonRuntime: PythonRuntimeGoogleProtobuf,
+	})
+	if err != nil {
+		t.Fatalf("CollectFileModel: %v", err)
+	}
+	if err := renderPythonFile(plugin, model); err != nil {
+		t.Fatalf("renderPythonFile: %v", err)
+	}
+
+	generated := string(generatedFileContent(t, plugin, "test/v1/execution_mcp.py"))
+	wantSnippets := []string{
+		"execution: dict[str, Any] | None = None",
+		"def _tool_execution(raw: dict[str, Any] | None) -> mcp.types.ToolExecution | None:",
+		"execution=_tool_execution(tool.execution),",
+		`execution={"taskSupport": "optional"}`,
+		`execution={"taskSupport": "required"}`,
+	}
+	for _, snippet := range wantSnippets {
+		if !strings.Contains(generated, snippet) {
+			t.Fatalf("generated python missing execution snippet %q\n%s", snippet, generated)
+		}
+	}
+}
+
 func TestPythonModuleAlias_AvoidsImportedModuleCollisions(t *testing.T) {
 	plugin := newTempProtogenPlugin(t, map[string]string{
 		"a/b_c.proto": strings.Join([]string{

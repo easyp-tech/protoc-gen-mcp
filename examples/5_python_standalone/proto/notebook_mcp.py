@@ -105,6 +105,7 @@ class _RegisteredTool:
     handler: Any
     annotations: dict[str, Any] | None
     icons: list[dict[str, Any]] | None
+    execution: dict[str, Any] | None = None
 
 class _ServerToolRegistry:
     def __init__(self, server: mcp.server.lowlevel.Server) -> None:
@@ -246,6 +247,11 @@ def _tool_annotations(raw: dict[str, Any] | None) -> mcp.types.ToolAnnotations |
         return None
     return mcp.types.ToolAnnotations(**raw)
 
+def _tool_execution(raw: dict[str, Any] | None) -> mcp.types.ToolExecution | None:
+    if raw is None:
+        return None
+    return mcp.types.ToolExecution(**raw)
+
 def _tool_error_result(message: str) -> mcp.types.CallToolResult:
     return mcp.types.CallToolResult(
         content=[mcp.types.TextContent(type="text", text=message)],
@@ -269,6 +275,7 @@ def _build_tool(tool: _RegisteredTool) -> Any:
         outputSchema=_load_schema(tool.output_schema_json),
         annotations=_tool_annotations(tool.annotations),
         icons=tool.icons,
+        execution=_tool_execution(tool.execution),
     )
 
 async def _maybe_await(result: Any) -> Any:
@@ -545,6 +552,7 @@ def register_notebook_api_tools(server: mcp.server.lowlevel.Server, impl: Notebo
         handler=impl.create_note,
         annotations={"destructiveHint": False, "openWorldHint": False},
         icons=None,
+        execution=None,
     ))
     registry.add_tool(_RegisteredTool(
         name=_tool_name(resolved_namespace, "SearchNotes"),
@@ -559,6 +567,7 @@ def register_notebook_api_tools(server: mcp.server.lowlevel.Server, impl: Notebo
         handler=impl.search_notes,
         annotations={"readOnlyHint": True, "openWorldHint": False},
         icons=None,
+        execution=None,
     ))
     registry.add_tool(_RegisteredTool(
         name=_tool_name(resolved_namespace, "Health"),
@@ -573,6 +582,7 @@ def register_notebook_api_tools(server: mcp.server.lowlevel.Server, impl: Notebo
         handler=impl.health,
         annotations={"readOnlyHint": True, "openWorldHint": False},
         icons=None,
+        execution=None,
     ))
 
 NOTEBOOK_API_CREATE_NOTE_INPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"body\":{\"type\":\"string\",\"description\":\"Note body in plain text.\",\"examples\":[\"Verify that generated Python MCP bindings are pleasant to use.\"],\"minLength\":1,\"maxLength\":2000},\"dueDate\":{\"type\":[\"string\",\"null\"],\"description\":\"Optional due date in ISO 8601 date format.\",\"examples\":[\"2026-04-30\"],\"format\":\"date\"},\"tags\":{\"type\":[\"array\",\"null\"],\"items\":{\"type\":\"string\",\"description\":\"Optional tags used for filtering.\",\"examples\":[\"example\"]},\"description\":\"Optional tags used for filtering.\",\"examples\":[[\"python\",\"mcp\"]],\"uniqueItems\":true},\"title\":{\"type\":\"string\",\"description\":\"Short human-readable note title.\",\"examples\":[\"Ship Python support\"],\"minLength\":1,\"maxLength\":80}},\"examples\":[{\"body\":\"example\",\"dueDate\":\"example\",\"tags\":[\"example\"],\"title\":\"example\"}],\"required\":[\"title\",\"body\"],\"additionalProperties\":false}"
