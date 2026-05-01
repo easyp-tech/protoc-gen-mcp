@@ -16,6 +16,7 @@ import (
 var (
 	ensureJVMExamplesInstalledOnce sync.Once
 	ensureJVMExamplesInstalledErr  error
+	ensureJVMExamplesInstalledSkip string
 )
 
 func TestJavaServerOverStdio(t *testing.T) {
@@ -57,6 +58,17 @@ func ensureJVMExamplesInstalled(t *testing.T, root string) {
 		javaScript := filepath.Join(root, "examples/jvm/java-server/build/install/java-server/bin/java-server")
 		kotlinScript := filepath.Join(root, "examples/jvm/kotlin-server/build/install/kotlin-server/bin/kotlin-server")
 		if fileExists(javaScript) && fileExists(kotlinScript) {
+			if _, err := exec.LookPath("java"); err != nil {
+				ensureJVMExamplesInstalledSkip = "java not found in PATH; skipping JVM stdio tests"
+			}
+			return
+		}
+		if _, err := exec.LookPath("gradle"); err != nil {
+			ensureJVMExamplesInstalledSkip = "gradle not found in PATH; skipping JVM stdio tests"
+			return
+		}
+		if _, err := exec.LookPath("javac"); err != nil {
+			ensureJVMExamplesInstalledSkip = "javac not found in PATH; skipping JVM stdio tests"
 			return
 		}
 
@@ -74,6 +86,9 @@ func ensureJVMExamplesInstalled(t *testing.T, root string) {
 		}
 	})
 
+	if ensureJVMExamplesInstalledSkip != "" {
+		t.Skip(ensureJVMExamplesInstalledSkip)
+	}
 	if ensureJVMExamplesInstalledErr != nil {
 		t.Fatal(ensureJVMExamplesInstalledErr)
 	}

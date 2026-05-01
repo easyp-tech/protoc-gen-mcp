@@ -31,6 +31,9 @@ func TestKotlinContract_LowLevelServerContractShape(t *testing.T) {
 
 	wantSnippets := []string{
 		"private class ServerToolRegistry",
+		"private val serverRegistries = Collections.synchronizedMap(WeakHashMap<Server, ServerToolRegistry>())",
+		"private val serverRegistryInstallLock = Any()",
+		"@Synchronized",
 		"private suspend fun dispatchToolCall",
 		"ListToolsRequest",
 		"CallToolRequest",

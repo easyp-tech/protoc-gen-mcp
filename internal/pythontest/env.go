@@ -15,6 +15,9 @@ import (
 const (
 	cacheVersion = "v1"
 	probeScript  = "import anyio, jsonschema, mcp\nimport google.protobuf\nmajor = int(google.protobuf.__version__.split('.', 1)[0])\nassert 6 <= major < 7, google.protobuf.__version__\n"
+
+	setupLockTimeout = 5 * time.Minute
+	staleSetupLock   = 10 * time.Minute
 )
 
 var (
@@ -200,10 +203,11 @@ func run(name string, args ...string) error {
 }
 
 func withSetupLock(lockPath string, fn func() error) error {
-	deadline := time.Now().Add(5 * time.Minute)
+	deadline := time.Now().Add(setupLockTimeout)
 	for {
 		file, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 		if err == nil {
+			_, _ = fmt.Fprintf(file, "pid=%d created=%s\n", os.Getpid(), time.Now().Format(time.RFC3339Nano))
 			_ = file.Close()
 			defer os.Remove(lockPath)
 			return fn()
@@ -211,11 +215,33 @@ func withSetupLock(lockPath string, fn func() error) error {
 		if !os.IsExist(err) {
 			return fmt.Errorf("create setup lock: %w", err)
 		}
+		if removed, err := removeStaleSetupLock(lockPath); err != nil {
+			return err
+		} else if removed {
+			continue
+		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf("timed out waiting for Python test runtime setup lock %s", lockPath)
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
+}
+
+func removeStaleSetupLock(lockPath string) (bool, error) {
+	info, err := os.Stat(lockPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return true, nil
+		}
+		return false, fmt.Errorf("stat setup lock: %w", err)
+	}
+	if time.Since(info.ModTime()) <= staleSetupLock {
+		return false, nil
+	}
+	if err := os.Remove(lockPath); err != nil && !os.IsNotExist(err) {
+		return false, fmt.Errorf("remove stale setup lock: %w", err)
+	}
+	return true, nil
 }
 
 func mergeEnv(base []string, overrides ...string) []string {

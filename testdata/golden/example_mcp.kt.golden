@@ -25,6 +25,7 @@ import io.modelcontextprotocol.kotlin.sdk.types.Tool
 import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
 import io.modelcontextprotocol.kotlin.sdk.types.ToolExecution
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
+import java.util.Collections
 import java.util.WeakHashMap
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -50,21 +51,34 @@ private data class RegisteredTool(
 private class ServerToolRegistry {
     private val toolsByName = linkedMapOf<String, RegisteredTool>()
     private val sessionsWithHandlers = mutableSetOf<String>()
-    var handlersInstalled: Boolean = false
+    private var handlersInstalled: Boolean = false
 
+    @Synchronized
     fun addTool(tool: RegisteredTool) {
         require(!toolsByName.containsKey(tool.name)) { "duplicate tool registration: ${tool.name}" }
         toolsByName[tool.name] = tool
     }
 
+    @Synchronized
     fun allTools(): List<RegisteredTool> = toolsByName.values.toList()
 
+    @Synchronized
     fun tool(name: String): RegisteredTool? = toolsByName[name]
 
+    @Synchronized
     fun markSessionInstalled(sessionId: String): Boolean = sessionsWithHandlers.add(sessionId)
+
+    @Synchronized
+    fun hasHandlersInstalled(): Boolean = handlersInstalled
+
+    @Synchronized
+    fun markHandlersInstalled() {
+        handlersInstalled = true
+    }
 }
 
-private val serverRegistries = WeakHashMap<Server, ServerToolRegistry>()
+private val serverRegistries = Collections.synchronizedMap(WeakHashMap<Server, ServerToolRegistry>())
+private val serverRegistryInstallLock = Any()
 private val jsonSchemaFactory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)
 private val protoTypeRegistry = buildTypeRegistry()
 
@@ -99,15 +113,17 @@ private fun registerMessageType(
 }
 
 private fun installMcpHandlers(server: Server): ServerToolRegistry {
-    val registry = serverRegistries.getOrPut(server) { ServerToolRegistry() }
-    if (registry.handlersInstalled) {
+    synchronized(serverRegistryInstallLock) {
+        val registry = serverRegistries.getOrPut(server) { ServerToolRegistry() }
+        if (registry.hasHandlersInstalled()) {
+            return registry
+        }
+        require(server.tools.isEmpty()) { "protoc-gen-mcp generated handlers cannot compose with pre-existing SDK tool registrations" }
+        installSessionHandlers(server, registry)
+        server.onConnect { installSessionHandlers(server, registry) }
+        registry.markHandlersInstalled()
         return registry
     }
-    require(server.tools.isEmpty()) { "protoc-gen-mcp generated handlers cannot compose with pre-existing SDK tool registrations" }
-    installSessionHandlers(server, registry)
-    server.onConnect { installSessionHandlers(server, registry) }
-    registry.handlersInstalled = true
-    return registry
 }
 
 private fun installSessionHandlers(server: Server, registry: ServerToolRegistry) {
