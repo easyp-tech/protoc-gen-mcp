@@ -49,6 +49,8 @@ examples/3_file_manager/file-server
 examples/4_crm_system/crm-server
 examples/jvm/.gradle/
 examples/jvm/*/build/
+examples/node/**/node_modules/
+examples/node/**/dist/
 examples/6_java_standalone/.gradle/
 examples/6_java_standalone/build/
 examples/7_kotlin_standalone/.gradle/
