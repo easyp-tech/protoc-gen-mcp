@@ -14,6 +14,7 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 	case LanguagePython:
 	case LanguageKotlin:
 	case LanguageJava:
+	case LanguageTypeScript:
 	default:
 		return fmt.Errorf("unsupported lang %q", opts.Language)
 	}
@@ -71,6 +72,21 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 			}
 		}
 		return nil
+	case LanguageTypeScript:
+		models, orderedFiles, err := collectTypeScriptModels(plugin, opts)
+		if err != nil {
+			return err
+		}
+		for _, file := range orderedFiles {
+			model := models[file.Desc.Path()]
+			if len(model.Services) == 0 {
+				continue
+			}
+			if err := renderTypeScriptFile(plugin, model); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	for _, file := range plugin.Files {
@@ -103,6 +119,26 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 	}
 
 	return nil
+}
+
+func collectTypeScriptModels(plugin *protogen.Plugin, opts Options) (map[string]FileModel, []*protogen.File, error) {
+	models := make(map[string]FileModel)
+	orderedFiles := make([]*protogen.File, 0, len(plugin.Files))
+
+	for _, file := range plugin.Files {
+		if !file.Generate {
+			continue
+		}
+
+		model, err := CollectFileModel(file, opts)
+		if err != nil {
+			return nil, nil, err
+		}
+		models[file.Desc.Path()] = model
+		orderedFiles = append(orderedFiles, file)
+	}
+
+	return models, orderedFiles, nil
 }
 
 func collectKotlinModels(plugin *protogen.Plugin, opts Options) (map[string]JVMFileModel, []*protogen.File, error) {
