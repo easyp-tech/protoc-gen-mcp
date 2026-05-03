@@ -121,8 +121,8 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 	return nil
 }
 
-func collectTypeScriptModels(plugin *protogen.Plugin, opts Options) (map[string]FileModel, []*protogen.File, error) {
-	models := make(map[string]FileModel)
+func collectTypeScriptModels(plugin *protogen.Plugin, opts Options) (map[string]TypeScriptFileModel, []*protogen.File, error) {
+	models := make(map[string]TypeScriptFileModel)
 	orderedFiles := make([]*protogen.File, 0, len(plugin.Files))
 
 	for _, file := range plugin.Files {
@@ -134,7 +134,11 @@ func collectTypeScriptModels(plugin *protogen.Plugin, opts Options) (map[string]
 		if err != nil {
 			return nil, nil, err
 		}
-		models[file.Desc.Path()] = model
+		tsModel, err := CollectTypeScriptFileModel(file, model)
+		if err != nil {
+			return nil, nil, err
+		}
+		models[file.Desc.Path()] = tsModel
 		orderedFiles = append(orderedFiles, file)
 	}
 

@@ -43,7 +43,7 @@ func TestTypeScriptContract_SchemaConstantsAndRegistryMetadata(t *testing.T) {
 	wantSnippets := []string{
 		"export const EXAMPLE_API_CREATE_REPORT_INPUT_SCHEMA_JSON =",
 		"export const EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON =",
-		"name: resolveToolName(namespace, \"example_CreateReport\"),",
+		"name: resolveToolName(namespace, \"CreateReport\", \"example\"),",
 		"handler: impl.createReport.bind(impl),",
 		"inputSchemaJson: EXAMPLE_API_CREATE_REPORT_INPUT_SCHEMA_JSON,",
 		"outputSchemaJson: EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON,",
@@ -58,7 +58,7 @@ func TestTypeScriptContract_SchemaConstantsAndRegistryMetadata(t *testing.T) {
 		"icons: [",
 		`src: "https://example.com/tool.svg"`,
 		`mimeType: "image/svg+xml"`,
-		`sizes: "64x64"`,
+		`sizes: ["64x64"]`,
 		`theme: "light"`,
 		"execution: {",
 		`taskSupport: "optional"`,
