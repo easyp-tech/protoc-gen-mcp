@@ -2,10 +2,7 @@ package codegen
 
 import (
 	"fmt"
-	"path"
-	"path/filepath"
 	"sort"
-	"strings"
 
 	"google.golang.org/protobuf/compiler/protogen"
 )
@@ -61,7 +58,13 @@ func CollectTypeScriptFileModel(file *protogen.File, model FileModel) (TypeScrip
 	}
 
 	tsModel.Imports = flattenTypeScriptImports(imports)
+	if err := validateTypeScriptImportCollisions(tsModel.Imports); err != nil {
+		return TypeScriptFileModel{}, err
+	}
 	tsModel.RegistryRefs = flattenTypeScriptRegistryRefs(registryRefs)
+	if err := validateTypeScriptModelRefCollisions(tsModel); err != nil {
+		return TypeScriptFileModel{}, err
+	}
 	return tsModel, nil
 }
 
@@ -229,65 +232,4 @@ func sortedStringSet(values map[string]struct{}) []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-func typescriptPublicTypeName(message *protogen.Message) string {
-	return typescriptPublicIdentifier(descriptorTypePath(message.Desc.FullName(), message.Desc.ParentFile().Package()))
-}
-
-func typescriptPublicIdentifier(parts []string) string {
-	var b strings.Builder
-	for _, part := range parts {
-		b.WriteString(typescriptExportedIdentifier(part))
-	}
-	return b.String()
-}
-
-func typescriptExportedIdentifier(value string) string {
-	return pythonExportedIdentifier(value)
-}
-
-func typescriptMethodName(method string) string {
-	return jvmLowerCamelIdentifier(method)
-}
-
-func typescriptHandlerName(service string) string {
-	return typescriptExportedIdentifier(service) + "ToolHandler"
-}
-
-func typescriptRegisterName(service string) string {
-	return "register" + typescriptExportedIdentifier(service) + "Tools"
-}
-
-func typescriptSchemaName(typeName string) string {
-	if typeName == "" {
-		return ""
-	}
-	return typeName + "Schema"
-}
-
-func typescriptRegistryRefForProtoPath(protoPath string) TypeScriptRegistryRef {
-	prefix := typescriptGeneratedFilenamePrefixForProtoPath(protoPath)
-	return TypeScriptRegistryRef{
-		ProtoPath: protoPath,
-		RefName:   "file_" + strings.ReplaceAll(prefix, "/", "_"),
-	}
-}
-
-func typescriptProtobufModuleSpecifier(currentProtoPath, targetProtoPath string) string {
-	currentDir := path.Dir(typescriptOutputPathForProtoPath(currentProtoPath))
-	targetPath := typescriptGeneratedFilenamePrefixForProtoPath(targetProtoPath) + "_pb.js"
-
-	rel, err := filepath.Rel(currentDir, targetPath)
-	if err != nil {
-		rel = targetPath
-	}
-	rel = filepath.ToSlash(rel)
-	if rel == "." {
-		rel = path.Base(targetPath)
-	}
-	if strings.HasPrefix(rel, "../") || strings.HasPrefix(rel, "./") {
-		return rel
-	}
-	return "./" + rel
 }
