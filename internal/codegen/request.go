@@ -12,7 +12,7 @@ import (
 const syntheticGoPackageName = "mcpgenerated"
 
 // PrepareRequestForProtogen adjusts the raw protoc request before protogen
-// validates Go-specific metadata. Python and JVM generation do not use Go
+// validates Go-specific metadata. Python, JVM, and TypeScript generation do not use Go
 // import paths, but protogen still requires them to build its descriptor model.
 func PrepareRequestForProtogen(req *pluginpb.CodeGeneratorRequest, opts Options) {
 	if req == nil || !requiresSyntheticGoPackage(opts.Language) {
@@ -32,7 +32,7 @@ func PrepareRequestForProtogen(req *pluginpb.CodeGeneratorRequest, opts Options)
 
 func requiresSyntheticGoPackage(language Language) bool {
 	switch language {
-	case LanguagePython, LanguageKotlin, LanguageJava:
+	case LanguagePython, LanguageKotlin, LanguageJava, LanguageTypeScript:
 		return true
 	default:
 		return false

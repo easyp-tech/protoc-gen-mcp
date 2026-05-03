@@ -8,10 +8,11 @@ import (
 type Language string
 
 const (
-	LanguageGo     Language = "go"
-	LanguagePython Language = "python"
-	LanguageKotlin Language = "kotlin"
-	LanguageJava   Language = "java"
+	LanguageGo         Language = "go"
+	LanguagePython     Language = "python"
+	LanguageKotlin     Language = "kotlin"
+	LanguageJava       Language = "java"
+	LanguageTypeScript Language = "typescript"
 )
 
 type PythonRuntime string
@@ -64,7 +65,7 @@ func (p *OptionsParser) Options() (Options, error) {
 		if p.sawPythonRuntime {
 			return Options{}, fmt.Errorf("python_runtime is only supported when lang=python")
 		}
-	case LanguageKotlin, LanguageJava:
+	case LanguageKotlin, LanguageJava, LanguageTypeScript:
 		if p.sawPythonRuntime {
 			return Options{}, fmt.Errorf("python_runtime is only supported when lang=python")
 		}
