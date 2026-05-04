@@ -14,11 +14,14 @@ func typescriptPublicTypeName(message *protogen.Message) string {
 }
 
 func typescriptPublicIdentifier(parts []string) string {
-	var b strings.Builder
+	names := make([]string, 0, len(parts))
 	for _, part := range parts {
-		b.WriteString(typescriptExportedIdentifier(part))
+		name := typescriptExportedIdentifier(part)
+		if name != "" {
+			names = append(names, name)
+		}
 	}
-	return b.String()
+	return strings.Join(names, "_")
 }
 
 func typescriptExportedIdentifier(value string) string {

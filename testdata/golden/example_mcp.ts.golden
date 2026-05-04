@@ -200,18 +200,22 @@ function resolveToolName(
   defaultName: string,
   defaultNamespace: string,
 ): string {
-  const resolvedNamespace = normalizeNamespace(namespace);
-  if (resolvedNamespace === null) {
-    const defaultResolvedNamespace = normalizeNamespace(defaultNamespace);
-    return defaultResolvedNamespace === null ? defaultName : `${defaultResolvedNamespace}_${defaultName}`;
+  const resolvedNamespace = normalizeToolSegment(
+    namespace === null || namespace === undefined ? defaultNamespace : namespace,
+  );
+  const resolvedName = normalizeToolSegment(defaultName);
+  if (resolvedNamespace === "") {
+    return resolvedName;
   }
-  return `${resolvedNamespace}_${defaultName}`;
+  if (resolvedName === "") {
+    return resolvedNamespace;
+  }
+  return `${resolvedNamespace}_${resolvedName}`;
 }
 
-function normalizeNamespace(namespace: string | null | undefined): string | null {
-  if (namespace === null || namespace === undefined) {
-    return null;
+function normalizeToolSegment(segment: string | null | undefined): string {
+  if (segment === null || segment === undefined) {
+    return "";
   }
-  const normalized = namespace.trim().replace(/[.]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
-  return normalized === "" ? null : normalized;
+  return segment.trim().replace(/[.]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
 }

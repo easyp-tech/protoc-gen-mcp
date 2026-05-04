@@ -66,6 +66,24 @@ func TestTypeScriptContract_SchemaConstantsAndRegistryMetadata(t *testing.T) {
 	assertTypeScriptContains(t, generated, wantSnippets...)
 }
 
+func TestTypeScriptContract_ToolNameNormalization(t *testing.T) {
+	generated := renderTypeScriptToolNameFixture(t)
+
+	wantSnippets := []string{
+		`name: resolveToolName(namespace, "Create.Report", "example.default"),`,
+		"const resolvedNamespace = normalizeToolSegment(",
+		"namespace === null || namespace === undefined ? defaultNamespace : namespace,",
+		"const resolvedName = normalizeToolSegment(defaultName);",
+		`if (resolvedNamespace === "") {`,
+		`if (resolvedName === "") {`,
+		"return `${resolvedNamespace}_${resolvedName}`;",
+		"function normalizeToolSegment(segment: string | null | undefined): string {",
+		`return segment.trim().replace(/[.]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");`,
+	}
+	assertTypeScriptContains(t, generated, wantSnippets...)
+	assertTypeScriptOmits(t, generated, "function normalizeNamespace(namespace:", "return `${resolvedNamespace}_${defaultName}`;")
+}
+
 func TestTypeScriptContract_Phase08OmitsRuntimeDispatchPaths(t *testing.T) {
 	generated := renderBasicTypeScriptFixture(t)
 
@@ -123,6 +141,33 @@ func renderBasicTypeScriptFixture(t *testing.T) string {
 		t.Fatalf("Generate: %v", err)
 	}
 	return string(generatedFileContent(t, plugin, "test/v1/example_mcp.ts"))
+}
+
+func renderTypeScriptToolNameFixture(t *testing.T) string {
+	t.Helper()
+
+	plugin := newTempProtogenPlugin(t, map[string]string{
+		"test/v1/tool-name.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/toolname;toolnamev1";`,
+			`import "mcp/options/v1/options.proto";`,
+			`message CreateReportRequest { string title = 1; }`,
+			`message CreateReportResponse { string report_id = 1; }`,
+			`service ExampleAPI {`,
+			`  option (mcp.options.v1.service) = { namespace: "example.default" };`,
+			`  rpc CreateReport(CreateReportRequest) returns (CreateReportResponse) {`,
+			`    option (mcp.options.v1.method) = { name: "Create.Report" };`,
+			`  }`,
+			`}`,
+			``,
+		}, "\n"),
+	}, "test/v1/tool-name.proto")
+
+	if err := Generate(plugin, Options{Language: LanguageTypeScript}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	return string(generatedFileContent(t, plugin, "test/v1/tool_name_mcp.ts"))
 }
 
 func assertTypeScriptContains(t *testing.T, generated string, snippets ...string) {

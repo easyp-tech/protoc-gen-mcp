@@ -86,8 +86,11 @@ func TestTypeScriptNames_ProtobufESRefs(t *testing.T) {
 	if got, want := typescriptPublicTypeName(report), "Report"; got != want {
 		t.Fatalf("typescriptPublicTypeName(report) = %q, want %q", got, want)
 	}
-	if got, want := typescriptPublicTypeName(entry), "ReportEntry"; got != want {
+	if got, want := typescriptPublicTypeName(entry), "Report_Entry"; got != want {
 		t.Fatalf("typescriptPublicTypeName(entry) = %q, want %q", got, want)
+	}
+	if got, want := typescriptSchemaName(typescriptPublicTypeName(entry)), "Report_EntrySchema"; got != want {
+		t.Fatalf("typescriptSchemaName(entry) = %q, want %q", got, want)
 	}
 	if got, want := typescriptSchemaName("Report"), "ReportSchema"; got != want {
 		t.Fatalf("typescriptSchemaName = %q, want %q", got, want)

@@ -33,8 +33,17 @@ func TestTypeScriptGeneratedPublicAPICompilesUnderNodeNext(t *testing.T) {
 			`syntax = "proto3";`,
 			`package compile.v1;`,
 			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/compile;compilev1";`,
+			`import "mcp/options/v1/options.proto";`,
 			`service PublicAPI {`,
-			`  rpc Render(RenderRequest) returns (RenderResponse);`,
+			`  option (mcp.options.v1.service) = { namespace: "compile.default" };`,
+			`  rpc Render(RenderRequest) returns (RenderResponse) {`,
+			`    option (mcp.options.v1.method) = { name: "render.output" };`,
+			`  }`,
+			`  rpc RenderNested(Render.NestedRequest) returns (Render.NestedResponse);`,
+			`}`,
+			`message Render {`,
+			`  message NestedRequest { string label = 1; }`,
+			`  message NestedResponse { string output = 1; }`,
 			`}`,
 			`message RenderRequest { string label = 1; }`,
 			`message RenderResponse { string output = 1; }`,
@@ -95,12 +104,28 @@ export type RenderResponse = Message<"compile.v1.RenderResponse"> & {
   output: string;
 };
 
+export type Render_NestedRequest = Message<"compile.v1.Render.NestedRequest"> & {
+  label: string;
+};
+
+export type Render_NestedResponse = Message<"compile.v1.Render.NestedResponse"> & {
+  output: string;
+};
+
 export const RenderRequestSchema = {
   typeName: "compile.v1.RenderRequest",
 };
 
 export const RenderResponseSchema = {
   typeName: "compile.v1.RenderResponse",
+};
+
+export const Render_NestedRequestSchema = {
+  typeName: "compile.v1.Render.NestedRequest",
+};
+
+export const Render_NestedResponseSchema = {
+  typeName: "compile.v1.Render.NestedResponse",
 };
 
 export const file_compile_v1_public_api = {
@@ -115,13 +140,24 @@ func typeScriptPublicAPIUsageFixture() string {
 	return `
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { registerPublicAPITools, type PublicAPIToolHandler } from "./public_api_mcp.js";
-import type { RenderRequest, RenderResponse } from "./public_api_pb.js";
+import type {
+  Render_NestedRequest,
+  Render_NestedResponse,
+  RenderRequest,
+  RenderResponse,
+} from "./public_api_pb.js";
 
 const handler: PublicAPIToolHandler = {
   render(_ctx, request: RenderRequest): RenderResponse {
     return {
       $typeName: "compile.v1.RenderResponse",
       output: request.label.toUpperCase(),
+    };
+  },
+  renderNested(_ctx, request: Render_NestedRequest): Render_NestedResponse {
+    return {
+      $typeName: "compile.v1.Render.NestedResponse",
+      output: request.label.toLowerCase(),
     };
   },
 };
@@ -131,7 +167,7 @@ const server = new Server(
   { capabilities: { tools: {} } },
 );
 
-registerPublicAPITools(server, handler, "agent.compile");
+registerPublicAPITools(server, handler, "");
 
 void server;
 `
