@@ -3,9 +3,9 @@
 ## Scope
 
 This repository implements a protobuf-first MCP generator and runtime for Go,
-Python, Kotlin, and Java MCP server bindings. The MVP is intentionally narrow
-and must stay decision-consistent with the current architecture unless
-explicitly revised.
+Python, Kotlin, Java, and TypeScript MCP server bindings. The MVP is
+intentionally narrow and must stay decision-consistent with the current
+architecture unless explicitly revised.
 
 ## Stack
 
@@ -23,6 +23,12 @@ explicitly revised.
 - `io.modelcontextprotocol.sdk:mcp` as the official Java MCP SDK target
 - `io.modelcontextprotocol:kotlin-sdk-server` as the official Kotlin MCP SDK
   target
+- Node.js with TypeScript `6.0.3` for generated TypeScript compile-gate
+  verification
+- `@modelcontextprotocol/sdk@1.29.0` as the official TypeScript MCP SDK target
+- `@bufbuild/protobuf@2.12.0` as the Protobuf-ES runtime and generated `_pb.ts`
+  target for TypeScript bindings
+- `ajv@8.20.0` for the Node raw JSON Schema validation path
 - `github.com/google/jsonschema-go/jsonschema` for JSON Schema parsing and
   validation
 - `github.com/bufbuild/protocompile` for in-process descriptor compilation in
@@ -39,7 +45,11 @@ explicitly revised.
 - `examples`: standalone Go/Python/JVM integration projects; example
   directories use numeric underscore prefixes such as `1_helloworld`,
   `4_crm_system`, `5_python_standalone`, `6_java_standalone`, and
-  `7_kotlin_standalone`, plus the dedicated JVM workspace `examples/jvm`
+  `7_kotlin_standalone`, plus the dedicated JVM workspace `examples/jvm` and
+  Node spike workspace `examples/node/sdk-spike`
+- `examples/node/sdk-spike`: pinned local Node package scope for TypeScript
+  SDK, Protobuf-ES, Ajv, package-lock-backed `npm ci`, and strict NodeNext
+  compile checks
 - `examples/easyp.lock`: pinned Easyp dependency lock for standalone examples
 - `examples/mcp`: generated Python `mcp.options.*` protobuf modules for
   standalone examples; generated from the GitHub dependency declared in
@@ -82,6 +92,11 @@ explicitly revised.
 - `internal/codegen/render_kotlin.go`: self-contained Kotlin sidecar renderer
 - `internal/codegen/kotlin_contract_test.go`: Kotlin public API, SDK wiring,
   schema-path, and JVM import contract tests
+- `internal/codegen/render_typescript.go`: TypeScript sidecar renderer for
+  low-level official SDK imports, typed public handlers, namespace-aware
+  registration, schema constants, and private registry metadata
+- `internal/codegen/typescript_*_test.go`: TypeScript semantic model, naming,
+  renderer contract, golden, and strict NodeNext compile-gate tests
 - `internal/examplemcp`: reusable example MCP server wiring and stdio smoke test
 - `internal/pythontest`: hermetic Python test runtime bootstrap used by Go
   tests that execute generated Python code
@@ -152,6 +167,9 @@ explicitly revised.
   the sidecar class
 - Generated Java files expose
   `register<Service>Tools(McpServerTransportProvider transportProvider, <Service>ToolHandler impl, String namespace)`
+- Generated TypeScript files expose `<Service>ToolHandler`
+- Generated TypeScript files expose
+  `register<Service>Tools(server, impl, namespace?)`
 - Runtime exposes only the minimal registration options used by generated code
 - Generated MCP tool names must not contain dots; namespace prefixes and method
   names are joined with underscores, and any dots in configured segments are
@@ -164,8 +182,15 @@ explicitly revised.
 
 - Implemented:
 - `cmd/protoc-gen-mcp` plugin scaffold and generated `*.mcp.go` bindings
-  - typed plugin option parsing for `lang=go|python|kotlin|java` and
+  - typed plugin option parsing for `lang=go|python|kotlin|java|typescript` and
     `python_runtime=google.protobuf|betterproto|grpclib`
+  - generated TypeScript `*_mcp.ts` sidecars for `lang=typescript`, targeting
+    the official `@modelcontextprotocol/sdk` low-level `Server` import path and
+    Protobuf-ES `_pb.js` modules, including typed `<Service>ToolHandler`
+    interfaces, namespace-aware `register<Service>Tools(server, impl,
+    namespace?)`, raw schema JSON constants, imported message schema/file
+    registry refs, metadata registry records, NodeNext `.js` specifiers, and
+    strict `verbatimModuleSyntax` import type/value separation
   - shared JVM foundation for `lang=kotlin` and `lang=java`: parser and
     generator dispatch accept both targets, collect SDK-neutral
     `internal/codegen/jvm_*.go` models, preserve existing `FileModel` schema
@@ -190,8 +215,9 @@ explicitly revised.
     `protogen.Options.ParamFunc`, with fail-fast rejection of unknown
     `protoc-gen-mcp` params
   - non-Go request preparation synthesizes internal `go_package` metadata for
-    `.proto` files that omit it, so Python/JVM users do not need Go-specific
-    proto options just to run `lang=python`, `lang=java`, or `lang=kotlin`
+    `.proto` files that omit it, so Python/JVM/TypeScript users do not need
+    Go-specific proto options just to run `lang=python`, `lang=java`,
+    `lang=kotlin`, or `lang=typescript`
   - generated self-contained Python `*_mcp.py` bindings for
     `lang=python,python_runtime=google.protobuf`, including handler protocols,
     dataclasses, `UNSET`, explicit `oneof` wrapper variants, schema JSON
@@ -311,6 +337,11 @@ explicitly revised.
 - `go test ./internal/codegen -run 'TestJavaContract_.*|TestGenerateJavaExampleGolden|TestGenerateJavaExampleHandlerCompileSmoke|TestGenerate_JavaTargetEmitsOutput' -count=1`
   for Java golden output, low-level renderer contracts, and the Phase 03
   narrow `javac` API compile smoke
+- `go test ./internal/codegen -run 'TestTypeScriptModel|TestTypeScriptNames|TestTypeScriptContract|TestGenerateTypeScript|TestGenerate_TypeScript|TestTypeScriptGeneratedPublicAPICompilesUnderNodeNext' -count=1`
+  for TypeScript semantic model, naming, renderer contract, golden, generator,
+  and strict NodeNext public API compile coverage
+- `cd examples/node/sdk-spike && npm ci && npm run typecheck`
+  for the pinned local TypeScript SDK/Protobuf-ES compile gate
 - `gradle --no-daemon -p examples/jvm :java-server:compileJava :kotlin-server:compileKotlin`
   for the Phase 04 JVM compile gate
 - `gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist`
@@ -368,6 +399,8 @@ explicitly revised.
 - Keep `mcp/options/v1/options.proto` as the source of truth for the
   options package `go_package`; do not reintroduce a special Easyp override
   unless the package layout changes again
+- Planning docs are local-only in this repository and should not be committed
+  unless the user explicitly changes that policy.
 
 ## Commands
 
@@ -380,6 +413,13 @@ explicitly revised.
 - Generate test fixtures: `easyp --cfg easyp.test.yaml generate -p internal/testproto -r .`
 - Generate standalone example artifacts:
   - `cd examples && make generate`
+- Run TypeScript Node compile gate:
+  - `cd examples/node/sdk-spike && npm ci && npm run typecheck`
+- Run focused TypeScript codegen tests:
+  - `go test ./internal/codegen -run 'TestTypeScriptModel|TestTypeScriptNames|TestTypeScriptContract|TestGenerateTypeScript|TestGenerate_TypeScript|TestTypeScriptGeneratedPublicAPICompilesUnderNodeNext' -count=1`
+- Run TypeScript public API compile smoke:
+  - `cd examples/node/sdk-spike && npm ci`
+  - `go test ./internal/codegen -run TestTypeScriptGeneratedPublicAPICompilesUnderNodeNext -count=1`
 - Run JVM compile gate:
   - `gradle --no-daemon -p examples/jvm :java-server:compileJava :kotlin-server:compileKotlin`
 - Install JVM example scripts:
