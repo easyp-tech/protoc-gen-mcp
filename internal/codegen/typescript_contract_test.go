@@ -11,7 +11,7 @@ func TestTypeScriptContract_PublicAPIAndLowLevelImports(t *testing.T) {
 	wantSnippets := []string{
 		`import { Server } from "@modelcontextprotocol/sdk/server/index.js";`,
 		`import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";`,
-		`import type { ServerNotification, ServerRequest } from "@modelcontextprotocol/sdk/types.js";`,
+		`import type { CallToolResult, ServerNotification, ServerRequest, Tool } from "@modelcontextprotocol/sdk/types.js";`,
 		`import type { CreateReportRequest, CreateReportResponse } from "./example_pb.js";`,
 		`import { CreateReportRequestSchema, CreateReportResponseSchema, file_test_v1_example } from "./example_pb.js";`,
 		"export type ToolRequestContext = RequestHandlerExtra<ServerRequest, ServerNotification>;",

@@ -147,7 +147,7 @@ func TestGenerate_TypeScriptTargetEmitsOutput(t *testing.T) {
 		"// source: internal/testproto/example/v1/example.proto",
 		`import { Server } from "@modelcontextprotocol/sdk/server/index.js";`,
 		`import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";`,
-		`import type { ServerNotification, ServerRequest } from "@modelcontextprotocol/sdk/types.js";`,
+		`import type { CallToolResult, ServerNotification, ServerRequest, Tool } from "@modelcontextprotocol/sdk/types.js";`,
 		"export type ToolRequestContext = RequestHandlerExtra<ServerRequest, ServerNotification>;",
 		"export interface ExampleAPIToolHandler",
 		"export function registerExampleAPITools(",
