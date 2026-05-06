@@ -175,7 +175,10 @@ func TestGenerate_TypeScriptTargetEmitsOutput(t *testing.T) {
 		"fromJson(tool.inputSchema, args, { registry: tool.registry })",
 		"toJson(tool.outputSchema, response as MessageShape<typeof tool.outputSchema>, {",
 		"alwaysEmitImplicit: true",
-		"structuredContent: payload as Record<string, unknown>",
+		"const structuredContent = assertStructuredContent(tool.name, payload);",
+		"function assertStructuredContent(toolName: string, payload: JsonValue): Record<string, unknown> {",
+		"generated output must be a JSON object",
+		"return createRegistry(...collected);",
 		"new McpError(ErrorCode.InvalidParams",
 		"mcpruntime: validate output for tool",
 	}

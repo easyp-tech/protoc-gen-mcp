@@ -352,11 +352,19 @@ async function dispatchToolCall(
   } catch (error) {
     throw new Error(`mcpruntime: marshal output for tool '${tool.name}': ${errorMessage(error)}`);
   }
-  assertValid(tool.name, "output", tool.validateOutput, payload);
+  const structuredContent = assertStructuredContent(tool.name, payload);
+  assertValid(tool.name, "output", tool.validateOutput, structuredContent);
   return {
-    content: [{ type: "text", text: JSON.stringify(payload) }],
-    structuredContent: payload as Record<string, unknown>,
+    content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+    structuredContent,
   };
+}
+
+function assertStructuredContent(toolName: string, payload: JsonValue): Record<string, unknown> {
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error(`mcpruntime: marshal output for tool '${toolName}': generated output must be a JSON object`);
+  }
+  return payload as Record<string, unknown>;
 }
 
 function errorMessage(error: unknown): string {
@@ -367,7 +375,23 @@ function errorMessage(error: unknown): string {
 }
 
 function buildProtoRegistry(...fileRegistries: DescFile[]): Registry {
-  return createRegistry(...fileRegistries);
+  const collected: DescFile[] = [];
+  const seen = new Set<string>();
+  const visit = (file: DescFile): void => {
+    const key = file.proto.name || file.name;
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    collected.push(file);
+    for (const dependency of file.dependencies) {
+      visit(dependency);
+    }
+  };
+  for (const file of fileRegistries) {
+    visit(file);
+  }
+  return createRegistry(...collected);
 }
 
 function resolveToolName(
