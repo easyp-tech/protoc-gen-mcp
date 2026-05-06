@@ -10,24 +10,7 @@ import (
 )
 
 func TestTypeScriptGeneratedPublicAPICompilesUnderNodeNext(t *testing.T) {
-	if _, err := exec.LookPath("node"); err != nil {
-		t.Skipf("node is required for TypeScript compile smoke: %v", err)
-	}
-	if _, err := exec.LookPath("npm"); err != nil {
-		t.Skipf("npm is required for TypeScript compile smoke: %v", err)
-	}
-
-	spikeDir, err := filepath.Abs(filepath.Join("..", "..", "examples", "node", "sdk-spike"))
-	if err != nil {
-		t.Fatalf("resolve examples/node/sdk-spike: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(spikeDir, "package.json")); err != nil {
-		t.Fatalf("examples/node/sdk-spike package.json is required: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(spikeDir, "node_modules", ".bin", "tsc")); err != nil {
-		t.Fatalf("local TypeScript compiler is required; run npm ci in examples/node/sdk-spike: %v", err)
-	}
-
+	spikeDir := requireTypeScriptSDKSpike(t)
 	plugin := newTempProtogenPlugin(t, map[string]string{
 		"compile/v1/public-api.proto": strings.Join([]string{
 			`syntax = "proto3";`,
@@ -82,6 +65,29 @@ func TestTypeScriptGeneratedPublicAPICompilesUnderNodeNext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generated TypeScript public API failed NodeNext compile via npm exec:\n%s", string(output))
 	}
+}
+
+func requireTypeScriptSDKSpike(t *testing.T) string {
+	t.Helper()
+
+	if _, err := exec.LookPath("node"); err != nil {
+		t.Skipf("node is required for TypeScript compile smoke: %v", err)
+	}
+	if _, err := exec.LookPath("npm"); err != nil {
+		t.Skipf("npm is required for TypeScript compile smoke: %v", err)
+	}
+
+	spikeDir, err := filepath.Abs(filepath.Join("..", "..", "examples", "node", "sdk-spike"))
+	if err != nil {
+		t.Fatalf("resolve examples/node/sdk-spike: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(spikeDir, "package.json")); err != nil {
+		t.Fatalf("examples/node/sdk-spike package.json is required: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(spikeDir, "node_modules", ".bin", "tsc")); err != nil {
+		t.Fatalf("local TypeScript compiler is required; run npm ci in examples/node/sdk-spike: %v", err)
+	}
+	return spikeDir
 }
 
 func writeTypeScriptFixtureFile(t *testing.T, path string, contents []byte) {
