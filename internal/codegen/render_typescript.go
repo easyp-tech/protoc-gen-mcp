@@ -274,14 +274,19 @@ func renderTypeScriptExecution(generated *protogen.GeneratedFile, taskSupport mc
 }
 
 func renderTypeScriptPrivateRegistryHelpers(generated *protogen.GeneratedFile) {
-	generated.P("const toolRegistries = new WeakMap<Server, ServerToolRegistry>();")
+	generated.P(`const toolRegistrySymbol: unique symbol = Symbol.for("protoc-gen-mcp.typescript.toolRegistry") as never;`)
 	generated.P("const jsonSchemaValidator = new Ajv2020({ strict: false, allErrors: true });")
 	generated.P()
+	generated.P("type ServerWithGeneratedToolRegistry = Server & {")
+	generated.P("  [toolRegistrySymbol]?: ServerToolRegistry;")
+	generated.P("};")
+	generated.P()
 	generated.P("function getToolRegistry(server: Server): ServerToolRegistry {")
-	generated.P("  let registry = toolRegistries.get(server);")
+	generated.P("  const holder = server as ServerWithGeneratedToolRegistry;")
+	generated.P("  let registry = holder[toolRegistrySymbol];")
 	generated.P("  if (registry === undefined) {")
 	generated.P("    registry = { tools: [], handlersInstalled: false };")
-	generated.P("    toolRegistries.set(server, registry);")
+	generated.P("    holder[toolRegistrySymbol] = registry;")
 	generated.P("  }")
 	generated.P("  return registry;")
 	generated.P("}")

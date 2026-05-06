@@ -79,6 +79,77 @@ func TestTypeScriptRuntimeContract(t *testing.T) {
 	}
 }
 
+func TestTypeScriptRuntimeContract_MultipleSidecarsShareServerRegistry(t *testing.T) {
+	spikeDir := requireTypeScriptSDKSpike(t)
+	const firstProtoPath = "runtime/v1/first-contract.proto"
+	const secondProtoPath = "runtime/v1/second-contract.proto"
+	plugin := newTempProtogenPlugin(t, map[string]string{
+		firstProtoPath: strings.Join([]string{
+			`syntax = "proto3";`,
+			`package runtime.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/runtime;runtimev1";`,
+			`service FirstAPI {`,
+			`  rpc Ping(FirstRequest) returns (FirstResponse);`,
+			`}`,
+			`message FirstRequest { string label = 1; }`,
+			`message FirstResponse { string label = 1; }`,
+			``,
+		}, "\n"),
+		secondProtoPath: strings.Join([]string{
+			`syntax = "proto3";`,
+			`package runtime.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/runtime;runtimev1";`,
+			`service SecondAPI {`,
+			`  rpc Pong(SecondRequest) returns (SecondResponse);`,
+			`}`,
+			`message SecondRequest { string label = 1; }`,
+			`message SecondResponse { string label = 1; }`,
+			``,
+		}, "\n"),
+	}, firstProtoPath, secondProtoPath)
+	if err := Generate(plugin, Options{Language: LanguageTypeScript}); err != nil {
+		t.Fatalf("Generate TypeScript: %v", err)
+	}
+
+	tempProject, err := os.MkdirTemp(spikeDir, ".tmp-typescript-multi-sidecar-runtime-*")
+	if err != nil {
+		t.Fatalf("create temporary TypeScript multi-sidecar runtime project under sdk-spike: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(tempProject); err != nil {
+			t.Errorf("remove temporary TypeScript multi-sidecar runtime project: %v", err)
+		}
+	})
+
+	sourceDir := filepath.Join(tempProject, "runtime", "v1")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatalf("create multi-sidecar runtime fixture source dir: %v", err)
+	}
+
+	writeTypeScriptFixtureFile(t, filepath.Join(sourceDir, "first_contract_mcp.ts"), generatedFileContent(t, plugin, "runtime/v1/first_contract_mcp.ts"))
+	writeTypeScriptFixtureFile(t, filepath.Join(sourceDir, "first_contract_pb.ts"), []byte(protobufESMultiSidecarRuntimeFixtureModule(t, plugin, firstProtoPath, "file_runtime_v1_first_contract", "FirstRequest", "FirstResponse")))
+	writeTypeScriptFixtureFile(t, filepath.Join(sourceDir, "second_contract_mcp.ts"), generatedFileContent(t, plugin, "runtime/v1/second_contract_mcp.ts"))
+	writeTypeScriptFixtureFile(t, filepath.Join(sourceDir, "second_contract_pb.ts"), []byte(protobufESMultiSidecarRuntimeFixtureModule(t, plugin, secondProtoPath, "file_runtime_v1_second_contract", "SecondRequest", "SecondResponse")))
+	writeTypeScriptFixtureFile(t, filepath.Join(sourceDir, "runtime.ts"), []byte(typeScriptMultiSidecarRuntimeContractFixture()))
+	writeTypeScriptFixtureFile(t, filepath.Join(tempProject, "tsconfig.json"), []byte(typeScriptMultiSidecarRuntimeFixtureTSConfig()))
+
+	compile := exec.Command("npm", "exec", "--prefix", spikeDir, "--", "tsc", "-p", filepath.Join(tempProject, "tsconfig.json"))
+	compile.Dir = spikeDir
+	compile.Env = append(os.Environ(), "NO_COLOR=1")
+	compileOutput, err := compile.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated TypeScript multi-sidecar runtime contract failed NodeNext compile via npm exec:\n%s", string(compileOutput))
+	}
+
+	run := exec.Command("node", filepath.Join(tempProject, "dist", "runtime", "v1", "runtime.js"))
+	run.Dir = spikeDir
+	run.Env = append(os.Environ(), "NO_COLOR=1")
+	runOutput, err := run.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated TypeScript multi-sidecar runtime contract failed under node:\n%s", string(runOutput))
+	}
+}
+
 func TestTypeScriptRuntimeContract_AdvancedProtoJSON(t *testing.T) {
 	spikeDir := requireTypeScriptSDKSpike(t)
 	const protoPath = "runtime/v1/advanced-contract.proto"
@@ -295,6 +366,29 @@ export const EchoResponseSchema: GenMessage<EchoResponse> = messageDesc(file_run
 `, descriptorBase64)
 }
 
+func protobufESMultiSidecarRuntimeFixtureModule(t *testing.T, plugin *protogen.Plugin, protoPath, fileRegistry, requestName, responseName string) string {
+	t.Helper()
+
+	descriptorBase64 := protobufESFileDescriptorBase64(t, plugin, protoPath)
+	return fmt.Sprintf(`
+import type { Message } from "@bufbuild/protobuf";
+import { fileDesc, messageDesc, type GenFile, type GenMessage } from "@bufbuild/protobuf/codegenv2";
+
+export const %[1]s: GenFile = fileDesc(%[2]q);
+
+export type %[3]s = Message<"runtime.v1.%[3]s"> & {
+  label: string;
+};
+
+export type %[4]s = Message<"runtime.v1.%[4]s"> & {
+  label: string;
+};
+
+export const %[3]sSchema: GenMessage<%[3]s> = messageDesc(%[1]s, 0);
+export const %[4]sSchema: GenMessage<%[4]s> = messageDesc(%[1]s, 1);
+`, fileRegistry, descriptorBase64, requestName, responseName)
+}
+
 func protobufESAdvancedRuntimeFixtureModule(t *testing.T, plugin *protogen.Plugin, protoPath string) string {
 	t.Helper()
 
@@ -485,6 +579,78 @@ async function expectRuntimeBug(run: () => Promise<unknown>, message: RegExp): P
   }
   assert.fail("expected runtime bug error");
 }
+`
+}
+
+func typeScriptMultiSidecarRuntimeContractFixture() string {
+	return `
+import assert from "node:assert/strict";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { registerFirstAPITools, type FirstAPIToolHandler } from "./first_contract_mcp.js";
+import { registerSecondAPITools, type SecondAPIToolHandler } from "./second_contract_mcp.js";
+import type { FirstRequest, FirstResponse } from "./first_contract_pb.js";
+import type { SecondRequest, SecondResponse } from "./second_contract_pb.js";
+
+type TestToolResult = {
+  content: { type: "text"; text: string }[];
+  structuredContent?: Record<string, unknown>;
+  isError?: boolean;
+};
+
+const firstHandler: FirstAPIToolHandler = {
+  ping(_ctx, request: FirstRequest): FirstResponse {
+    return {
+      $typeName: "runtime.v1.FirstResponse",
+      label: "first:" + request.label,
+    };
+  },
+};
+
+const secondHandler: SecondAPIToolHandler = {
+  pong(_ctx, request: SecondRequest): SecondResponse {
+    return {
+      $typeName: "runtime.v1.SecondResponse",
+      label: "second:" + request.label,
+    };
+  },
+};
+
+const server = new Server(
+  { name: "generated-typescript-multi-sidecar-runtime", version: "0.0.0" },
+  { capabilities: { tools: {} } },
+);
+registerFirstAPITools(server, firstHandler, "");
+registerSecondAPITools(server, secondHandler, "");
+
+const client = new Client(
+  { name: "generated-typescript-multi-sidecar-runtime-client", version: "0.0.0" },
+  { capabilities: {} },
+);
+const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+await server.connect(serverTransport);
+await client.connect(clientTransport);
+
+const listed = await client.listTools();
+assert.deepEqual(listed.tools.map((tool) => tool.name).sort(), ["Ping", "Pong"]);
+
+const first = await client.callTool({
+  name: "Ping",
+  arguments: { label: "alpha" },
+}) as TestToolResult;
+assert.deepEqual(first.structuredContent, { label: "first:alpha" });
+assert.deepEqual(JSON.parse(first.content[0]?.text ?? ""), first.structuredContent);
+
+const second = await client.callTool({
+  name: "Pong",
+  arguments: { label: "beta" },
+}) as TestToolResult;
+assert.deepEqual(second.structuredContent, { label: "second:beta" });
+assert.deepEqual(JSON.parse(second.content[0]?.text ?? ""), second.structuredContent);
+
+await client.close();
+await server.close();
 `
 }
 
@@ -698,6 +864,30 @@ func typeScriptRuntimeFixtureTSConfig() string {
   "include": [
     "runtime/v1/runtime_contract_mcp.ts",
     "runtime/v1/runtime_contract_pb.ts",
+    "runtime/v1/runtime.ts"
+  ]
+}
+`
+}
+
+func typeScriptMultiSidecarRuntimeFixtureTSConfig() string {
+	return `
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "verbatimModuleSyntax": true,
+    "types": ["node"],
+    "rootDir": ".",
+    "outDir": "dist"
+  },
+  "include": [
+    "runtime/v1/first_contract_mcp.ts",
+    "runtime/v1/first_contract_pb.ts",
+    "runtime/v1/second_contract_mcp.ts",
+    "runtime/v1/second_contract_pb.ts",
     "runtime/v1/runtime.ts"
   ]
 }

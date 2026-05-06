@@ -164,7 +164,10 @@ func TestGenerate_TypeScriptTargetEmitsOutput(t *testing.T) {
 		`import type { CallToolResult, ServerNotification, ServerRequest, Tool } from "@modelcontextprotocol/sdk/types.js";`,
 		`import { Ajv2020 } from "ajv/dist/2020.js";`,
 		`import type { ValidateFunction } from "ajv/dist/2020.js";`,
+		`const toolRegistrySymbol: unique symbol = Symbol.for("protoc-gen-mcp.typescript.toolRegistry") as never;`,
 		"const jsonSchemaValidator = new Ajv2020({ strict: false, allErrors: true });",
+		"type ServerWithGeneratedToolRegistry = Server & {",
+		"[toolRegistrySymbol]?: ServerToolRegistry;",
 		"type ServerToolRegistry = {",
 		"function installMcpHandlers(server: Server, registry: ServerToolRegistry): void {",
 		"function listRegisteredTools(registry: ServerToolRegistry): Tool[] {",
@@ -187,7 +190,7 @@ func TestGenerate_TypeScriptTargetEmitsOutput(t *testing.T) {
 			t.Fatalf("generated TypeScript missing snippet %q\n%s", snippet, generated)
 		}
 	}
-	for _, snippet := range []string{"registerTool", "addTool", "zod", "toJsonSchemaCompat", "lang=javascript"} {
+	for _, snippet := range []string{"new WeakMap<Server, ServerToolRegistry>()", "registerTool", "addTool", "zod", "toJsonSchemaCompat", "lang=javascript"} {
 		if strings.Contains(generated, snippet) {
 			t.Fatalf("generated TypeScript foundation must not contain snippet %q\n%s", snippet, generated)
 		}

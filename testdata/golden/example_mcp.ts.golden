@@ -215,14 +215,19 @@ export function registerExampleAPITools(
   );
 }
 
-const toolRegistries = new WeakMap<Server, ServerToolRegistry>();
+const toolRegistrySymbol: unique symbol = Symbol.for("protoc-gen-mcp.typescript.toolRegistry") as never;
 const jsonSchemaValidator = new Ajv2020({ strict: false, allErrors: true });
 
+type ServerWithGeneratedToolRegistry = Server & {
+  [toolRegistrySymbol]?: ServerToolRegistry;
+};
+
 function getToolRegistry(server: Server): ServerToolRegistry {
-  let registry = toolRegistries.get(server);
+  const holder = server as ServerWithGeneratedToolRegistry;
+  let registry = holder[toolRegistrySymbol];
   if (registry === undefined) {
     registry = { tools: [], handlersInstalled: false };
-    toolRegistries.set(server, registry);
+    holder[toolRegistrySymbol] = registry;
   }
   return registry;
 }
