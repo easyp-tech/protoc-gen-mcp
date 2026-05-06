@@ -156,13 +156,23 @@ func TestGenerate_TypeScriptTargetEmitsOutput(t *testing.T) {
 		"export const EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON",
 		"export const EXAMPLE_API_DESCRIBE_ADVANCED_SHAPES_INPUT_SCHEMA_JSON",
 		"export const EXAMPLE_API_DESCRIBE_SCALAR_SHAPES_OUTPUT_SCHEMA_JSON",
+		`import { createRegistry, fromJson, toJson } from "@bufbuild/protobuf";`,
+		`import type { JsonValue, Registry } from "@bufbuild/protobuf";`,
+		`import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from "@modelcontextprotocol/sdk/types.js";`,
+		`import type { CallToolResult, ServerNotification, ServerRequest, Tool } from "@modelcontextprotocol/sdk/types.js";`,
+		`import { Ajv2020 } from "ajv/dist/2020.js";`,
+		"type ServerToolRegistry = {",
+		"function installMcpHandlers(server: Server, registry: ServerToolRegistry): void {",
+		"function listRegisteredTools(registry: ServerToolRegistry): Tool[] {",
+		"function buildListTool(tool: RegisteredTool): Tool {",
+		"function loadSchema(rawSchemaJson: string): Record<string, unknown> {",
 	}
 	for _, snippet := range wantSnippets {
 		if !strings.Contains(generated, snippet) {
 			t.Fatalf("generated TypeScript missing snippet %q\n%s", snippet, generated)
 		}
 	}
-	for _, snippet := range []string{"registerTool", "addTool", "zod", "ListToolsRequestSchema", "CallToolRequestSchema", "fromJson", "toJson", "Ajv", "lang=javascript"} {
+	for _, snippet := range []string{"registerTool", "addTool", "zod", "toJsonSchemaCompat", "lang=javascript"} {
 		if strings.Contains(generated, snippet) {
 			t.Fatalf("generated TypeScript foundation must not contain snippet %q\n%s", snippet, generated)
 		}

@@ -84,18 +84,29 @@ func TestTypeScriptContract_ToolNameNormalization(t *testing.T) {
 	assertTypeScriptOmits(t, generated, "function normalizeNamespace(namespace:", "return `${resolvedNamespace}_${defaultName}`;")
 }
 
-func TestTypeScriptContract_Phase08OmitsRuntimeDispatchPaths(t *testing.T) {
+func TestTypeScriptContract_RuntimeDispatchPaths(t *testing.T) {
 	generated := renderBasicTypeScriptFixture(t)
+
+	wantSnippets := []string{
+		`import { createRegistry, fromJson, toJson } from "@bufbuild/protobuf";`,
+		`import type { JsonValue, Registry } from "@bufbuild/protobuf";`,
+		`import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from "@modelcontextprotocol/sdk/types.js";`,
+		`import type { CallToolResult, ServerNotification, ServerRequest, Tool } from "@modelcontextprotocol/sdk/types.js";`,
+		`import { Ajv2020 } from "ajv/dist/2020.js";`,
+		"type ServerToolRegistry = {",
+		"function installMcpHandlers(server: Server, registry: ServerToolRegistry): void {",
+		"function listRegisteredTools(registry: ServerToolRegistry): Tool[] {",
+		"function buildListTool(tool: RegisteredTool): Tool {",
+		"function loadSchema(rawSchemaJson: string): Record<string, unknown> {",
+	}
+	assertTypeScriptContains(t, generated, wantSnippets...)
 
 	notWantSnippets := []string{
 		"registerTool",
 		"addTool",
 		"zod",
-		"ListToolsRequestSchema",
-		"CallToolRequestSchema",
-		"fromJson",
-		"toJson",
-		"Ajv",
+		"toJsonSchemaCompat",
+		"lang=javascript",
 	}
 	assertTypeScriptOmits(t, generated, notWantSnippets...)
 }
