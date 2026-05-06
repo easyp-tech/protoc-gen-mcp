@@ -627,7 +627,14 @@ const advancedArgs = {
 };
 const advanced = await client.callTool({ name: "Advanced", arguments: advancedArgs }) as TestToolResult;
 assertSuccessfulTextMatchesStructured("Advanced", advanced);
-assert.deepEqual(advanced.structuredContent, advancedArgs);
+assert.deepEqual(advanced.structuredContent, {
+  ...advancedArgs,
+  tree: {
+    name: "root",
+    child: { name: "leaf", children: [] },
+    children: [{ name: "branch", children: [] }],
+  },
+});
 
 const nullableAdvanced = await client.callTool({
   name: "Advanced",
