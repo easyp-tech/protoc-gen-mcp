@@ -82,22 +82,7 @@ func TestTypeScriptRuntimeContract(t *testing.T) {
 func protobufESRuntimeFixtureModule(t *testing.T, plugin *protogen.Plugin, protoPath string) string {
 	t.Helper()
 
-	var descriptorBase64 string
-	for _, file := range plugin.Files {
-		if file.Desc.Path() != protoPath {
-			continue
-		}
-		descriptorBytes, err := proto.Marshal(protoutil.ProtoFromFileDescriptor(file.Desc))
-		if err != nil {
-			t.Fatalf("marshal %s descriptor proto: %v", protoPath, err)
-		}
-		descriptorBase64 = base64.StdEncoding.EncodeToString(descriptorBytes)
-		break
-	}
-	if descriptorBase64 == "" {
-		t.Fatalf("proto descriptor %q not found in generated plugin", protoPath)
-	}
-
+	descriptorBase64 := protobufESFileDescriptorBase64(t, plugin, protoPath)
 	return fmt.Sprintf(`
 import type { Message } from "@bufbuild/protobuf";
 import { fileDesc, messageDesc, type GenFile, type GenMessage } from "@bufbuild/protobuf/codegenv2";
@@ -119,6 +104,27 @@ export type EchoResponse = Message<"runtime.v1.EchoResponse"> & {
 export const EchoRequestSchema: GenMessage<EchoRequest> = messageDesc(file_runtime_v1_runtime_contract, 0);
 export const EchoResponseSchema: GenMessage<EchoResponse> = messageDesc(file_runtime_v1_runtime_contract, 1);
 `, descriptorBase64)
+}
+
+func protobufESFileDescriptorBase64(t *testing.T, plugin *protogen.Plugin, protoPath string) string {
+	t.Helper()
+
+	var descriptorBase64 string
+	for _, file := range plugin.Files {
+		if file.Desc.Path() != protoPath {
+			continue
+		}
+		descriptorBytes, err := proto.Marshal(protoutil.ProtoFromFileDescriptor(file.Desc))
+		if err != nil {
+			t.Fatalf("marshal %s descriptor proto: %v", protoPath, err)
+		}
+		descriptorBase64 = base64.StdEncoding.EncodeToString(descriptorBytes)
+		break
+	}
+	if descriptorBase64 == "" {
+		t.Fatalf("proto descriptor %q not found in generated plugin", protoPath)
+	}
+	return descriptorBase64
 }
 
 func typeScriptRuntimeContractFixture() string {

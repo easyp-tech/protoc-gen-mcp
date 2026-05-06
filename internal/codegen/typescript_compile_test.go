@@ -54,7 +54,7 @@ func TestTypeScriptGeneratedPublicAPICompilesUnderNodeNext(t *testing.T) {
 
 	generatedSidecar := generatedFileContent(t, plugin, "compile/v1/public_api_mcp.ts")
 	writeTypeScriptFixtureFile(t, filepath.Join(sourceDir, "public_api_mcp.ts"), generatedSidecar)
-	writeTypeScriptFixtureFile(t, filepath.Join(sourceDir, "public_api_pb.ts"), []byte(protobufESCompileFixtureModule()))
+	writeTypeScriptFixtureFile(t, filepath.Join(sourceDir, "public_api_pb.ts"), []byte(protobufESCompileFixtureModule(protobufESFileDescriptorBase64(t, plugin, "compile/v1/public-api.proto"))))
 	writeTypeScriptFixtureFile(t, filepath.Join(sourceDir, "usage.ts"), []byte(typeScriptPublicAPIUsageFixture()))
 	writeTypeScriptFixtureFile(t, filepath.Join(tempProject, "tsconfig.json"), []byte(typeScriptCompileFixtureTSConfig()))
 
@@ -98,9 +98,12 @@ func writeTypeScriptFixtureFile(t *testing.T, path string, contents []byte) {
 	}
 }
 
-func protobufESCompileFixtureModule() string {
+func protobufESCompileFixtureModule(descriptorBase64 string) string {
 	return `
 import type { Message } from "@bufbuild/protobuf";
+import { fileDesc, messageDesc, type GenFile, type GenMessage } from "@bufbuild/protobuf/codegenv2";
+
+export const file_compile_v1_public_api: GenFile = fileDesc("` + descriptorBase64 + `");
 
 export type RenderRequest = Message<"compile.v1.RenderRequest"> & {
   label: string;
@@ -118,27 +121,10 @@ export type Render_NestedResponse = Message<"compile.v1.Render.NestedResponse"> 
   output: string;
 };
 
-export const RenderRequestSchema = {
-  typeName: "compile.v1.RenderRequest",
-};
-
-export const RenderResponseSchema = {
-  typeName: "compile.v1.RenderResponse",
-};
-
-export const Render_NestedRequestSchema = {
-  typeName: "compile.v1.Render.NestedRequest",
-};
-
-export const Render_NestedResponseSchema = {
-  typeName: "compile.v1.Render.NestedResponse",
-};
-
-export const file_compile_v1_public_api = {
-  proto: {
-    name: "compile/v1/public-api.proto",
-  },
-};
+export const Render_NestedRequestSchema: GenMessage<Render_NestedRequest> = messageDesc(file_compile_v1_public_api, 0, 0);
+export const Render_NestedResponseSchema: GenMessage<Render_NestedResponse> = messageDesc(file_compile_v1_public_api, 0, 1);
+export const RenderRequestSchema: GenMessage<RenderRequest> = messageDesc(file_compile_v1_public_api, 1);
+export const RenderResponseSchema: GenMessage<RenderResponse> = messageDesc(file_compile_v1_public_api, 2);
 `
 }
 
