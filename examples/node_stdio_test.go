@@ -31,6 +31,28 @@ func TestStandaloneTypeScriptExampleOverStdio(t *testing.T) {
 	runStandaloneNodeNotebookExample(t, session, "Ship TypeScript support", "typescript")
 }
 
+func TestStandaloneJavaScriptExampleOverStdio(t *testing.T) {
+	root := repoRoot(t)
+	projectDir := filepath.Join(root, "examples/9_javascript_standalone")
+	buildStandaloneNodeExample(t, projectDir)
+
+	ctx := context.Background()
+	client := mcp.NewClient(&mcp.Implementation{
+		Name:    "protoc-gen-mcp-standalone-javascript-example-test-client",
+		Version: "v0.0.1",
+	}, nil)
+
+	session, err := client.Connect(ctx, &mcp.CommandTransport{
+		Command: standaloneNodeExampleCommand(projectDir, "src/server.js"),
+	}, nil)
+	if err != nil {
+		t.Fatalf("client.Connect() over stdio failed: %v", err)
+	}
+	defer session.Close()
+
+	runStandaloneNodeNotebookExample(t, session, "Ship JavaScript consumption", "javascript")
+}
+
 func buildStandaloneNodeExample(t *testing.T, projectDir string) {
 	t.Helper()
 

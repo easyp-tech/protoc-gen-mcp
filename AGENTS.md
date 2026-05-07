@@ -45,8 +45,9 @@ architecture unless explicitly revised.
 - `examples`: standalone Go/Python/JVM integration projects; example
   directories use numeric underscore prefixes such as `1_helloworld`,
   `4_crm_system`, `5_python_standalone`, `6_java_standalone`, and
-  `7_kotlin_standalone`, plus the dedicated JVM workspace `examples/jvm` and
-  Node spike workspace `examples/node/sdk-spike`
+  `7_kotlin_standalone`, `8_typescript_standalone`, and
+  `9_javascript_standalone`, plus the dedicated JVM workspace `examples/jvm`
+  and Node spike workspace `examples/node/sdk-spike`
 - `examples/node/sdk-spike`: pinned local Node package scope for TypeScript
   SDK, Protobuf-ES, Ajv, package-lock-backed `npm ci`, and strict NodeNext
   compile checks
@@ -64,6 +65,13 @@ architecture unless explicitly revised.
   its own Gradle build, `easyp.yaml`, protobuf contract, generated Java/Kotlin
   protobuf classes, generated `lang=kotlin` MCP sidecar, and handwritten stdio
   server
+- `examples/8_typescript_standalone`: TypeScript user-style standalone project
+  with its own npm package, `tsconfig.json`, `easyp.yaml`, protobuf contract,
+  generated Protobuf-ES `_pb.ts` classes, generated `lang=typescript` MCP
+  sidecar, and handwritten stdio server
+- `examples/9_javascript_standalone`: JavaScript consumption proof that imports
+  compiled `.js` output and `.d.ts` metadata from the TypeScript standalone
+  project without using direct `lang=javascript`
 - `examples/jvm`: isolated Gradle Kotlin DSL workspace that compiles generated
   Java/Kotlin JVM sidecars against Maven `protoc`, official MCP SDK artifacts,
   and the local `cmd/protoc-gen-mcp` binary
@@ -319,6 +327,10 @@ architecture unless explicitly revised.
   `examples/6_java_standalone` and `examples/7_kotlin_standalone`, each with
   its own `easyp.yaml`, lockfile, Gradle build, handwritten stdio server, and
   generated-source cleanup for Google protobuf classes supplied by Maven
+- standalone TypeScript and JavaScript Node projects under
+  `examples/8_typescript_standalone` and `examples/9_javascript_standalone`,
+  covering user-style `lang=typescript` generation with Protobuf-ES plus plain
+  JavaScript consumption of compiled generated `.js` and `.d.ts` output
 - repository docs now route JVM users through `examples/jvm/README.md`, and
   rollout messaging states that releases publish the `protoc-gen-mcp binary`
   while downstream JVM users compile generated sources against the official SDK
@@ -356,6 +368,12 @@ architecture unless explicitly revised.
   for the standalone Java user-project generation and compile flow
 - `cd examples/7_kotlin_standalone && make lint && make clean build`
   for the standalone Kotlin user-project generation and compile flow
+- `cd examples/8_typescript_standalone && make lint && make clean build`
+  for the standalone TypeScript user-project generation and compile flow
+- `cd examples/9_javascript_standalone && make clean build`
+  for JavaScript consumption of compiled TypeScript target output
+- `go test ./examples -run 'TestStandalone(TypeScript|JavaScript)ExampleOverStdio' -count=1`
+  for standalone Node stdio parity
 - `go test ./...`
 - stdio smoke tests via `internal/examplemcp/stdio_test.go`
 - `go test ./internal/examplemcp -run 'TestJava.*OverStdio' -count=1`
@@ -438,6 +456,12 @@ architecture unless explicitly revised.
   - `cd examples/6_java_standalone && make build`
 - Build standalone Kotlin example:
   - `cd examples/7_kotlin_standalone && make build`
+- Run standalone TypeScript example:
+  - `cd examples/8_typescript_standalone && make build && make run`
+- Run standalone JavaScript example:
+  - `cd examples/9_javascript_standalone && make build && make run`
+- Run standalone Node stdio tests:
+  - `go test ./examples -run 'TestStandalone(TypeScript|JavaScript)ExampleOverStdio' -count=1`
 - Build plugin: `go build ./cmd/protoc-gen-mcp`
 - Validate GoReleaser config: `goreleaser check`
 - Build example MCP server binary:

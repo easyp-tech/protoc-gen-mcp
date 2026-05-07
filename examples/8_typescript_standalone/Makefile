@@ -10,7 +10,7 @@ lint:
 	easyp --cfg easyp.yaml mod download
 	easyp --cfg easyp.yaml lint -p proto -r .
 
-build: setup
+build: generate
 	npm run typecheck
 	npm run build
 

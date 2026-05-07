@@ -2,12 +2,14 @@
 
 This directory contains standalone, runnable examples of how to build and
 expose Model Context Protocol (MCP) tools using Protocol Buffers with the Go,
-Python, Kotlin, and Java SDKs.
+Python, Kotlin, Java, TypeScript, and JavaScript SDK paths.
 
 ## Prerequisites
 - **easyp**: Ensure you have [easyp](https://github.com/easyp-tech/easyp) installed for code generation.
 - **JDK 17+ and Gradle 9.2+**: Required for the standalone Java/Kotlin projects
   and the dedicated JVM workspace under [`examples/jvm`](./jvm/README.md).
+- **Node.js and npm**: Required for the standalone TypeScript project,
+  JavaScript consumption proof, and Node compile gates.
 
 ## Running the Examples
 1. Generate the example artifacts from the `.proto` definitions.
@@ -24,8 +26,8 @@ Python, Kotlin, and Java SDKs.
    through the `deps` entry in `examples/easyp.yaml` and pinned by
    `examples/easyp.lock`, so the examples do not depend on the local
    repository-root options package during generation.
-   `5_python_standalone`, `6_java_standalone`, and
-   `7_kotlin_standalone` each have their own `easyp.yaml` and lockfile to
+   `5_python_standalone`, `6_java_standalone`, `7_kotlin_standalone`, and
+   `8_typescript_standalone` each have their own `easyp.yaml` and lockfile to
    model user-owned projects.
 2. Run any of the Go servers (e.g. `1_helloworld`):
    ```bash
@@ -55,6 +57,18 @@ Python, Kotlin, and Java SDKs.
    Follow [`examples/jvm/README.md`](./jvm/README.md) for the tested
    `compileJava` / `compileKotlin`, `installDist`, and installed-script stdio
    flow.
+7. Build or run the standalone TypeScript project:
+   ```bash
+   cd examples/8_typescript_standalone
+   make build
+   make run
+   ```
+8. Build or run the standalone JavaScript consumption proof:
+   ```bash
+   cd examples/9_javascript_standalone
+   make build
+   make run
+   ```
 
 When you inspect tools in clients like `@modelcontextprotocol/inspector`,
 remember that omitted tool-annotation hints are often rendered with
@@ -116,6 +130,28 @@ protobuf contract, and handwritten stdio server.
   registers tools through `registerTodoAPITools(server, impl, namespace = ...)`.
 - **No Go proto metadata**: JVM request preparation synthesizes internal
   protogen metadata, so the user-authored proto does not need `go_package`.
+
+### [8_typescript_standalone](./8_typescript_standalone) (TypeScript User Project)
+A standalone TypeScript MCP server with its own `package.json`, `tsconfig.json`,
+`easyp.yaml`, protobuf contract, generated TypeScript sources, and handwritten
+stdio server.
+- **Protobuf-ES generation**: `easyp.yaml` runs `@bufbuild/protoc-gen-es` with
+  `target=ts` and `import_extension=js`.
+- **Generated MCP sidecar**: `protoc-gen-mcp` runs with `lang=typescript` and
+  emits `src/generated/proto/notebook_mcp.ts`.
+- **Official SDK runtime**: the server uses `Server`, `StdioServerTransport`,
+  and generated `registerNotebookAPITools(...)`.
+
+### [9_javascript_standalone](./9_javascript_standalone) (JavaScript Consumption Proof)
+A plain JavaScript MCP server that consumes compiled `.js` and `.d.ts` output
+from the TypeScript standalone project.
+- **No direct JavaScript renderer**: this project does not use
+  `lang=javascript`; it proves JavaScript consumers can use compiled
+  TypeScript target output.
+- **Editor/type metadata**: `src/server.js` uses `// @ts-check` and JSDoc
+  imports against generated declarations from `8_typescript_standalone/dist`.
+- **Runtime proof**: the server starts over stdio and registers generated
+  notebook tools from compiled output.
 
 ### [jvm](./jvm/README.md) (Java & Kotlin Official SDK Workspace)
 An isolated Gradle workspace that generates and runs Java and Kotlin MCP
