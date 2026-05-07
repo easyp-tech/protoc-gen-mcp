@@ -122,8 +122,8 @@ architecture unless explicitly revised.
 - Python generation emits package `__init__.py` files next to generated
   `*_mcp.py` modules so generated directories can be imported as Python
   packages
-- `testdata/golden`: golden snapshots for generated Go, Python, Kotlin, and
-  Java binding files
+- `testdata/golden`: golden snapshots for generated Go, Python, Kotlin, Java,
+  and TypeScript binding files
 - `testdata/unsupported`: negative fixtures for fail-fast generator coverage
 
 ## MVP Rules
@@ -157,6 +157,9 @@ architecture unless explicitly revised.
 - `mcp.options.v1` must declare its `go_package` directly in
   `mcp/options/v1/options.proto` so downstream Easyp consumers do not need
   a special `go_package_prefix` override
+- Direct lang=javascript generation is deferred in v1.1; JavaScript support
+  is through compiled TypeScript target `.js` output plus generated `.d.ts`
+  declarations.
 
 ## Public API
 
@@ -274,9 +277,9 @@ architecture unless explicitly revised.
     current-file types actually referenced by other generated files, so
     cross-file imports work without forcing unrelated hidden-only types into
     the public API surface
-  - dedicated `examples/` directory featuring 7 standalone integration
+  - dedicated `examples/` directory featuring 9 standalone integration
     projects spanning quickstarts to complex CRM mocks and pure Python, Java,
-    and Kotlin user-style projects
+    Kotlin, TypeScript, and JavaScript user-style projects
   - support for `oneof` explicit requiredness through `mcp.options.v1.oneof` options
   - strict schema generation correctly differentiating zero-values (`0`, `0.0`, `""`) using pointer constraints
   - runtime registration and JSON Schema validation in `mcpruntime`
@@ -331,10 +334,11 @@ architecture unless explicitly revised.
   `examples/8_typescript_standalone` and `examples/9_javascript_standalone`,
   covering user-style `lang=typescript` generation with Protobuf-ES plus plain
   JavaScript consumption of compiled generated `.js` and `.d.ts` output
-- repository docs now route JVM users through `examples/jvm/README.md`, and
-  rollout messaging states that releases publish the `protoc-gen-mcp binary`
-  while downstream JVM users compile generated sources against the official SDK
-  artifacts
+- repository docs now route JVM users through `examples/jvm/README.md` and
+  Node users through `examples/8_typescript_standalone` plus
+  `examples/9_javascript_standalone`; rollout messaging states that releases
+  publish the `protoc-gen-mcp binary` while downstream JVM and Node users
+  compile generated sources against official SDK artifacts and npm dependencies
   - `example_DescribeAdvancedShapes` covers the full current advanced contract
     matrix in the test server: maps, timestamps, durations, field masks,
     `Struct`/`Value`/`ListValue`, `Any`, scalar wrappers, raw float ProtoJSON,
