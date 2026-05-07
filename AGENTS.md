@@ -96,7 +96,8 @@ architecture unless explicitly revised.
   low-level official SDK imports, typed public handlers, namespace-aware
   registration, schema constants, and private registry metadata
 - `internal/codegen/typescript_*_test.go`: TypeScript semantic model, naming,
-  renderer contract, golden, and strict NodeNext compile-gate tests
+  renderer contract, golden, runtime, stdio, and strict NodeNext compile-gate
+  tests
 - `internal/examplemcp`: reusable example MCP server wiring and stdio smoke test
 - `internal/pythontest`: hermetic Python test runtime bootstrap used by Go
   tests that execute generated Python code
@@ -191,6 +192,9 @@ architecture unless explicitly revised.
     namespace?)`, raw schema JSON constants, imported message schema/file
     registry refs, metadata registry records, NodeNext `.js` specifiers, and
     strict `verbatimModuleSyntax` import type/value separation
+  - generated Node stdio process verification for TypeScript sidecars, covering
+    `tools/list`, valid tool calls, text/structured output parity, invalid
+    input rejection, invalid output rejection, and advanced ProtoJSON shapes
   - shared JVM foundation for `lang=kotlin` and `lang=java`: parser and
     generator dispatch accept both targets, collect SDK-neutral
     `internal/codegen/jvm_*.go` models, preserve existing `FileModel` schema
@@ -340,8 +344,10 @@ architecture unless explicitly revised.
 - `go test ./internal/codegen -run 'TestTypeScriptModel|TestTypeScriptNames|TestTypeScriptContract|TestGenerateTypeScript|TestGenerate_TypeScript|TestTypeScriptGeneratedPublicAPICompilesUnderNodeNext' -count=1`
   for TypeScript semantic model, naming, renderer contract, golden, generator,
   and strict NodeNext public API compile coverage
-- `cd examples/node/sdk-spike && npm ci && npm run typecheck`
-  for the pinned local TypeScript SDK/Protobuf-ES compile gate
+- `cd examples/node/sdk-spike && npm ci && npm run typecheck && npm run build`
+  for the pinned local TypeScript SDK/Protobuf-ES compile/build gate
+- `go test ./internal/codegen -run 'TestTypeScriptGeneratedNodeServer.*OverStdio|TestTypeScriptGeneratedNodeServerRejectsInvalid(Input|Output)OverStdio' -count=1`
+  for generated Node stdio process verification
 - `gradle --no-daemon -p examples/jvm :java-server:compileJava :kotlin-server:compileKotlin`
   for the Phase 04 JVM compile gate
 - `gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist`
@@ -414,12 +420,14 @@ architecture unless explicitly revised.
 - Generate standalone example artifacts:
   - `cd examples && make generate`
 - Run TypeScript Node compile gate:
-  - `cd examples/node/sdk-spike && npm ci && npm run typecheck`
+  - `cd examples/node/sdk-spike && npm ci && npm run typecheck && npm run build`
 - Run focused TypeScript codegen tests:
   - `go test ./internal/codegen -run 'TestTypeScriptModel|TestTypeScriptNames|TestTypeScriptContract|TestGenerateTypeScript|TestGenerate_TypeScript|TestTypeScriptGeneratedPublicAPICompilesUnderNodeNext' -count=1`
 - Run TypeScript public API compile smoke:
   - `cd examples/node/sdk-spike && npm ci`
   - `go test ./internal/codegen -run TestTypeScriptGeneratedPublicAPICompilesUnderNodeNext -count=1`
+- Run generated Node stdio tests:
+  - `go test ./internal/codegen -run 'TestTypeScriptGeneratedNodeServer.*OverStdio|TestTypeScriptGeneratedNodeServerRejectsInvalid(Input|Output)OverStdio' -count=1`
 - Run JVM compile gate:
   - `gradle --no-daemon -p examples/jvm :java-server:compileJava :kotlin-server:compileKotlin`
 - Install JVM example scripts:
