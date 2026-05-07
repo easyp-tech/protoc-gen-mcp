@@ -5,6 +5,7 @@ setup:
 
 generate: setup
 	npm run generate
+	go run ../../internal/devtools/protobufesnormalize $$(find src/generated -name '*_pb.ts' -type f | sort)
 
 lint:
 	easyp --cfg easyp.yaml mod download

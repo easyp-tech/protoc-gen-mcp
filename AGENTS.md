@@ -106,6 +106,9 @@ architecture unless explicitly revised.
 - `internal/codegen/typescript_*_test.go`: TypeScript semantic model, naming,
   renderer contract, golden, runtime, stdio, and strict NodeNext compile-gate
   tests
+- `internal/devtools/protobufesnormalize`: repository-local normalizer for
+  Protobuf-ES `fileDesc(...)` descriptor strings generated in standalone
+  TypeScript examples so checked-in output remains deterministic
 - `internal/examplemcp`: reusable example MCP server wiring and stdio smoke test
 - `internal/pythontest`: hermetic Python test runtime bootstrap used by Go
   tests that execute generated Python code
