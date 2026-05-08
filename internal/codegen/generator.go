@@ -252,6 +252,9 @@ func pythonModelRequiresOutput(model FileModel) bool {
 	if len(model.Services) > 0 {
 		return true
 	}
+	if model.Options.PythonHandler == PythonHandlerProtobuf {
+		return false
+	}
 	if model.PythonTypes == nil {
 		return false
 	}

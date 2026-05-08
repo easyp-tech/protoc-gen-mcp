@@ -292,6 +292,51 @@ func TestGenerate_PythonEmitsCrossFilePublicTypeModules(t *testing.T) {
 	}
 }
 
+func TestGenerate_PythonProtobufHandlerSkipsCrossFilePublicTypeModules(t *testing.T) {
+	plugin := newTempProtogenPlugin(t, map[string]string{
+		"test/v1/shared.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/shared;sharedv1";`,
+			`message SharedRequest {}`,
+			`message SharedResponse {}`,
+			``,
+		}, "\n"),
+		"test/v1/service.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/service;servicev1";`,
+			`import "test/v1/shared.proto";`,
+			`service CrossFileAPI {`,
+			`  rpc UseShared(SharedRequest) returns (SharedResponse);`,
+			`}`,
+			``,
+		}, "\n"),
+	}, "test/v1/shared.proto", "test/v1/service.proto")
+
+	if err := Generate(plugin, Options{
+		Language:      LanguagePython,
+		PythonRuntime: PythonRuntimeGoogleProtobuf,
+		PythonHandler: PythonHandlerProtobuf,
+	}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	for _, file := range plugin.Response().GetFile() {
+		if file.GetName() == "test/v1/shared_mcp.py" {
+			t.Fatalf("protobuf handler mode must not emit message-only public type module:\n%s", file.GetContent())
+		}
+	}
+
+	serviceGenerated := string(generatedFileContent(t, plugin, "test/v1/service_mcp.py"))
+	if !strings.Contains(serviceGenerated, "from test.v1 import shared_pb2") {
+		t.Fatalf("service module must import shared protobuf module\n%s", serviceGenerated)
+	}
+	if strings.Contains(serviceGenerated, "shared_mcp") {
+		t.Fatalf("protobuf handler mode must not import generated shared public module\n%s", serviceGenerated)
+	}
+}
+
 func TestGenerate_PythonEmitsPublicTypesForHiddenOnlyServiceImports(t *testing.T) {
 	plugin := newTempProtogenPlugin(t, map[string]string{
 		"test/v1/shared.proto": strings.Join([]string{
