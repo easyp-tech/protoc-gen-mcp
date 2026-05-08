@@ -170,9 +170,12 @@ architecture unless explicitly revised.
 - Generated code exposes `Register<Service>Tools(server, impl, opts...) error`
 - Generated Python modules expose `<Service>ToolHandler`
 - Generated Python modules expose `register_<service_name>_tools(server, impl, *, namespace=None)`
-- Generated Python modules expose dataclasses, `UNSET`, and explicit `oneof`
-  wrapper variants from `*_mcp.py`; user handler code should not depend on
-  `*_pb2.py`
+- Generated Python modules default to `python_handler=dataclass`, exposing
+  dataclasses, `UNSET`, explicit `oneof` wrapper variants, mapper helpers, and
+  handler protocols using generated public dataclass types from `*_mcp.py`
+- Generated Python modules also support opt-in `python_handler=protobuf`,
+  where handler protocols accept and return raw generated `*_pb2` message
+  classes and generated dataclass public types/mapper helpers are omitted
 - Generated Kotlin files expose `<Service>ToolHandler`
 - Generated Kotlin files expose
   `register<Service>Tools(server: Server, impl: <Service>ToolHandler, namespace: String? = null)`
@@ -198,7 +201,8 @@ architecture unless explicitly revised.
 - Implemented:
 - `cmd/protoc-gen-mcp` plugin scaffold and generated `*.mcp.go` bindings
   - typed plugin option parsing for `lang=go|python|kotlin|java|typescript` and
-    `python_runtime=google.protobuf|betterproto|grpclib`
+    `python_runtime=google.protobuf|betterproto|grpclib`, plus Python-only
+    `python_handler=dataclass|protobuf`
   - generated TypeScript `*_mcp.ts` sidecars for `lang=typescript`, targeting
     the official `@modelcontextprotocol/sdk` low-level `Server` import path and
     Protobuf-ES `_pb.js` modules, including typed `<Service>ToolHandler`
@@ -237,11 +241,17 @@ architecture unless explicitly revised.
     Go-specific proto options just to run `lang=python`, `lang=java`,
     `lang=kotlin`, or `lang=typescript`
   - generated self-contained Python `*_mcp.py` bindings for
-    `lang=python,python_runtime=google.protobuf`, including handler protocols,
-    dataclasses, `UNSET`, explicit `oneof` wrapper variants, schema JSON
-    constants, shared per-server registry wiring, namespace-aware
-    `register_<service_name>_tools(...)`, generated protobuf<->dataclass
-    mappers, and ProtoJSON dict/message conversion via `json_format.ParseDict`
+    `lang=python,python_runtime=google.protobuf`, including default
+    dataclass-mode handler protocols, dataclasses, `UNSET`, explicit `oneof`
+    wrapper variants, schema JSON constants, shared per-server registry wiring,
+    namespace-aware `register_<service_name>_tools(...)`, generated
+    protobuf<->dataclass mappers, and ProtoJSON dict/message conversion via
+    `json_format.ParseDict`
+  - opt-in generated Python `python_handler=protobuf` mode, where handler
+    protocols use raw generated `*_pb2` request/response message classes,
+    registration uses identity converters through the existing
+    `_RegisteredTool.from_pb/to_pb` seam, and message-only dependency files do
+    not emit empty public `*_mcp.py` sidecars
   - generated Python `mcp/__init__.py` bridge support file so `mcp.options.*`
     protobuf output coexists with the official `mcp` SDK package namespace
   - generated Python package `__init__.py` files next to `*_mcp.py` output so
@@ -355,6 +365,9 @@ architecture unless explicitly revised.
   - `easyp` lint and generation flows for `mcp` and `internal/testproto`
   - `go test ./internal/codegen -count=1` for generator, Go/Python/Kotlin/Java,
     and shared JVM foundation coverage
+  - `go test ./internal/codegen -run 'TestParseOptions|TestPythonRenderer_EmitsDataclassPublicAPI|TestPythonRenderer_EmitsProtobufHandlerPublicAPI|TestPythonRenderer_ProtobufHandlerImportsCrossFileProtobufModules|TestGenerate_PythonProtobufHandlerSkipsCrossFilePublicTypeModules' -count=1`
+    for Python handler option parsing and generated dataclass/protobuf handler
+    API contracts
   - `go test ./internal/codegen -run 'TestGenerateKotlinExampleGolden|TestKotlinContract_.*' -count=1`
     for Kotlin golden output and focused Kotlin renderer contracts
 - `go test ./internal/codegen -run 'TestJavaContract_.*|TestGenerateJavaExampleGolden|TestGenerateJavaExampleHandlerCompileSmoke|TestGenerate_JavaTargetEmitsOutput' -count=1`
@@ -453,6 +466,8 @@ architecture unless explicitly revised.
   - `go test ./internal/codegen -run TestTypeScriptGeneratedPublicAPICompilesUnderNodeNext -count=1`
 - Run generated Node stdio tests:
   - `go test ./internal/codegen -run 'TestTypeScriptGeneratedNodeServer.*OverStdio|TestTypeScriptGeneratedNodeServerRejectsInvalid(Input|Output)OverStdio' -count=1`
+- Run focused Python handler option and renderer tests:
+  - `go test ./internal/codegen -run 'TestParseOptions|TestPythonRenderer_EmitsDataclassPublicAPI|TestPythonRenderer_EmitsProtobufHandlerPublicAPI|TestPythonRenderer_ProtobufHandlerImportsCrossFileProtobufModules|TestGenerate_PythonProtobufHandlerSkipsCrossFilePublicTypeModules' -count=1`
 - Run JVM compile gate:
   - `gradle --no-daemon -p examples/jvm :java-server:compileJava :kotlin-server:compileKotlin`
 - Install JVM example scripts:
