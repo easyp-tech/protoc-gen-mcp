@@ -68,6 +68,59 @@ func TestPythonRenderer_EmitsDataclassPublicAPI(t *testing.T) {
 	}
 }
 
+func TestPythonRenderer_EmitsProtobufHandlerPublicAPI(t *testing.T) {
+	plugin := newExampleProtogenPlugin(t)
+	file := plugin.FilesByPath["internal/testproto/example/v1/example.proto"]
+	if file == nil {
+		t.Fatal("example proto file not found in plugin")
+	}
+
+	model, err := CollectFileModel(file, Options{
+		Language:      LanguagePython,
+		PythonRuntime: PythonRuntimeGoogleProtobuf,
+		PythonHandler: PythonHandlerProtobuf,
+	})
+	if err != nil {
+		t.Fatalf("CollectFileModel: %v", err)
+	}
+	if err := renderPythonFile(plugin, model); err != nil {
+		t.Fatalf("renderPythonFile: %v", err)
+	}
+
+	generated := string(generatedFileContent(t, plugin, "internal/testproto/example/v1/example_mcp.py"))
+	wantSnippets := []string{
+		"ToolRequestContext = mcp.server.session.ServerSession",
+		"class ExampleAPIToolHandler(Protocol):",
+		"def create_report(self, ctx: ToolRequestContext, req: example_pb2.CreateReportRequest) -> example_pb2.CreateReportResponse | Awaitable[example_pb2.CreateReportResponse]:",
+		"def ping(self, ctx: ToolRequestContext, req: example_pb2.PingRequest) -> example_pb2.PingResponse | Awaitable[example_pb2.PingResponse]:",
+		"def describe_advanced_shapes(self, ctx: ToolRequestContext, req: example_pb2.DescribeAdvancedShapesRequest) -> example_pb2.DescribeAdvancedShapesResponse | Awaitable[example_pb2.DescribeAdvancedShapesResponse]:",
+		"def register_example_api_tools(server: mcp.server.lowlevel.Server, impl: ExampleAPIToolHandler, *, namespace: str | None = None) -> None:",
+		"from_pb=_identity,",
+		"to_pb=_identity,",
+		"EXAMPLE_API_CREATE_REPORT_INPUT_SCHEMA_JSON =",
+		"EXAMPLE_API_HEALTH_OUTPUT_SCHEMA_JSON =",
+	}
+	for _, snippet := range wantSnippets {
+		if !strings.Contains(generated, snippet) {
+			t.Fatalf("generated python missing protobuf handler snippet %q\n%s", snippet, generated)
+		}
+	}
+	notWantSnippets := []string{
+		"UNSET = _UnsetType()",
+		"@dataclass(slots=True)",
+		"class CreateReportRequest:",
+		"class CreateReportResponse:",
+		"def _from_pb_create_report_request",
+		"def _to_pb_create_report_response",
+		"def create_report(self, ctx: ToolRequestContext, req: CreateReportRequest)",
+	}
+	for _, snippet := range notWantSnippets {
+		if strings.Contains(generated, snippet) {
+			t.Fatalf("generated python must not retain dataclass handler snippet %q\n%s", snippet, generated)
+		}
+	}
+}
+
 func TestPythonAndGoRenderersShareContractModel(t *testing.T) {
 	plugin := newExampleProtogenPlugin(t)
 	file := plugin.FilesByPath["internal/testproto/example/v1/example.proto"]
@@ -123,6 +176,76 @@ func TestPythonAndGoRenderersShareContractModel(t *testing.T) {
 			if goMethod.Deprecated != pythonMethod.Deprecated {
 				t.Fatalf("method %q deprecated mismatch: go=%t python=%t", goMethod.Name, goMethod.Deprecated, pythonMethod.Deprecated)
 			}
+		}
+	}
+}
+
+func TestPythonRenderer_ProtobufHandlerImportsCrossFileProtobufModules(t *testing.T) {
+	plugin := newTempProtogenPlugin(t, map[string]string{
+		"test/v1/shared.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/shared;sharedv1";`,
+			`message SharedRequest {}`,
+			`message SharedResponse {}`,
+			``,
+		}, "\n"),
+		"test/v1/service.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/service;servicev1";`,
+			`import "test/v1/shared.proto";`,
+			`service CrossFileAPI {`,
+			`  rpc UseShared(SharedRequest) returns (SharedResponse);`,
+			`}`,
+			``,
+		}, "\n"),
+	}, "test/v1/service.proto")
+
+	file := plugin.FilesByPath["test/v1/service.proto"]
+	if file == nil {
+		t.Fatal("service proto file not found in plugin")
+	}
+	sharedFile := plugin.FilesByPath["test/v1/shared.proto"]
+	if sharedFile == nil {
+		t.Fatal("shared proto file not found in plugin")
+	}
+	sharedPBAlias := pythonModuleAlias(sharedFile, false)
+	sharedImport := "from test.v1 import shared_pb2"
+	if sharedPBAlias != "shared_pb2" {
+		sharedImport += " as " + sharedPBAlias
+	}
+
+	model, err := CollectFileModel(file, Options{
+		Language:      LanguagePython,
+		PythonRuntime: PythonRuntimeGoogleProtobuf,
+		PythonHandler: PythonHandlerProtobuf,
+	})
+	if err != nil {
+		t.Fatalf("CollectFileModel: %v", err)
+	}
+	if err := renderPythonFile(plugin, model); err != nil {
+		t.Fatalf("renderPythonFile: %v", err)
+	}
+
+	generated := string(generatedFileContent(t, plugin, "test/v1/service_mcp.py"))
+	wantSnippets := []string{
+		sharedImport,
+		"def use_shared(self, ctx: ToolRequestContext, req: " + sharedPBAlias + ".SharedRequest) -> " + sharedPBAlias + ".SharedResponse | Awaitable[" + sharedPBAlias + ".SharedResponse]:",
+	}
+	for _, snippet := range wantSnippets {
+		if !strings.Contains(generated, snippet) {
+			t.Fatalf("generated python missing protobuf cross-file snippet %q\n%s", snippet, generated)
+		}
+	}
+	notWantSnippets := []string{
+		"shared_mcp",
+		"def _from_pb_",
+		"def _to_pb_",
+	}
+	for _, snippet := range notWantSnippets {
+		if strings.Contains(generated, snippet) {
+			t.Fatalf("generated python must not retain cross-file dataclass snippet %q\n%s", snippet, generated)
 		}
 	}
 }

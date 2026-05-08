@@ -2,7 +2,7 @@ package codegen
 
 import "google.golang.org/protobuf/compiler/protogen"
 
-func renderPythonRuntime(generated *protogen.GeneratedFile) {
+func renderPythonRuntime(generated *protogen.GeneratedFile, emitIdentity bool) {
 	generated.P("@dataclass(frozen=True)")
 	generated.P("class _RegisteredTool:")
 	generated.P("    name: str")
@@ -49,6 +49,11 @@ func renderPythonRuntime(generated *protogen.GeneratedFile) {
 	generated.P("    json_format.ParseDict(arguments, message)")
 	generated.P("    return message")
 	generated.P()
+	if emitIdentity {
+		generated.P("def _identity(value: Any) -> Any:")
+		generated.P("    return value")
+		generated.P()
+	}
 	generated.P("def _normalize_tool_segment(segment: str | None) -> str:")
 	generated.P("    if segment is None:")
 	generated.P("        return \"\"")

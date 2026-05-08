@@ -14,6 +14,7 @@ func renderPythonFile(plugin *protogen.Plugin, model FileModel) error {
 	if err != nil {
 		return err
 	}
+	protobufHandlerMode := model.Options.PythonHandler == PythonHandlerProtobuf
 
 	filename := pythonOutputPath(info.file)
 	generated := plugin.NewGeneratedFile(filename, "")
@@ -35,19 +36,21 @@ func renderPythonFile(plugin *protogen.Plugin, model FileModel) error {
 	generated.P("import mcp.shared.exceptions")
 	generated.P("import mcp.types")
 	generated.P("from google.protobuf import any_pb2, duration_pb2, empty_pb2, field_mask_pb2, json_format, struct_pb2, timestamp_pb2, wrappers_pb2")
-	for _, moduleRef := range info.publicImportsForModel(model) {
-		if moduleRef.Package == "" {
-			if moduleRef.Alias == moduleRef.Module {
-				generated.P("import ", moduleRef.Module)
-			} else {
-				generated.P("import ", moduleRef.Module, " as ", moduleRef.Alias)
+	if !protobufHandlerMode {
+		for _, moduleRef := range info.publicImportsForModel(model) {
+			if moduleRef.Package == "" {
+				if moduleRef.Alias == moduleRef.Module {
+					generated.P("import ", moduleRef.Module)
+				} else {
+					generated.P("import ", moduleRef.Module, " as ", moduleRef.Alias)
+				}
+				continue
 			}
-			continue
-		}
-		if moduleRef.Alias == moduleRef.Module {
-			generated.P("from ", moduleRef.Package, " import ", moduleRef.Module)
-		} else {
-			generated.P("from ", moduleRef.Package, " import ", moduleRef.Module, " as ", moduleRef.Alias)
+			if moduleRef.Alias == moduleRef.Module {
+				generated.P("from ", moduleRef.Package, " import ", moduleRef.Module)
+			} else {
+				generated.P("from ", moduleRef.Package, " import ", moduleRef.Module, " as ", moduleRef.Alias)
+			}
 		}
 	}
 	for _, moduleRef := range info.protobufImportsForModel(model) {
@@ -79,22 +82,22 @@ func renderPythonFile(plugin *protogen.Plugin, model FileModel) error {
 	generated.P()
 	generated.P("ToolRequestContext = mcp.server.session.ServerSession")
 	generated.P()
-	if err := renderPythonPublicTypes(generated, info, model); err != nil {
-		return err
+	if !protobufHandlerMode {
+		if err := renderPythonPublicTypes(generated, info, model); err != nil {
+			return err
+		}
 	}
-	renderPythonRuntime(generated)
-	if err := renderPythonMappers(generated, info, model); err != nil {
-		return err
+	renderPythonRuntime(generated, protobufHandlerMode)
+	if !protobufHandlerMode {
+		if err := renderPythonMappers(generated, info, model); err != nil {
+			return err
+		}
 	}
 
 	for serviceIdx, service := range model.Services {
 		generated.P("class ", pythonProtocolName(service.ProtoName), "(Protocol):")
 		for _, method := range service.Methods {
-			inputType, err := info.pythonPublicMethodTypeRef(method.Input)
-			if err != nil {
-				return err
-			}
-			outputType, err := info.pythonPublicMethodTypeRef(method.Output)
+			inputType, outputType, err := info.pythonHandlerMethodTypeRefs(method, protobufHandlerMode)
 			if err != nil {
 				return err
 			}
@@ -119,13 +122,17 @@ func renderPythonFile(plugin *protogen.Plugin, model FileModel) error {
 			if err != nil {
 				return err
 			}
-			inputMapper, err := info.pythonMapperHelperForMethodType("from_pb", method.Input)
-			if err != nil {
-				return err
-			}
-			outputMapper, err := info.pythonMapperHelperForMethodType("to_pb", method.Output)
-			if err != nil {
-				return err
+			inputMapper := "_identity"
+			outputMapper := "_identity"
+			if !protobufHandlerMode {
+				inputMapper, err = info.pythonMapperHelperForMethodType("from_pb", method.Input)
+				if err != nil {
+					return err
+				}
+				outputMapper, err = info.pythonMapperHelperForMethodType("to_pb", method.Output)
+				if err != nil {
+					return err
+				}
 			}
 			schemaName := pythonSchemaConst(service.ProtoName, method.Name)
 			generated.P("    registry.add_tool(_RegisteredTool(")
@@ -158,6 +165,30 @@ func renderPythonFile(plugin *protogen.Plugin, model FileModel) error {
 	}
 
 	return nil
+}
+
+func (p pythonRenderInfo) pythonHandlerMethodTypeRefs(method MethodModel, protobufHandlerMode bool) (string, string, error) {
+	if protobufHandlerMode {
+		inputType, err := p.pythonProtobufTypeRef(method.Input)
+		if err != nil {
+			return "", "", err
+		}
+		outputType, err := p.pythonProtobufTypeRef(method.Output)
+		if err != nil {
+			return "", "", err
+		}
+		return inputType, outputType, nil
+	}
+
+	inputType, err := p.pythonPublicMethodTypeRef(method.Input)
+	if err != nil {
+		return "", "", err
+	}
+	outputType, err := p.pythonPublicMethodTypeRef(method.Output)
+	if err != nil {
+		return "", "", err
+	}
+	return inputType, outputType, nil
 }
 
 type pythonRenderInfo struct {
