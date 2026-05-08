@@ -23,14 +23,21 @@ const (
 	PythonRuntimeGrpclib        PythonRuntime = "grpclib"
 )
 
+type PythonHandler string
+
+const PythonHandlerDataclass PythonHandler = "dataclass"
+const PythonHandlerProtobuf PythonHandler = "protobuf"
+
 type Options struct {
 	Language      Language
 	PythonRuntime PythonRuntime
+	PythonHandler PythonHandler
 }
 
 type OptionsParser struct {
 	opts             Options
 	sawPythonRuntime bool
+	sawPythonHandler bool
 }
 
 func NewOptionsParser() *OptionsParser {
@@ -52,6 +59,9 @@ func (p *OptionsParser) Set(name, value string) error {
 	case "python_runtime":
 		p.opts.PythonRuntime = PythonRuntime(value)
 		p.sawPythonRuntime = true
+	case "python_handler":
+		p.opts.PythonHandler = PythonHandler(value)
+		p.sawPythonHandler = true
 	default:
 		return fmt.Errorf("unknown protoc-gen-mcp option %q", name)
 	}
@@ -65,18 +75,32 @@ func (p *OptionsParser) Options() (Options, error) {
 		if p.sawPythonRuntime {
 			return Options{}, fmt.Errorf("python_runtime is only supported when lang=python")
 		}
+		if p.sawPythonHandler {
+			return Options{}, fmt.Errorf("python_handler is only supported when lang=python")
+		}
 	case LanguageKotlin, LanguageJava, LanguageTypeScript:
 		if p.sawPythonRuntime {
 			return Options{}, fmt.Errorf("python_runtime is only supported when lang=python")
+		}
+		if p.sawPythonHandler {
+			return Options{}, fmt.Errorf("python_handler is only supported when lang=python")
 		}
 	case LanguagePython:
 		if !p.sawPythonRuntime {
 			p.opts.PythonRuntime = PythonRuntimeGoogleProtobuf
 		}
+		if !p.sawPythonHandler {
+			p.opts.PythonHandler = PythonHandlerDataclass
+		}
 		switch p.opts.PythonRuntime {
 		case PythonRuntimeGoogleProtobuf:
 		default:
 			return Options{}, fmt.Errorf("unsupported python_runtime %q", p.opts.PythonRuntime)
+		}
+		switch p.opts.PythonHandler {
+		case PythonHandlerDataclass, PythonHandlerProtobuf:
+		default:
+			return Options{}, fmt.Errorf("unsupported python_handler %q", p.opts.PythonHandler)
 		}
 	default:
 		return Options{}, fmt.Errorf("unsupported lang %q", p.opts.Language)

@@ -14,6 +14,9 @@ func TestParseOptions_DefaultLangGo(t *testing.T) {
 	if opts.PythonRuntime != "" {
 		t.Fatalf("PythonRuntime = %q, want empty", opts.PythonRuntime)
 	}
+	if opts.PythonHandler != "" {
+		t.Fatalf("PythonHandler = %q, want empty", opts.PythonHandler)
+	}
 }
 
 func TestParseOptions_JVMLanguages(t *testing.T) {
@@ -52,6 +55,9 @@ func TestParseOptions_JVMLanguages(t *testing.T) {
 			if opts.PythonRuntime != "" {
 				t.Fatalf("PythonRuntime = %q, want empty", opts.PythonRuntime)
 			}
+			if opts.PythonHandler != "" {
+				t.Fatalf("PythonHandler = %q, want empty", opts.PythonHandler)
+			}
 		})
 	}
 }
@@ -70,6 +76,20 @@ func TestParseOptions_PythonDefaultsRuntime(t *testing.T) {
 	}
 }
 
+func TestParseOptions_PythonDefaultsHandler(t *testing.T) {
+	opts, err := ParseOptions("lang=python")
+	if err != nil {
+		t.Fatalf("ParseOptions returned error: %v", err)
+	}
+
+	if opts.Language != LanguagePython {
+		t.Fatalf("Language = %q, want %q", opts.Language, LanguagePython)
+	}
+	if opts.PythonHandler != PythonHandlerDataclass {
+		t.Fatalf("PythonHandler = %q, want %q", opts.PythonHandler, PythonHandlerDataclass)
+	}
+}
+
 func TestParseOptions_PythonExplicitGoogleProtobufRuntime(t *testing.T) {
 	opts, err := ParseOptions("lang=python,python_runtime=google.protobuf")
 	if err != nil {
@@ -84,6 +104,37 @@ func TestParseOptions_PythonExplicitGoogleProtobufRuntime(t *testing.T) {
 	}
 }
 
+func TestParseOptions_PythonExplicitDataclassHandler(t *testing.T) {
+	opts, err := ParseOptions("lang=python,python_handler=dataclass")
+	if err != nil {
+		t.Fatalf("ParseOptions returned error: %v", err)
+	}
+
+	if opts.Language != LanguagePython {
+		t.Fatalf("Language = %q, want %q", opts.Language, LanguagePython)
+	}
+	if opts.PythonHandler != PythonHandlerDataclass {
+		t.Fatalf("PythonHandler = %q, want %q", opts.PythonHandler, PythonHandlerDataclass)
+	}
+}
+
+func TestParseOptions_PythonExplicitProtobufHandler(t *testing.T) {
+	opts, err := ParseOptions("lang=python,python_runtime=google.protobuf,python_handler=protobuf")
+	if err != nil {
+		t.Fatalf("ParseOptions returned error: %v", err)
+	}
+
+	if opts.Language != LanguagePython {
+		t.Fatalf("Language = %q, want %q", opts.Language, LanguagePython)
+	}
+	if opts.PythonRuntime != PythonRuntimeGoogleProtobuf {
+		t.Fatalf("PythonRuntime = %q, want %q", opts.PythonRuntime, PythonRuntimeGoogleProtobuf)
+	}
+	if opts.PythonHandler != PythonHandlerProtobuf {
+		t.Fatalf("PythonHandler = %q, want %q", opts.PythonHandler, PythonHandlerProtobuf)
+	}
+}
+
 func TestParseOptions_PythonRuntimeConstants(t *testing.T) {
 	if PythonRuntimeGoogleProtobuf != "google.protobuf" {
 		t.Fatalf("PythonRuntimeGoogleProtobuf = %q, want %q", PythonRuntimeGoogleProtobuf, "google.protobuf")
@@ -93,6 +144,15 @@ func TestParseOptions_PythonRuntimeConstants(t *testing.T) {
 	}
 	if PythonRuntimeGrpclib != "grpclib" {
 		t.Fatalf("PythonRuntimeGrpclib = %q, want %q", PythonRuntimeGrpclib, "grpclib")
+	}
+}
+
+func TestParseOptions_PythonHandlerConstants(t *testing.T) {
+	if PythonHandlerDataclass != "dataclass" {
+		t.Fatalf("PythonHandlerDataclass = %q, want %q", PythonHandlerDataclass, "dataclass")
+	}
+	if PythonHandlerProtobuf != "protobuf" {
+		t.Fatalf("PythonHandlerProtobuf = %q, want %q", PythonHandlerProtobuf, "protobuf")
 	}
 }
 
@@ -154,6 +214,52 @@ func TestParseOptions_RejectsUnsupportedPythonRuntime(t *testing.T) {
 	}
 }
 
+func TestParseOptions_PythonHandlerRejectedForNonPythonLanguages(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+	}{
+		{
+			name: "go",
+			raw:  "lang=go,python_handler=protobuf",
+		},
+		{
+			name: "kotlin",
+			raw:  "lang=kotlin,python_handler=protobuf",
+		},
+		{
+			name: "java",
+			raw:  "lang=java,python_handler=protobuf",
+		},
+		{
+			name: "typescript",
+			raw:  "lang=typescript,python_handler=protobuf",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ParseOptions(tt.raw)
+			if err == nil {
+				t.Fatal("ParseOptions succeeded, want error")
+			}
+			if got, want := err.Error(), "python_handler is only supported when lang=python"; got != want {
+				t.Fatalf("error = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
+func TestParseOptions_RejectsUnsupportedPythonHandler(t *testing.T) {
+	_, err := ParseOptions("lang=python,python_handler=raw")
+	if err == nil {
+		t.Fatal("ParseOptions succeeded, want error")
+	}
+	if got, want := err.Error(), `unsupported python_handler "raw"`; got != want {
+		t.Fatalf("error = %q, want %q", got, want)
+	}
+}
+
 func TestParseOptions_IgnoresNonMCPParams(t *testing.T) {
 	opts, err := ParseOptions("paths=source_relative,module=example.com/project,Mfoo.proto=example.com/project/foo,apilevelMbar.proto=API_OPEN,lang=python")
 	if err != nil {
@@ -165,6 +271,9 @@ func TestParseOptions_IgnoresNonMCPParams(t *testing.T) {
 	}
 	if opts.PythonRuntime != PythonRuntimeGoogleProtobuf {
 		t.Fatalf("PythonRuntime = %q, want %q", opts.PythonRuntime, PythonRuntimeGoogleProtobuf)
+	}
+	if opts.PythonHandler != PythonHandlerDataclass {
+		t.Fatalf("PythonHandler = %q, want %q", opts.PythonHandler, PythonHandlerDataclass)
 	}
 }
 
@@ -197,6 +306,9 @@ func TestOptionsParserSet_IgnoresProtogenManagedParams(t *testing.T) {
 	}
 	if opts.PythonRuntime != "" {
 		t.Fatalf("PythonRuntime = %q, want empty", opts.PythonRuntime)
+	}
+	if opts.PythonHandler != "" {
+		t.Fatalf("PythonHandler = %q, want empty", opts.PythonHandler)
 	}
 }
 
