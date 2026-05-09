@@ -368,3 +368,99 @@ async def main():
 asyncio.run(main())
 `)
 }
+
+func TestPythonProtobufRuntime_RejectsInvalidOutput(t *testing.T) {
+	runExamplePythonProtobufScript(t, `
+import asyncio
+
+class DummyServer:
+    pass
+
+registry = module._ServerToolRegistry(DummyServer())
+
+def handler(_ctx, req):
+    return example_pb2.CreateReportResponse(
+        report_id="report-1",
+        total_count=req.count,
+        status=123,
+        details=req.details,
+        warnings=[],
+    )
+
+registry.add_tool(module._RegisteredTool(
+    name="example_CreateReport",
+    title="Create report",
+    description="Create a report for a city.",
+    input_schema_json=module.EXAMPLE_API_CREATE_REPORT_INPUT_SCHEMA_JSON,
+    output_schema_json=module.EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON,
+    request_type=example_pb2.CreateReportRequest,
+    response_type=example_pb2.CreateReportResponse,
+    from_pb=module._identity,
+    to_pb=module._identity,
+    handler=handler,
+    annotations=None,
+    icons=None,
+))
+
+try:
+    asyncio.run(module._dispatch_call(
+        registry,
+        "example_CreateReport",
+        {
+            "city": "Paris",
+            "count": 2,
+            "details": {"label": "today"},
+        },
+        None,
+    ))
+except RuntimeError as exc:
+    assert "mcpruntime: validate output for tool 'example_CreateReport'" in str(exc)
+else:
+    raise AssertionError("expected RuntimeError for unknown enum output")
+`)
+}
+
+func TestPythonProtobufRuntime_WrapsOutputMarshalFailures(t *testing.T) {
+	runExamplePythonProtobufScript(t, `
+import asyncio
+
+class DummyServer:
+    pass
+
+registry = module._ServerToolRegistry(DummyServer())
+
+async def handler(_ctx, _req):
+    return object()
+
+registry.add_tool(module._RegisteredTool(
+    name="example_CreateReport",
+    title="Create report",
+    description="Create a report for a city.",
+    input_schema_json=module.EXAMPLE_API_CREATE_REPORT_INPUT_SCHEMA_JSON,
+    output_schema_json=module.EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON,
+    request_type=example_pb2.CreateReportRequest,
+    response_type=example_pb2.CreateReportResponse,
+    from_pb=module._identity,
+    to_pb=module._identity,
+    handler=handler,
+    annotations=None,
+    icons=None,
+))
+
+try:
+    asyncio.run(module._dispatch_call(
+        registry,
+        "example_CreateReport",
+        {
+            "city": "Paris",
+            "count": 2,
+            "details": {"label": "today"},
+        },
+        None,
+    ))
+except RuntimeError as exc:
+    assert "mcpruntime: marshal output for tool 'example_CreateReport'" in str(exc)
+else:
+    raise AssertionError("expected RuntimeError for output marshal failure")
+`)
+}
