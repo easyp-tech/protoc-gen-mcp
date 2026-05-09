@@ -248,3 +248,123 @@ assert result.structuredContent["warnings"] == ["protobuf"]
 assert json.loads(result.content[0].text) == result.structuredContent
 `)
 }
+
+func TestPythonProtobufRuntime_InvalidSchemaPayloadRaisesInvalidParams(t *testing.T) {
+	runExamplePythonProtobufScript(t, `
+import asyncio
+import mcp.shared.exceptions
+import mcp.types
+
+class DummyServer:
+    pass
+
+registry = module._ServerToolRegistry(DummyServer())
+
+def handler(_ctx, _req):
+    raise AssertionError("handler must not run for schema-invalid input")
+
+registry.add_tool(module._RegisteredTool(
+    name="example_CreateReport",
+    title="Create report",
+    description="Create a report for a city.",
+    input_schema_json=module.EXAMPLE_API_CREATE_REPORT_INPUT_SCHEMA_JSON,
+    output_schema_json=module.EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON,
+    request_type=example_pb2.CreateReportRequest,
+    response_type=example_pb2.CreateReportResponse,
+    from_pb=module._identity,
+    to_pb=module._identity,
+    handler=handler,
+    annotations=None,
+    icons=None,
+))
+
+async def main():
+    try:
+        await module._dispatch_call(
+            registry,
+            "example_CreateReport",
+            {
+                "city": "Paris",
+                "count": "two",
+                "details": {"label": "today"},
+            },
+            None,
+        )
+    except mcp.shared.exceptions.McpError as exc:
+        assert exc.error.code == mcp.types.INVALID_PARAMS
+        assert "example_CreateReport" in exc.error.message
+        assert "invalid arguments for tool" in exc.error.message
+    else:
+        raise AssertionError("expected McpError for schema validation failure")
+
+asyncio.run(main())
+`)
+}
+
+func TestPythonProtobufRuntime_InvalidProtoJSONPayloadRaisesInvalidParams(t *testing.T) {
+	runExamplePythonProtobufScript(t, `
+import asyncio
+import mcp.shared.exceptions
+import mcp.types
+
+class DummyServer:
+    pass
+
+registry = module._ServerToolRegistry(DummyServer())
+
+def handler(_ctx, _req):
+    raise AssertionError("handler must not run for protojson-invalid input")
+
+registry.add_tool(module._RegisteredTool(
+    name="example_DescribeScalarShapes",
+    title="Describe scalar shapes",
+    description="Describe scalar protobuf kinds.",
+    input_schema_json=module.EXAMPLE_API_DESCRIBE_SCALAR_SHAPES_INPUT_SCHEMA_JSON,
+    output_schema_json=module.EXAMPLE_API_DESCRIBE_SCALAR_SHAPES_OUTPUT_SCHEMA_JSON,
+    request_type=example_pb2.DescribeScalarShapesRequest,
+    response_type=example_pb2.DescribeScalarShapesResponse,
+    from_pb=module._identity,
+    to_pb=module._identity,
+    handler=handler,
+    annotations=None,
+    icons=None,
+))
+
+invalid_arguments = {
+    "boolFlag": True,
+    "textValue": "hello",
+    "bytesValue": "YWJj",
+    "int32Value": -1,
+    "sint32Value": -2,
+    "sfixed32Value": -3,
+    "uint32Value": 7,
+    "fixed32Value": 8,
+    "int64Value": "-9",
+    "sint64Value": "-10",
+    "sfixed64Value": "-11",
+    "uint64Value": "12",
+    "fixed64Value": "not-an-int",
+    "floatValue": 1.25,
+    "doubleValue": 2.5,
+    "status": "REPORT_STATUS_OK",
+    "details": {"label": "shape"},
+}
+
+async def main():
+    try:
+        await module._dispatch_call(
+            registry,
+            "example_DescribeScalarShapes",
+            invalid_arguments,
+            None,
+        )
+    except mcp.shared.exceptions.McpError as exc:
+        assert exc.error.code == mcp.types.INVALID_PARAMS
+        assert "example_DescribeScalarShapes" in exc.error.message
+        assert "invalid arguments for tool" in exc.error.message
+    else:
+        raise AssertionError("expected McpError for protojson parse failure")
+
+asyncio.run(main())
+`)
+}
