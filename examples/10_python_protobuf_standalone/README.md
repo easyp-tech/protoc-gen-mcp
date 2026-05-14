@@ -26,9 +26,11 @@ python_runtime: google.protobuf
 python_handler: dataclass+protobuf
 ```
 
-`python_handler: protobuf` remains available for protobuf-only projects and
-writes the raw handler sidecar to `proto/tasks_mcp.py`. This example uses
-`python_handler: dataclass+protobuf` to demonstrate simultaneous generation.
+For protobuf-only projects, `python_handler: protobuf` still writes the raw
+handler sidecar to the normal `proto/tasks_mcp.py` path for backward
+compatibility. This example uses `python_handler: dataclass+protobuf`, so the
+dataclass sidecar uses `proto/tasks_mcp.py` and the raw protobuf sidecar uses
+`proto/tasks_mcp_pb.py`.
 
 That generates:
 
