@@ -640,3 +640,46 @@ else:
     raise AssertionError("expected duplicate registration to fail")
 `)
 }
+
+func TestPythonProtobufRuntime_NamespaceAndMetadataParity(t *testing.T) {
+	runExamplePythonProtobufScript(t, `
+expected_icons = [{
+    "src": "https://example.com/method.png",
+    "mimeType": "image/png",
+    "sizes": ["32x32"],
+    "theme": "dark",
+}]
+
+tool = module._build_tool(module._RegisteredTool(
+    name="raw_pb_CreateReport",
+    title="Create report",
+    description="Create a report for a city.",
+    input_schema_json=module.EXAMPLE_API_CREATE_REPORT_INPUT_SCHEMA_JSON,
+    output_schema_json=module.EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON,
+    request_type=example_pb2.CreateReportRequest,
+    response_type=example_pb2.CreateReportResponse,
+    from_pb=module._identity,
+    to_pb=module._identity,
+    handler=lambda _ctx, _req: example_pb2.CreateReportResponse(),
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+        "openWorldHint": False,
+    },
+    icons=expected_icons,
+    execution={"taskSupport": "required"},
+))
+
+assert tool.name == "raw_pb_CreateReport"
+annotations = tool.annotations.model_dump(by_alias=True, exclude_none=True)
+assert annotations["readOnlyHint"] is True
+assert annotations["destructiveHint"] is False
+assert annotations["idempotentHint"] is True
+assert annotations["openWorldHint"] is False
+icons = [icon.model_dump(by_alias=True, exclude_none=True) for icon in tool.icons]
+assert icons == expected_icons
+execution = tool.execution.model_dump(by_alias=True, exclude_none=True)
+assert execution["taskSupport"] == "required"
+`)
+}

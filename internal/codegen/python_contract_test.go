@@ -121,6 +121,71 @@ func TestPythonRenderer_EmitsProtobufHandlerPublicAPI(t *testing.T) {
 	}
 }
 
+func TestPythonProtobufRenderer_ProjectsMetadataInProtobufMode(t *testing.T) {
+	plugin := newTempProtogenPlugin(t, map[string]string{
+		"test/v1/metadata.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.v1;`,
+			`import "mcp/options/v1/options.proto";`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/metadata;metadatav1";`,
+			`message MetadataRequest {}`,
+			`message MetadataResponse {}`,
+			`service MetadataAPI {`,
+			`  rpc ReadThing(MetadataRequest) returns (MetadataResponse) {`,
+			`    option (mcp.options.v1.method) = {`,
+			`      annotations: {`,
+			`        read_only_hint: true`,
+			`        destructive_hint: false`,
+			`        idempotent_hint: true`,
+			`        open_world_hint: false`,
+			`      }`,
+			`      icons: [{`,
+			`        src: "https://example.com/method.png"`,
+			`        mime_type: "image/png"`,
+			`        sizes: "32x32"`,
+			`        theme: "dark"`,
+			`      }]`,
+			`      execution: { task_support: TASK_SUPPORT_REQUIRED }`,
+			`    };`,
+			`  }`,
+			`}`,
+			``,
+		}, "\n"),
+	}, "test/v1/metadata.proto")
+
+	file := plugin.FilesByPath["test/v1/metadata.proto"]
+	if file == nil {
+		t.Fatal("metadata proto file not found in plugin")
+	}
+
+	model, err := CollectFileModel(file, Options{
+		Language:      LanguagePython,
+		PythonRuntime: PythonRuntimeGoogleProtobuf,
+		PythonHandler: PythonHandlerProtobuf,
+	})
+	if err != nil {
+		t.Fatalf("CollectFileModel: %v", err)
+	}
+	if err := renderPythonFile(plugin, model); err != nil {
+		t.Fatalf("renderPythonFile: %v", err)
+	}
+
+	generated := string(generatedFileContent(t, plugin, "test/v1/metadata_mcp.py"))
+	wantSnippets := []string{
+		"def read_thing(self, ctx: ToolRequestContext, req: metadata_pb2.MetadataRequest) -> metadata_pb2.MetadataResponse | Awaitable[metadata_pb2.MetadataResponse]:",
+		"from_pb=_identity,",
+		"to_pb=_identity,",
+		`annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}`,
+		`icons=[{"src": "https://example.com/method.png", "mimeType": "image/png", "sizes": ["32x32"], "theme": "dark"}]`,
+		`execution={"taskSupport": "required"}`,
+	}
+	for _, snippet := range wantSnippets {
+		if !strings.Contains(generated, snippet) {
+			t.Fatalf("generated python missing protobuf metadata snippet %q\n%s", snippet, generated)
+		}
+	}
+}
+
 func TestPythonAndGoRenderersShareContractModel(t *testing.T) {
 	plugin := newExampleProtogenPlugin(t)
 	file := plugin.FilesByPath["internal/testproto/example/v1/example.proto"]
