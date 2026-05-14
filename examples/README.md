@@ -26,9 +26,9 @@ Python, Kotlin, Java, TypeScript, and JavaScript SDK paths.
    through the `deps` entry in `examples/easyp.yaml` and pinned by
    `examples/easyp.lock`, so the examples do not depend on the local
    repository-root options package during generation.
-   `5_python_standalone`, `6_java_standalone`, `7_kotlin_standalone`, and
-   `8_typescript_standalone` each have their own `easyp.yaml` and lockfile to
-   model user-owned projects.
+   `5_python_standalone`, `10_python_protobuf_standalone`,
+   `6_java_standalone`, `7_kotlin_standalone`, and `8_typescript_standalone`
+   each have their own `easyp.yaml` and lockfile to model user-owned projects.
 2. Run any of the Go servers (e.g. `1_helloworld`):
    ```bash
    cd examples/1_helloworld
@@ -45,7 +45,13 @@ Python, Kotlin, Java, TypeScript, and JavaScript SDK paths.
    make setup
    make run
    ```
-5. Build or run the standalone JVM projects:
+5. Run the raw protobuf Python standalone project:
+   ```bash
+   cd examples/10_python_protobuf_standalone
+   make setup
+   make run
+   ```
+6. Build or run the standalone JVM projects:
    ```bash
    cd examples/6_java_standalone
    make build
@@ -53,17 +59,17 @@ Python, Kotlin, Java, TypeScript, and JavaScript SDK paths.
    cd ../7_kotlin_standalone
    make build
    ```
-6. Run the Java/Kotlin workspace:
+7. Run the Java/Kotlin workspace:
    Follow [`examples/jvm/README.md`](./jvm/README.md) for the tested
    `compileJava` / `compileKotlin`, `installDist`, and installed-script stdio
    flow.
-7. Build or run the standalone TypeScript project:
+8. Build or run the standalone TypeScript project:
    ```bash
    cd examples/8_typescript_standalone
    make build
    make run
    ```
-8. Build or run the standalone JavaScript consumption proof:
+9. Build or run the standalone JavaScript consumption proof:
    ```bash
    cd examples/9_javascript_standalone
    make build
@@ -109,6 +115,18 @@ protobuf contract, generated bindings, and stdio server.
 - **Independent environment**: `make setup` creates a local `.venv` and installs the official Python MCP SDK plus protobuf/jsonschema dependencies.
 - **No import hacks**: `server.py` imports generated code with `from proto import notebook_mcp` and does not edit `sys.path`.
 - **Python-only proto**: the user-authored proto does not need `go_package`; `protoc-gen-mcp` synthesizes internal metadata for Python generation.
+- **Default dataclass mode**: handlers implement generated dataclasses from
+  `notebook_mcp.py`; use the raw protobuf example when existing code should
+  keep `*_pb2` request/response classes.
+
+### [10_python_protobuf_standalone](./10_python_protobuf_standalone) (Python Raw Protobuf Handler User Project)
+A pure Python MCP server example that opts into `python_handler: protobuf`.
+- **Raw `*_pb2` handlers**: the server imports `from proto import tasks_mcp, tasks_pb2` and implements `TaskAPIToolHandler` with `tasks_pb2.*` request/response classes.
+- **Same generated registration**: `server.py` still registers tools through
+  `tasks_mcp.register_task_api_tools(server, TaskStore())`.
+- **Generator-owned contract**: schemas, ProtoJSON parsing, validation,
+  annotations, structured output, and stdio behavior remain in the generated
+  `tasks_mcp.py` sidecar.
 
 ### [6_java_standalone](./6_java_standalone) (Java User Project)
 A standalone Java MCP server with its own Gradle build, `easyp.yaml`, protobuf

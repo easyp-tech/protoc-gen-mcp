@@ -53,6 +53,15 @@ The server exposes:
 Handlers implement generated dataclasses from `proto/notebook_mcp.py`. Raw
 `*_pb2.py` classes stay internal to the generated runtime.
 
+## Handler Mode
+
+This example uses the default dataclass mode. Keep this mode when you want
+handler-facing `UNSET`, explicit `oneof` wrappers, and generated mapper helpers
+from `*_mcp.py`. If an existing server already works directly with raw `*_pb2`
+classes, use
+[`../10_python_protobuf_standalone`](../10_python_protobuf_standalone/) and
+set `python_handler: protobuf` instead.
+
 If you inspect this server in `@modelcontextprotocol/inspector`, note that the
 server forwards tool annotations exactly as declared in `proto/notebook.proto`.
 Inspector may render omitted hints like `destructiveHint` using its own

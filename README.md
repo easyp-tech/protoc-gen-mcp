@@ -15,8 +15,9 @@ TypeScript output and declarations.
 - Java runtime targets the official `io.modelcontextprotocol.sdk:mcp` SDK
 - TypeScript runtime targets the official `@modelcontextprotocol/sdk` SDK,
   Protobuf-ES, and Ajv-backed raw JSON Schema validation
-- generated Python handlers use dataclasses and explicit `oneof` wrapper types
-  from `*_mcp.py`; `*_pb2.py` stays an internal runtime dependency
+- generated Python handlers default to dataclasses and explicit `oneof`
+  wrapper types from `*_mcp.py`; `python_handler=protobuf` opts into raw
+  `*_pb2` handler request/response classes with the same registration helper
 - generated Kotlin handlers implement `<Service>ToolHandler` and are registered
   through `register<Service>Tools(server: Server, impl: <Service>ToolHandler, namespace: String? = null)`
 - generated Java handlers implement nested `<Service>ToolHandler` interfaces
@@ -43,8 +44,10 @@ gradle --no-daemon -p examples/jvm :java-server:compileJava :kotlin-server:compi
 gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist
 go test ./internal/examplemcp -run 'Test(Java|Kotlin).*OverStdio' -count=1
 (cd examples/node/sdk-spike && npm ci && npm run typecheck && npm run build)
+(cd examples/10_python_protobuf_standalone && make lint && make clean generate)
 (cd examples/8_typescript_standalone && make lint && make clean build)
 (cd examples/9_javascript_standalone && make clean build)
+go test ./examples -run 'TestStandalonePython(Protobuf)?ExampleOverStdio' -count=1
 go test ./examples -run 'TestStandalone(TypeScript|JavaScript)ExampleOverStdio' -count=1
 go test ./...
 goreleaser check
@@ -61,7 +64,7 @@ CI is implemented in [tests.yml](.github/workflows/tests.yml)
 and runs config validation, Easyp lint, Easyp generation, a generated-file
 freshness check, JVM compile/install gates, JVM stdio parity checks, Node
 compile/build gates, generated Node stdio checks through `go test ./...`, and
-standalone Node example tests. Releases are implemented in
+standalone Python/Node example tests. Releases are implemented in
 [release.yml](.github/workflows/release.yml)
 and use [`.goreleaser.yaml`](.goreleaser.yaml)
 to publish tagged builds of the `protoc-gen-mcp` binary. This repository does
@@ -165,6 +168,14 @@ For the Python example server:
 npx -y @modelcontextprotocol/inspector python ./cmd/example-python-mcp-server/main.py
 ```
 
+For the standalone raw protobuf Python example, create the example virtualenv
+first and then point the Inspector at the local server:
+
+```bash
+(cd examples/10_python_protobuf_standalone && make setup)
+(cd examples/10_python_protobuf_standalone && npx -y @modelcontextprotocol/inspector .venv/bin/python server.py)
+```
+
 For installed JVM examples, build the scripts first and then point the
 Inspector at the installed application:
 
@@ -203,6 +214,7 @@ out the
 - [3_file_manager](examples/3_file_manager/) - Destructive tools and schema-based string parameter constraints.
 - [4_crm_system](examples/4_crm_system/) - A full mock system with FieldMask partial updates, custom icons mapping, schemas nested types, and advanced array filters.
 - [5_python_standalone](examples/5_python_standalone/) - A Python-only user-style project with its own `pyproject.toml`, `easyp.yaml`, generated bindings, and stdio server.
+- [10_python_protobuf_standalone](examples/10_python_protobuf_standalone/) - A Python-only user-style project that opts into `python_handler=protobuf` and implements handlers with raw `*_pb2` classes.
 - [6_java_standalone](examples/6_java_standalone/) - A Java user-style project with its own Gradle build, `easyp.yaml`, protobuf contract, and generated MCP sidecar.
 - [7_kotlin_standalone](examples/7_kotlin_standalone/) - A Kotlin user-style project with its own Gradle build, `easyp.yaml`, protobuf contract, and generated MCP sidecar.
 - [8_typescript_standalone](examples/8_typescript_standalone/) - A TypeScript user-style project with its own npm package, `tsconfig.json`, `easyp.yaml`, Protobuf-ES output, generated MCP sidecar, and stdio server.
@@ -273,6 +285,9 @@ generate:
         paths: source_relative
         lang: python
         python_runtime: google.protobuf
+        # Optional: use raw *_pb2 handler request/response classes instead of
+        # the default generated dataclass API.
+        # python_handler: protobuf
     - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@latest"]
       out: .
       opts:
@@ -307,12 +322,14 @@ easyp --cfg easyp.yaml generate -p mcp -r .
 That generates language-specific protobuf output plus MCP sidecars such as
 `*.pb.go`, `*_pb2.py`, `*.mcp.go`, `*_mcp.py`, Protobuf-ES `_pb.ts`, and
 TypeScript `*_mcp.ts` files. The Python target currently supports only
-`python_runtime=google.protobuf`. Generated Python output also emits a small
-`mcp/__init__.py` bridge so `mcp.options.*` protobuf modules can coexist with
-the official `mcp` SDK package in one import tree. No special Easyp override is
-required for `mcp.options.v1`, because the package declares `go_package`
-directly in `options.proto`. For reproducible builds, prefer pinning a specific
-tag instead of `@latest`.
+`python_runtime=google.protobuf`; handler mode defaults to
+`python_handler=dataclass`, and `python_handler=protobuf` opts into raw
+`*_pb2` handlers. Generated Python output also emits a small `mcp/__init__.py`
+bridge so `mcp.options.*` protobuf modules can coexist with the official `mcp`
+SDK package in one import tree. No special Easyp override is required for
+`mcp.options.v1`, because the package declares `go_package` directly in
+`options.proto`. For reproducible builds, prefer pinning a specific tag instead
+of `@latest`.
 
 For JVM consumers, the language selectors are `lang=java` and `lang=kotlin`.
 The Java path generates a Java sidecar alongside protobuf Java output. The
@@ -346,13 +363,41 @@ For Python-only projects, omit the Go plugins and keep only the standard
 protos do not need a `go_package` option just to satisfy the generator; the
 plugin synthesizes internal Go package metadata before building the descriptor
 model. See [examples/5_python_standalone](examples/5_python_standalone/) for a
-complete Python-only project with its own virtualenv setup.
+complete default dataclass-mode Python project with its own virtualenv setup.
 
-When you generate Python handlers, implement against the dataclasses from
-`*_mcp.py`, not the raw protobuf classes from `*_pb2.py`. The generated Python
-runtime maps MCP JSON -> ProtoJSON -> `pb2` -> dataclasses before calling your
-handler, then maps your dataclass response back through protobuf serialization
-and output-schema validation.
+The default Python handler mode is `python_handler=dataclass`: implement
+against the dataclasses from `*_mcp.py`, not raw protobuf classes from
+`*_pb2.py`. The generated Python runtime maps MCP JSON -> ProtoJSON -> `pb2` ->
+dataclasses before calling your handler, then maps your dataclass response back
+through protobuf serialization and output-schema validation.
+
+If you already have server logic written against standard protobuf classes, add
+`python_handler: protobuf` to the Python MCP plugin options. In that mode the
+same generated registration helper accepts handlers typed with raw `*_pb2`
+messages, while schemas, ProtoJSON parsing, validation, annotations, and
+structured output stay generator-owned:
+
+```python
+import mcp.server.lowlevel
+from proto import tasks_mcp, tasks_pb2
+
+
+class TaskStore(tasks_mcp.TaskAPIToolHandler):
+    def create_task(
+        self,
+        _ctx: tasks_mcp.ToolRequestContext,
+        req: tasks_pb2.CreateTaskRequest,
+    ) -> tasks_pb2.CreateTaskResponse:
+        ...
+
+
+server = mcp.server.lowlevel.Server("tasks-server")
+tasks_mcp.register_task_api_tools(server, TaskStore())
+```
+
+See
+[examples/10_python_protobuf_standalone](examples/10_python_protobuf_standalone/)
+for the raw `*_pb2` standalone layout.
 
 For optional fields and `oneof` groups, the handler-facing absence sentinel is
 `UNSET`, not `None`. JSON `null` for a schema-optional field is mapped to

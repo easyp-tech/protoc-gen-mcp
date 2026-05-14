@@ -45,9 +45,10 @@ architecture unless explicitly revised.
 - `examples`: standalone Go/Python/JVM integration projects; example
   directories use numeric underscore prefixes such as `1_helloworld`,
   `4_crm_system`, `5_python_standalone`, `6_java_standalone`, and
-  `7_kotlin_standalone`, `8_typescript_standalone`, and
-  `9_javascript_standalone`, plus the dedicated JVM workspace `examples/jvm`
-  and Node spike workspace `examples/node/sdk-spike`
+  `7_kotlin_standalone`, `8_typescript_standalone`,
+  `9_javascript_standalone`, and `10_python_protobuf_standalone`, plus the
+  dedicated JVM workspace `examples/jvm` and Node spike workspace
+  `examples/node/sdk-spike`
 - `examples/node/sdk-spike`: pinned local Node package scope for TypeScript
   SDK, Protobuf-ES, Ajv, package-lock-backed `npm ci`, and strict NodeNext
   compile checks
@@ -58,6 +59,10 @@ architecture unless explicitly revised.
 - `examples/5_python_standalone`: Python-only user-style example with its own
   `pyproject.toml`, `easyp.yaml`, generated `proto`/`mcp` packages, and stdio
   server
+- `examples/10_python_protobuf_standalone`: Python-only user-style example
+  with its own `pyproject.toml`, `easyp.yaml`, generated `proto`/`mcp`
+  packages, opt-in `python_handler=protobuf` sidecar, raw `*_pb2` handlers,
+  and stdio server
 - `examples/6_java_standalone`: Java user-style standalone project with its
   own Gradle build, `easyp.yaml`, protobuf contract, generated Java protobuf
   classes, generated `lang=java` MCP sidecar, and handwritten stdio server
@@ -175,7 +180,8 @@ architecture unless explicitly revised.
   handler protocols using generated public dataclass types from `*_mcp.py`
 - Generated Python modules also support opt-in `python_handler=protobuf`,
   where handler protocols accept and return raw generated `*_pb2` message
-  classes and generated dataclass public types/mapper helpers are omitted
+  classes, generated dataclass public types/mapper helpers are omitted, and
+  registration remains `register_<service_name>_tools(server, impl, *, namespace=None)`
 - Generated Kotlin files expose `<Service>ToolHandler`
 - Generated Kotlin files expose
   `register<Service>Tools(server: Server, impl: <Service>ToolHandler, namespace: String? = null)`
@@ -274,6 +280,11 @@ architecture unless explicitly revised.
     its own `pyproject.toml`, `easyp.yaml`, generated package `__init__.py`
     files, generated local `mcp.options.*` modules, and `server.py` without
     `sys.path` bootstrap code
+  - `examples/10_python_protobuf_standalone` models an external Python-only
+    raw `*_pb2` handler project with its own `pyproject.toml`, `easyp.yaml`,
+    generated package `__init__.py` files, generated local `mcp.options.*`
+    modules, opt-in `python_handler=protobuf` sidecar, and checked-in stdio
+    server
   - standalone examples use `examples/easyp.yaml` `deps` plus
     `examples/easyp.lock` to resolve `mcp/options/v1/options.proto` from
     `github.com/easyp-tech/protoc-gen-mcp` instead of depending on the local
@@ -290,7 +301,7 @@ architecture unless explicitly revised.
     current-file types actually referenced by other generated files, so
     cross-file imports work without forcing unrelated hidden-only types into
     the public API surface
-  - dedicated `examples/` directory featuring 9 standalone integration
+  - dedicated `examples/` directory featuring 10 standalone integration
     projects spanning quickstarts to complex CRM mocks and pure Python, Java,
     Kotlin, TypeScript, and JavaScript user-style projects
   - support for `oneof` explicit requiredness through `mcp.options.v1.oneof` options
@@ -392,6 +403,8 @@ architecture unless explicitly revised.
   for the standalone TypeScript user-project generation and compile flow
 - `cd examples/9_javascript_standalone && make clean build`
   for JavaScript consumption of compiled TypeScript target output
+- `cd examples/10_python_protobuf_standalone && make lint && make clean generate`
+  for the raw protobuf Python standalone user-project generation flow
 - `go test ./examples -run 'TestStandalone(TypeScript|JavaScript)ExampleOverStdio' -count=1`
   for standalone Node stdio parity
 - `go test ./...`
@@ -406,6 +419,8 @@ architecture unless explicitly revised.
     `go test ./examples -run TestPythonExamplesOverStdio -count=1`
   - Python stdio integration coverage for the Python-only standalone example:
     `go test ./examples -run TestStandalonePythonExampleOverStdio -count=1`
+  - Python stdio integration coverage for the raw protobuf standalone example:
+    `go test ./examples -run TestStandalonePythonProtobufExampleOverStdio -count=1`
   - `internal/codegen` tests build descriptor requests in-process through
     `protocompile`, so `go test ./...` no longer depends on `protoc` being in
     `PATH`
@@ -443,7 +458,7 @@ architecture unless explicitly revised.
 - Keep `mcp/options/v1/options.proto` as the source of truth for the
   options package `go_package`; do not reintroduce a special Easyp override
   unless the package layout changes again
-- Planning docs are local-only in this repository and should not be committed
+- planning docs are local-only in this repository and should not be committed
   unless the user explicitly changes that policy.
 
 ## Commands
@@ -474,6 +489,9 @@ architecture unless explicitly revised.
   - `gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist`
 - Run Python-only standalone example:
   - `cd examples/5_python_standalone && make setup && make run`
+- Run raw protobuf Python standalone example:
+  - `cd examples/10_python_protobuf_standalone && make setup && make run`
+  - `cd examples/10_python_protobuf_standalone && make lint && make clean generate`
 - Build standalone Java example:
   - `cd examples/6_java_standalone && make build`
 - Build standalone Kotlin example:

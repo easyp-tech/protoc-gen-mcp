@@ -2,7 +2,8 @@
 
 This example is structured like a user-owned Python project and opts into
 `python_handler: protobuf`. Generated handlers receive and return raw
-`tasks_pb2.*` message classes instead of generated dataclasses.
+`*_pb2` message classes, represented here by `tasks_pb2.*`, instead of
+generated dataclasses.
 
 Use this layout when you already have Python server code written against
 standard `google.protobuf` generated classes. If you want the default
