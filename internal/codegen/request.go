@@ -9,13 +9,13 @@ import (
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
-const pythonSyntheticGoPackageName = "mcppython"
+const syntheticGoPackageName = "mcpgenerated"
 
 // PrepareRequestForProtogen adjusts the raw protoc request before protogen
-// validates Go-specific metadata. Python generation does not use Go import
-// paths, but protogen still requires them to build its descriptor model.
+// validates Go-specific metadata. Python, JVM, and TypeScript generation do not use Go
+// import paths, but protogen still requires them to build its descriptor model.
 func PrepareRequestForProtogen(req *pluginpb.CodeGeneratorRequest, opts Options) {
-	if req == nil || opts.Language != LanguagePython {
+	if req == nil || !requiresSyntheticGoPackage(opts.Language) {
 		return
 	}
 
@@ -26,18 +26,27 @@ func PrepareRequestForProtogen(req *pluginpb.CodeGeneratorRequest, opts Options)
 		if file.Options == nil {
 			file.Options = &descriptorpb.FileOptions{}
 		}
-		file.Options.GoPackage = proto.String(syntheticPythonGoPackage(file))
+		file.Options.GoPackage = proto.String(syntheticGoPackage(file, opts.Language))
 	}
 }
 
-func syntheticPythonGoPackage(file *descriptorpb.FileDescriptorProto) string {
+func requiresSyntheticGoPackage(language Language) bool {
+	switch language {
+	case LanguagePython, LanguageKotlin, LanguageJava, LanguageTypeScript:
+		return true
+	default:
+		return false
+	}
+}
+
+func syntheticGoPackage(file *descriptorpb.FileDescriptorProto, language Language) string {
 	name := strings.TrimSuffix(file.GetName(), ".proto")
 	name = strings.Trim(path.Clean(name), "/.")
 	if name == "" {
 		name = "unknown"
 	}
 
-	return "protoc-gen-mcp.local/python/" + sanitizeSyntheticGoImportPath(name) + ";" + pythonSyntheticGoPackageName
+	return "protoc-gen-mcp.local/" + string(language) + "/" + sanitizeSyntheticGoImportPath(name) + ";" + syntheticGoPackageName
 }
 
 func sanitizeSyntheticGoImportPath(value string) string {

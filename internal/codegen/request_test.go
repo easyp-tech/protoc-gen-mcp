@@ -31,6 +31,32 @@ func TestPrepareRequestForProtogen_SynthesizesGoPackageForPython(t *testing.T) {
 	}
 }
 
+func TestPrepareRequestForProtogen_SynthesizesGoPackageForNonGoTargets(t *testing.T) {
+	for _, language := range []Language{LanguageKotlin, LanguageJava, LanguageTypeScript} {
+		t.Run(string(language), func(t *testing.T) {
+			req := &pluginpb.CodeGeneratorRequest{
+				ProtoFile: []*descriptorpb.FileDescriptorProto{
+					{
+						Name:    proto.String("proto/notebook.proto"),
+						Package: proto.String("notebook.v1"),
+						Options: &descriptorpb.FileOptions{},
+					},
+				},
+			}
+
+			PrepareRequestForProtogen(req, Options{Language: language})
+
+			got := req.ProtoFile[0].GetOptions().GetGoPackage()
+			if got == "" {
+				t.Fatal("GoPackage was not synthesized")
+			}
+			if got == "notebook.v1" {
+				t.Fatalf("GoPackage = %q, want an import path with explicit package suffix", got)
+			}
+		})
+	}
+}
+
 func TestPrepareRequestForProtogen_DoesNotSynthesizeGoPackageForGo(t *testing.T) {
 	req := &pluginpb.CodeGeneratorRequest{
 		ProtoFile: []*descriptorpb.FileDescriptorProto{
@@ -69,31 +95,35 @@ func TestPrepareRequestForProtogen_PreservesExplicitGoPackage(t *testing.T) {
 	}
 }
 
-func TestPrepareRequestForProtogen_AllowsPythonProtogenNewWithoutGoPackage(t *testing.T) {
-	req := &pluginpb.CodeGeneratorRequest{
-		Parameter:      proto.String("paths=source_relative,lang=python"),
-		FileToGenerate: []string{"proto/notebook.proto"},
-		ProtoFile: []*descriptorpb.FileDescriptorProto{
-			{
-				Name:    proto.String("proto/notebook.proto"),
-				Package: proto.String("notebook.v1"),
-				Syntax:  proto.String("proto3"),
-				Options: &descriptorpb.FileOptions{},
-			},
-		},
-	}
-	opts, err := ParseOptions(req.GetParameter())
-	if err != nil {
-		t.Fatalf("ParseOptions: %v", err)
-	}
-	PrepareRequestForProtogen(req, opts)
+func TestPrepareRequestForProtogen_AllowsNonGoProtogenNewWithoutGoPackage(t *testing.T) {
+	for _, language := range []Language{LanguagePython, LanguageKotlin, LanguageJava, LanguageTypeScript} {
+		t.Run(string(language), func(t *testing.T) {
+			req := &pluginpb.CodeGeneratorRequest{
+				Parameter:      proto.String("paths=source_relative,lang=" + string(language)),
+				FileToGenerate: []string{"proto/notebook.proto"},
+				ProtoFile: []*descriptorpb.FileDescriptorProto{
+					{
+						Name:    proto.String("proto/notebook.proto"),
+						Package: proto.String("notebook.v1"),
+						Syntax:  proto.String("proto3"),
+						Options: &descriptorpb.FileOptions{},
+					},
+				},
+			}
+			opts, err := ParseOptions(req.GetParameter())
+			if err != nil {
+				t.Fatalf("ParseOptions: %v", err)
+			}
+			PrepareRequestForProtogen(req, opts)
 
-	parser := NewOptionsParser()
-	plugin, err := (protogen.Options{ParamFunc: parser.Set}).New(req)
-	if err != nil {
-		t.Fatalf("protogen.Options.New() failed after Python request preparation: %v", err)
-	}
-	if got := plugin.FilesByPath["proto/notebook.proto"].GoImportPath; got == "" {
-		t.Fatal("GoImportPath is empty after request preparation")
+			parser := NewOptionsParser()
+			plugin, err := (protogen.Options{ParamFunc: parser.Set}).New(req)
+			if err != nil {
+				t.Fatalf("protogen.Options.New() failed after %s request preparation: %v", language, err)
+			}
+			if got := plugin.FilesByPath["proto/notebook.proto"].GoImportPath; got == "" {
+				t.Fatal("GoImportPath is empty after request preparation")
+			}
+		})
 	}
 }

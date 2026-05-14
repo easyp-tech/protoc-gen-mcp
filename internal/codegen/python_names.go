@@ -19,6 +19,17 @@ func pythonOutputPath(file *protogen.File) string {
 	return pythonGeneratedFilenamePrefix(file) + "_mcp.py"
 }
 
+func pythonProtobufOutputPath(file *protogen.File) string {
+	return pythonGeneratedFilenamePrefix(file) + "_mcp_pb.py"
+}
+
+func pythonOutputPathForHandler(file *protogen.File, handler PythonHandler, dualHandlers bool) string {
+	if dualHandlers && handler == PythonHandlerProtobuf {
+		return pythonProtobufOutputPath(file)
+	}
+	return pythonOutputPath(file)
+}
+
 func pythonPublicModulePathForProtoPath(protoPath string) string {
 	return strings.ReplaceAll(pythonGeneratedFilenamePrefixForProtoPath(protoPath), "/", ".") + "_mcp"
 }

@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+package standalone.todo.v1;
+
+import "mcp/options/v1/options.proto";
+
+option java_package = "com.example.todo.v1";
+option java_outer_classname = "TodoProto";
+
+service TodoAPI {
+  option (mcp.options.v1.service) = {
+    namespace: "todo"
+    description: "Todo tools exposed by a standalone Java MCP server."
+  };
+
+  rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse) {
+    option (mcp.options.v1.method) = {
+      name: "CreateTask"
+      title: "Create Task"
+      description: "Create a task in the in-memory todo list."
+      annotations: {
+        destructive_hint: false
+        idempotent_hint: false
+        open_world_hint: false
+      }
+    };
+  }
+
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse) {
+    option (mcp.options.v1.method) = {
+      name: "ListTasks"
+      title: "List Tasks"
+      description: "List current tasks from the in-memory todo list."
+      annotations: {
+        read_only_hint: true
+        destructive_hint: false
+        idempotent_hint: true
+        open_world_hint: false
+      }
+    };
+  }
+
+  rpc CompleteTask(CompleteTaskRequest) returns (CompleteTaskResponse) {
+    option (mcp.options.v1.method) = {
+      name: "CompleteTask"
+      title: "Complete Task"
+      description: "Mark a task as completed."
+      annotations: {
+        destructive_hint: false
+        idempotent_hint: true
+        open_world_hint: false
+      }
+    };
+  }
+}
+
+message Task {
+  string id = 1 [(mcp.options.v1.field) = {
+    description: "Stable task id returned by CreateTask."
+    examples: [{string_value: "task-1"}]
+  }];
+  string title = 2 [(mcp.options.v1.field) = {
+    description: "Human-readable task title."
+    examples: [{string_value: "Draft release notes"}]
+    min_length: 1
+    max_length: 120
+  }];
+  bool done = 3 [(mcp.options.v1.field) = {
+    description: "Whether the task is completed."
+  }];
+  repeated string labels = 4 [(mcp.options.v1.field) = {
+    description: "Optional labels used by the caller to organize work."
+    examples: [{array_value: {items: [{string_value: "docs"}, {string_value: "release"}]}}]
+  }];
+}
+
+message CreateTaskRequest {
+  string title = 1 [(mcp.options.v1.field) = {
+    description: "Title for the new task."
+    examples: [{string_value: "Draft release notes"}]
+    min_length: 1
+    max_length: 120
+  }];
+  repeated string labels = 2 [(mcp.options.v1.field) = {
+    description: "Optional labels to attach to the task."
+    examples: [{array_value: {items: [{string_value: "docs"}]}}]
+  }];
+}
+
+message CreateTaskResponse {
+  Task task = 1;
+}
+
+message ListTasksRequest {
+  optional bool include_done = 1 [(mcp.options.v1.field) = {
+    description: "When false, completed tasks are omitted."
+    default_value: {bool_value: true}
+  }];
+}
+
+message ListTasksResponse {
+  repeated Task tasks = 1;
+}
+
+message CompleteTaskRequest {
+  string id = 1 [(mcp.options.v1.field) = {
+    description: "Task id to mark completed."
+    examples: [{string_value: "task-1"}]
+    min_length: 1
+  }];
+}
+
+message CompleteTaskResponse {
+  Task task = 1;
+}

@@ -3,13 +3,13 @@ package examples_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"runtime"
 	"testing"
 
+	"github.com/easyp-tech/protoc-gen-mcp/internal/pythontest"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -81,6 +81,26 @@ func TestStandalonePythonExampleOverStdio(t *testing.T) {
 	defer session.Close()
 
 	runStandaloneNotebookExample(t, session)
+}
+
+func TestStandalonePythonProtobufExampleOverStdio(t *testing.T) {
+	root := repoRoot(t)
+	projectDir := filepath.Join(root, "examples/10_python_protobuf_standalone")
+	ctx := context.Background()
+	client := mcp.NewClient(&mcp.Implementation{
+		Name:    "protoc-gen-mcp-standalone-python-protobuf-example-test-client",
+		Version: "v0.0.1",
+	}, nil)
+
+	session, err := client.Connect(ctx, &mcp.CommandTransport{
+		Command: standalonePythonExampleCommand(t, projectDir),
+	}, nil)
+	if err != nil {
+		t.Fatalf("client.Connect() over stdio failed: %v", err)
+	}
+	defer session.Close()
+
+	runStandaloneTaskProtobufExample(t, session)
 }
 
 func runHelloWorldExample(t *testing.T, session *mcp.ClientSession) {
@@ -314,6 +334,91 @@ func runStandaloneNotebookExample(t *testing.T, session *mcp.ClientSession) {
 	}
 }
 
+func runStandaloneTaskProtobufExample(t *testing.T, session *mcp.ClientSession) {
+	t.Helper()
+
+	ctx := context.Background()
+	tools, err := session.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatalf("ListTools() failed: %v", err)
+	}
+	findTool(t, tools.Tools, "tasks_CreateTask")
+	findTool(t, tools.Tools, "tasks_ListTasks")
+	findTool(t, tools.Tools, "tasks_Health")
+
+	createResult, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "tasks_CreateTask",
+		Arguments: map[string]any{
+			"title": "Ship protobuf handler docs",
+			"tags":  []any{"python", "protobuf"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool(CreateTask) failed: %v", err)
+	}
+	if createResult.IsError {
+		t.Fatalf("CreateTask returned tool error: %+v", createResult)
+	}
+	assertTextStructuredContentMatch(t, "tasks_CreateTask", createResult)
+	createStructured := decodeMap(t, createResult.StructuredContent)
+	task, ok := createStructured["task"].(map[string]any)
+	if !ok {
+		t.Fatalf("created task has type %T, want map[string]any", createStructured["task"])
+	}
+	if got := task["title"]; got != "Ship protobuf handler docs" {
+		t.Fatalf("created task.title = %v, want Ship protobuf handler docs", got)
+	}
+	if got := task["tags"]; !reflect.DeepEqual(got, []any{"python", "protobuf"}) {
+		t.Fatalf("created task.tags = %v, want [python protobuf]", got)
+	}
+
+	listResult, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name: "tasks_ListTasks",
+		Arguments: map[string]any{
+			"tags":  []any{"protobuf"},
+			"limit": 5,
+		},
+	})
+	if err != nil {
+		t.Fatalf("CallTool(ListTasks) failed: %v", err)
+	}
+	if listResult.IsError {
+		t.Fatalf("ListTasks returned tool error: %+v", listResult)
+	}
+	assertTextStructuredContentMatch(t, "tasks_ListTasks", listResult)
+	listStructured := decodeMap(t, listResult.StructuredContent)
+	tasks, ok := listStructured["tasks"].([]any)
+	if !ok || len(tasks) != 1 {
+		t.Fatalf("tasks = %T %v, want one matching task", listStructured["tasks"], listStructured["tasks"])
+	}
+	listedTask, ok := tasks[0].(map[string]any)
+	if !ok {
+		t.Fatalf("tasks[0] has type %T, want map[string]any", tasks[0])
+	}
+	if got := listedTask["title"]; got != "Ship protobuf handler docs" {
+		t.Fatalf("listed task.title = %v, want Ship protobuf handler docs", got)
+	}
+
+	healthResult, err := session.CallTool(ctx, &mcp.CallToolParams{
+		Name:      "tasks_Health",
+		Arguments: map[string]any{},
+	})
+	if err != nil {
+		t.Fatalf("CallTool(Health) failed: %v", err)
+	}
+	if healthResult.IsError {
+		t.Fatalf("Health returned tool error: %+v", healthResult)
+	}
+	assertTextStructuredContentMatch(t, "tasks_Health", healthResult)
+	healthStructured := decodeMap(t, healthResult.StructuredContent)
+	if got := healthStructured["ok"]; got != true {
+		t.Fatalf("health.ok = %v, want true", got)
+	}
+	if got := healthStructured["taskCount"]; got != 1.0 {
+		t.Fatalf("health.taskCount = %v, want 1", got)
+	}
+}
+
 func repoRoot(t *testing.T) string {
 	t.Helper()
 
@@ -328,16 +433,9 @@ func repoRoot(t *testing.T) string {
 func pythonExampleCommand(t *testing.T, root, script string) *exec.Cmd {
 	t.Helper()
 
-	python := pythonCommand(t)
-	probe := exec.Command(python, "-c", "import anyio, google.protobuf, mcp")
-	probe.Dir = root
-	if output, err := probe.CombinedOutput(); err != nil {
-		t.Fatalf("python runtime dependencies are not available: %v\n%s", err, output)
-	}
-
-	cmd := exec.Command(python, script)
+	cmd := exec.Command(pythontest.Python(t), script)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(),
+	cmd.Env = pythontest.Env(t,
 		"PYTHONPATH=",
 		"PYTHONUNBUFFERED=1",
 	)
@@ -347,50 +445,13 @@ func pythonExampleCommand(t *testing.T, root, script string) *exec.Cmd {
 func standalonePythonExampleCommand(t *testing.T, projectDir string) *exec.Cmd {
 	t.Helper()
 
-	python := standalonePythonCommand(t, projectDir)
-	probe := exec.Command(python, "-c", "import anyio, google.protobuf, jsonschema, mcp")
-	probe.Dir = projectDir
-	if output, err := probe.CombinedOutput(); err != nil {
-		t.Fatalf("python runtime dependencies are not available: %v\n%s", err, output)
-	}
-
-	cmd := exec.Command(python, "server.py")
+	cmd := exec.Command(pythontest.Python(t), "server.py")
 	cmd.Dir = projectDir
-	cmd.Env = append(os.Environ(),
+	cmd.Env = pythontest.Env(t,
 		"PYTHONPATH=",
 		"PYTHONUNBUFFERED=1",
 	)
 	return cmd
-}
-
-func standalonePythonCommand(t *testing.T, projectDir string) string {
-	t.Helper()
-
-	candidates := []string{
-		filepath.Join(projectDir, ".venv", "bin", "python"),
-		filepath.Join(projectDir, ".venv", "Scripts", "python.exe"),
-	}
-	for _, candidate := range candidates {
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
-		}
-	}
-
-	return pythonCommand(t)
-}
-
-func pythonCommand(t *testing.T) string {
-	t.Helper()
-
-	if path, err := exec.LookPath("python3"); err == nil {
-		return path
-	}
-	if path, err := exec.LookPath("python"); err == nil {
-		return path
-	}
-
-	t.Fatal("python3/python not found in PATH")
-	return ""
 }
 
 func decodeMap(t *testing.T, value any) map[string]any {

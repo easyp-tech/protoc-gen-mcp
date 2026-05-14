@@ -1,268 +1,243 @@
 ---
 name: protoc-gen-mcp
-description: "Develop, test, and extend the protoc-gen-mcp protobuf-to-MCP code generator and runtime. Use when: modifying codegen, adding proto features, writing MCP tools, debugging schema generation, running easyp workflows, regenerating fixtures, updating golden snapshots, implementing new well-known types, adding field options, writing handler implementations."
+description: "Develop, test, review, and extend the protoc-gen-mcp protobuf-first MCP generator for Go, Python, Kotlin, Java, TypeScript, and JavaScript-through-TypeScript examples. Use when modifying codegen/renderers, schema generation, ProtoJSON contracts, MCP options, Python handler modes, JVM/Node bindings, standalone examples, easyp workflows, golden snapshots, stdio tests, or project release/verification docs."
 ---
 
 # protoc-gen-mcp Development
 
-Protobuf-first MCP tool generator and Go runtime. Converts annotated `.proto`
-services into type-safe MCP tool bindings with JSON Schema validation.
+This repository implements a protobuf-first MCP generator and runtime for Go,
+Python, Kotlin, Java, and TypeScript MCP server bindings. Keep changes
+decision-consistent with `AGENTS.md`; treat that file as the current source of
+truth for supported features, layout, commands, and working rules.
 
-## When to Use
+## First Steps
 
-- Modifying code generation logic or templates
-- Adding support for new protobuf features or well-known types
-- Writing or updating MCP field/method/service options
-- Debugging JSON Schema generation or ProtoJSON round-trips
-- Regenerating test fixtures or golden snapshots
-- Implementing MCP tool handlers
-- Working with easyp lint/generate workflows
-- Reviewing or extending the runtime registration system
+1. Run `git status --short --branch` before editing. Do not revert unrelated
+   changes.
+2. Read `AGENTS.md` when the task touches supported languages, examples,
+   commands, public API, or verification status.
+3. Keep `.planning/**` and other GSD artifacts local-only unless the user
+   explicitly changes that policy.
+4. Prefer `easyp` workflows for repository generation and verification. Avoid
+   ad hoc direct `protoc` flows unless the target example intentionally uses
+   Maven/npm tooling.
+5. Keep generator failures compile-time and explicit. Do not add manual
+   end-user tool-binding APIs in the MVP.
 
-## Architecture Overview
+## Architecture Map
 
-```
-.proto file ──→ easyp (protoc-gen-go + protoc-gen-mcp) ──→ *.pb.go + *.mcp.go
-                                                                       │
-                                                       ┌───────────────┘
-                                                       ▼
-                                        Register<Svc>Tools(server, impl)
-                                                       │
-                                                       ▼
-                                            mcpruntime.RegisterProtoTool
-                                              │  schema validation
-                                              │  ProtoJSON marshal/unmarshal
-                                              ▼
-                                         MCP Server (stdio/SSE)
-```
+| Path | Role |
+|---|---|
+| `cmd/protoc-gen-mcp` | `--mcp_out` protoc plugin entrypoint and option dispatch |
+| `internal/codegen` | Shared semantic model and language renderers |
+| `internal/codegen/render_python.go` | Python dataclass/protobuf/dual handler generation |
+| `internal/codegen/jvm_*.go` | SDK-neutral JVM model, naming, and collection |
+| `internal/codegen/render_java.go` | Java low-level official SDK sidecar renderer |
+| `internal/codegen/render_kotlin.go` | Kotlin official SDK sidecar renderer |
+| `internal/codegen/render_typescript.go` | TypeScript official SDK + Protobuf-ES renderer |
+| `internal/schema` | Descriptor-to-JSON-Schema conversion and ProtoJSON contract shape |
+| `internal/pythontest` | Hermetic Python virtualenv bootstrap for Go tests |
+| `internal/examplemcp` | Reusable stdio server checks for Go/Python/JVM examples |
+| `examples/5_python_standalone` | Dataclass Python standalone project |
+| `examples/10_python_protobuf_standalone` | Dual `dataclass+protobuf` Python standalone project |
+| `examples/6_java_standalone` | Java standalone project |
+| `examples/7_kotlin_standalone` | Kotlin standalone project |
+| `examples/8_typescript_standalone` | TypeScript standalone project |
+| `examples/9_javascript_standalone` | JavaScript consuming compiled TypeScript output |
+| `examples/jvm` | Gradle compile/install/stdin proof for generated JVM sidecars |
+| `examples/node/sdk-spike` | Pinned Node SDK, Protobuf-ES, Ajv compile gate |
+| `testdata/golden` | Golden snapshots for generated Go/Python/JVM/TypeScript files |
 
-**Key modules:**
+## Generation Targets
 
-| Module | Role |
-|--------|------|
-| `cmd/protoc-gen-mcp` | Protoc plugin entrypoint |
-| `internal/codegen` | Generator logic: collects specs, emits `*.mcp.go` |
-| `internal/schema` | Descriptor → JSON Schema conversion |
-| `mcpruntime` | Runtime: registration, validation, ProtoJSON handling |
-| `mcp/options/v1` | Custom protobuf options (`ServiceOptions`, `MethodOptions`, `FieldOptions`, etc.) |
-| `internal/testproto` | Test fixtures and generated code |
-| `internal/examplemcp` | Reusable example server + stdio smoke tests |
+| Target | Plugin Options | Generated Public API |
+|---|---|---|
+| Go | `lang=go` | `<Service>ToolHandler`, `Register<Service>Tools(server, impl, opts...) error` |
+| Python dataclass | `lang=python,python_runtime=google.protobuf` or `python_handler=dataclass` | `*_mcp.py`, dataclasses, `UNSET`, oneof wrappers, mapper helpers, `register_<service>_tools(...)` |
+| Python protobuf | `lang=python,python_handler=protobuf` | `*_mcp.py` with raw `*_pb2` handler protocol and identity converters |
+| Python dual | `lang=python,python_handler=dataclass+protobuf` | dataclass sidecar in `*_mcp.py` plus raw protobuf sidecar in `*_mcp_pb.py` |
+| Kotlin | `lang=kotlin` | `<Service>ToolHandler`, `register<Service>Tools(server, impl, namespace = null)` |
+| Java | `lang=java` | top-level `<ProtoFile>Mcp` class, nested `<Service>ToolHandler`, `register<Service>Tools(...)` |
+| TypeScript | `lang=typescript` | `*_mcp.ts`, typed `<Service>ToolHandler`, `register<Service>Tools(server, impl, namespace?)` |
+| JavaScript | no direct `lang=javascript` in v1.1 | consume compiled TypeScript `.js` plus `.d.ts` output |
+
+## Core Invariants
+
+- Support only `proto3` and unary request/response MCP tools.
+- JSON contract is ProtoJSON-first for every target.
+- Tool input requiredness is schema policy, not protobuf `required`.
+- Singular non-optional fields are schema-required by default.
+- `optional`, `repeated`, `map`, `oneof`, and explicitly optional fields are
+  not schema-required and must accept explicit JSON `null`.
+- Recursive messages use `$defs`/`$ref`; schemas include useful examples for
+  complex ProtoJSON shapes.
+- Generated tool names must not contain dots. Join namespace and method with
+  underscores and normalize dots to underscores.
+- Unknown `protoc-gen-mcp` params, streaming RPCs, proto2, and unsupported
+  `google.protobuf.*` message types must fail fast.
+- Non-Go targets must not require users to add Go-specific proto metadata just
+  to generate Python/JVM/TypeScript bindings.
+
+For detailed schema behavior, read
+`references/schema-generation.md`. For failure diagnosis, read
+`references/troubleshooting.md`.
+
+## Common Workflows
+
+### Modify a Renderer
+
+1. Identify whether the change belongs in shared `FileModel`/schema metadata or
+   in a target-specific renderer.
+2. Reuse existing schema JSON, annotations, icons, and ProtoJSON semantics.
+   Do not recompute schema meaning inside language renderers.
+3. Update focused contract tests for the target before or with implementation:
+   `*_contract_test.go`, `typescript_*_test.go`, Python renderer tests, or Go
+   golden tests.
+4. Regenerate affected fixtures through `easyp`, then refresh matching golden
+   snapshots in `testdata/golden`.
+5. Run the narrow target tests first, then broader tests if the change affects
+   shared behavior.
+
+### Modify Python Handler Modes
+
+1. Keep dataclass mode the default.
+2. Preserve protobuf-only compatibility: `python_handler=protobuf` writes raw
+   handlers to `*_mcp.py`.
+3. Preserve dual output: `python_handler=dataclass+protobuf` writes dataclass
+   handlers to `*_mcp.py` and raw handlers to `*_mcp_pb.py`.
+4. Use `internal/pythontest` for runtime tests so Go tests do not depend on
+   globally installed Python packages.
+5. Update `examples/5_python_standalone` or
+   `examples/10_python_protobuf_standalone` when behavior changes user-visible
+   generated output.
+
+### Modify JVM Support
+
+1. Keep `internal/codegen/jvm_*.go` SDK-neutral. Java and Kotlin SDK APIs differ;
+   share semantic collection, not SDK registration code.
+2. Java uses low-level official SDK wiring through
+   `McpServerTransportProvider.setSessionFactory(...)`.
+3. Kotlin uses `io.modelcontextprotocol:kotlin-sdk-server` low-level server
+   helpers.
+4. Validate with focused Java/Kotlin codegen tests and the Gradle gate in
+   `examples/jvm`.
+
+### Modify TypeScript or JavaScript Support
+
+1. TypeScript targets `@modelcontextprotocol/sdk`, Protobuf-ES `_pb.ts`, and
+   strict NodeNext import rules.
+2. Keep generated imports `.js`-suffixed and split type/value imports under
+   `verbatimModuleSyntax`.
+3. JavaScript support is consumption of compiled TypeScript output; do not add
+   direct `lang=javascript` without revising the MVP decision.
+4. Validate with `examples/node/sdk-spike`, focused TypeScript codegen tests,
+   and standalone Node stdio tests.
+
+### Add or Change MCP Options
+
+1. Edit `mcp/options/v1/options.proto`; keep its direct `go_package`.
+2. Regenerate shipped options with `easyp --cfg easyp.yaml generate -p mcp -r .`.
+3. Update metadata extraction and schema/rendering only where the option
+   actually applies.
+4. Add fixture coverage in `internal/testproto` and refresh goldens.
+
+### Check a Standalone Example with MCP Inspector
+
+1. Build or set up the example first, for example:
+   `cd examples/10_python_protobuf_standalone && make setup`.
+2. Start Inspector from the example directory:
+   `npx -y @modelcontextprotocol/inspector .venv/bin/python server.py`.
+3. Open the printed Inspector URL, connect, run `List Tools`, and call at least
+   one state-changing/read tool plus health when available.
+4. Confirm Inspector reports `Tool Result: Success`, output schema validity,
+   and structured/text parity.
+5. Stop the Inspector process when done.
 
 ## Essential Commands
 
 ```bash
-# Lint shipped API
-easyp --cfg easyp.yaml lint -p mcp -r .
+# Validate configs
+easyp --cfg easyp.yaml validate-config
+easyp --cfg easyp.test.yaml validate-config
 
-# Generate shipped API (options.pb.go)
+# Lint/generate shipped options
+easyp --cfg easyp.yaml lint -p mcp -r .
 easyp --cfg easyp.yaml generate -p mcp -r .
 
-# Lint test fixtures
+# Lint/generate test fixtures
 easyp --cfg easyp.test.yaml lint -p internal/testproto -r .
-
-# Generate test fixtures (*.mcp.go + *.pb.go)
 easyp --cfg easyp.test.yaml generate -p internal/testproto -r .
 
-# Run all tests
+# Generate standalone examples
+cd examples && make generate
+
+# Full Go test suite
 go test ./...
 
-# Build plugin binary
+# Build plugin
 go build ./cmd/protoc-gen-mcp
-
-# Build & run example server
-go build -o example-mcp-server ./cmd/example-mcp-server/main.go
-./example-mcp-server
 ```
 
-## Development Procedures
+## Focused Verification Commands
 
-### Procedure 1: Modify Code Generation
+```bash
+# Python handler option and renderer contracts
+go test ./internal/codegen -run 'TestParseOptions|TestGenerate_PythonMultipleHandlers|TestPythonRenderer_EmitsDataclassPublicAPI|TestPythonRenderer_EmitsProtobufHandlerPublicAPI|TestPythonRenderer_ProtobufHandlerImportsCrossFileProtobufModules|TestGenerate_PythonProtobufHandlerSkipsCrossFilePublicTypeModules' -count=1
 
-1. Edit `internal/codegen/generator.go` or `internal/codegen/metadata.go`
-2. If schema logic changes, also update `internal/schema/schema.go`
-3. Regenerate test fixtures:
-   ```bash
-   easyp --cfg easyp.test.yaml generate -p internal/testproto -r .
-   ```
-4. Update golden snapshot — copy the regenerated file:
-   ```bash
-   cp internal/testproto/example/v1/example.mcp.go testdata/golden/example.mcp.go.golden
-   ```
-5. Run tests:
-   ```bash
-   go test ./...
-   ```
+# Java contracts and golden output
+go test ./internal/codegen -run 'TestJavaContract_.*|TestGenerateJavaExampleGolden|TestGenerateJavaExampleHandlerCompileSmoke|TestGenerate_JavaTargetEmitsOutput' -count=1
 
-### Procedure 2: Add a New Protobuf Feature or Well-Known Type
+# Kotlin contracts and golden output
+go test ./internal/codegen -run 'TestGenerateKotlinExampleGolden|TestKotlinContract_.*' -count=1
 
-1. Add the type handling in `internal/schema/schema.go` (field → JSON Schema mapping)
-2. If the type needs special codegen, update `internal/codegen/generator.go`
-3. Add test coverage in `internal/testproto/example/v1/example.proto`:
-   - Add fields to existing request/response messages
-   - Or create a new RPC method for the feature
-4. Regenerate + update golden:
-   ```bash
-   easyp --cfg easyp.test.yaml generate -p internal/testproto -r .
-   cp internal/testproto/example/v1/example.mcp.go testdata/golden/example.mcp.go.golden
-   ```
-5. Add schema validation test in `internal/testproto/example/v1/example_schema_test.go`
-6. If the feature affects the stdio test, update `internal/examplemcp/server.go` and `stdio_test.go`
-7. Run full test suite: `go test ./...`
-8. Update `AGENTS.md` Supported Features section
+# TypeScript semantic model, renderer, golden, and NodeNext compile smoke
+go test ./internal/codegen -run 'TestTypeScriptModel|TestTypeScriptNames|TestTypeScriptContract|TestGenerateTypeScript|TestGenerate_TypeScript|TestTypeScriptGeneratedPublicAPICompilesUnderNodeNext' -count=1
 
-### Procedure 3: Add or Modify MCP Options
+# Generated Node stdio verification
+go test ./internal/codegen -run 'TestTypeScriptGeneratedNodeServer.*OverStdio|TestTypeScriptGeneratedNodeServerRejectsInvalid(Input|Output)OverStdio' -count=1
 
-1. Edit `mcp/options/v1/options.proto`
-2. Regenerate shipped API:
-   ```bash
-   easyp --cfg easyp.yaml generate -p mcp -r .
-   ```
-3. Update metadata extraction in `internal/codegen/metadata.go`
-4. Update schema generation in `internal/schema/schema.go` if the option affects schemas
-5. Add test proto fields using the new option in `internal/testproto/example/v1/example.proto`
-6. Regenerate test fixtures + golden
-7. Run: `go test ./...`
+# JVM compile/install gates
+gradle --no-daemon -p examples/jvm :java-server:compileJava :kotlin-server:compileKotlin
+gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist
 
-### Procedure 4: Write a New MCP Tool (End-User Flow)
+# Standalone examples
+cd examples/5_python_standalone && make setup && make run
+cd examples/10_python_protobuf_standalone && make setup && make run
+cd examples/6_java_standalone && make build
+cd examples/7_kotlin_standalone && make build
+cd examples/8_typescript_standalone && make build && make run
+cd examples/9_javascript_standalone && make build && make run
 
-1. Define service and messages in a `.proto` file:
-   ```proto
-   service MyService {
-     option (mcp.options.v1.service) = { namespace: "my" };
-     rpc DoThing(DoThingRequest) returns (DoThingResponse) {
-       option (mcp.options.v1.method) = {
-         title: "Do thing"
-         description: "Does the thing."
-       };
-     };
-   }
-   ```
-2. Annotate fields with `mcp.options.v1.field` for descriptions, examples, validation
-3. Generate with easyp → produces `*.mcp.go`
-4. Implement the `MyServiceToolHandler` interface
-5. Register and serve:
-   ```go
-   server := mcp.NewServer(impl, nil)
-   myservice.RegisterMyServiceTools(server, handler)
-   server.Run(ctx, &mcp.StdioTransport{})
-   ```
+# Standalone stdio tests
+go test ./examples -run 'TestStandalone(TypeScript|JavaScript)ExampleOverStdio' -count=1
+go test ./examples -run 'TestStandalonePython(Protobuf)?ExampleOverStdio|TestPythonExamplesOverStdio' -count=1
 
-### Procedure 5: Debug Schema Generation Issues
-
-1. Check the generated JSON Schema constant in `*.mcp.go`:
-   - Look for `<Service>_<Method>_ToolSpecInputSchemaJSON`
-2. Parse the JSON and validate structure:
-   - `required` array matches expectations (singular non-optional fields)
-   - Nullable fields have proper `type: ["<type>", "null"]` or `oneOf` with null
-   - `$defs`/`$ref` present for recursive or nested messages
-3. Check `internal/schema/schema.go` for the field type mapping
-4. Run the specific schema test:
-   ```bash
-   go test ./internal/testproto/example/v1/ -run TestSchema
-   ```
-5. For runtime validation issues, check `mcpruntime/register.go` schema validation logic
-
-## Key Invariants
-
-### Requiredness Policy
-| Proto Field Pattern | Required in MCP Schema? |
-|---|---|
-| `string name = 1` | YES (singular, non-optional) |
-| `optional string name = 1` | NO |
-| `repeated string names = 1` | NO |
-| `map<string, string> m = 1` | NO |
-| `oneof choice { ... }` | NO (unless `mcp.options.v1.oneof.required = true`) |
-
-### Nullability
-Non-required fields accept explicit JSON `null` in generated schemas.
-This ensures MCP clients with cached `inputSchema` remain compatible with
-ProtoJSON unset semantics.
-
-### Tool Naming
-- Pattern: `{namespace}_{MethodName}`
-- Dots in namespace are normalized to underscores
-- Example: namespace `example` + method `CreateReport` → `example_CreateReport`
-
-### Fail-Fast Rules (Compile-Time Errors)
-- Proto2 syntax → generation error
-- Streaming RPC (client/server/bidi) → generation error
-- Unsupported `google.protobuf.*` types → generation error
-
-### JSON Schema Embedding
-Schema JSON constants are emitted as **interpreted Go string literals**
-(not raw backtick strings) so proto comments containing backticks don't
-break generated code.
-
-## Proto Options Quick Reference
-
-```proto
-import "mcp/options/v1/options.proto";
-
-// Service-level
-option (mcp.options.v1.service) = {
-  namespace: "myapi"
-  description: "My API tools."
-};
-
-// Method-level
-option (mcp.options.v1.method) = {
-  name: "CustomName"        // override tool method name
-  title: "Human Title"
-  description: "What this tool does."
-  hidden: true              // exclude from tool list
-  annotations: {
-    read_only_hint: true
-    destructive_hint: false
-    idempotent_hint: true
-  }
-};
-
-// Field-level
-(mcp.options.v1.field) = {
-  description: "Field purpose."
-  examples: [{ string_value: "example" }]
-  default_value: { number_value: 42 }
-  pattern: "^[A-Z]"
-  format: "email"
-  min_length: 1
-  max_length: 255
-  minimum: 0
-  maximum: 100
-  min_items: 1
-  max_items: 50
-  unique_items: true
-  read_only: true
-};
-
-// Message-level
-option (mcp.options.v1.message) = {
-  title: "My Message"
-  description: "What this message represents."
-};
-
-// Enum-level
-option (mcp.options.v1.enum) = { title: "Status" };
-
-// Enum value: hide sentinel zero-value
-UNSPECIFIED = 0 [(mcp.options.v1.enum_value) = { hidden: true }];
-
-// Oneof-level
-option (mcp.options.v1.oneof) = { required: true };
+# Installed JVM stdio tests
+go test ./internal/examplemcp -run 'TestJava.*OverStdio' -count=1
+go test ./internal/examplemcp -run 'TestKotlin.*OverStdio' -count=1
 ```
 
-## Testing Matrix
+## Golden Snapshot Notes
 
-| Test Layer | Location | What it Validates |
-|---|---|---|
-| Golden snapshot | `testdata/golden/` | Generated `*.mcp.go` stability |
-| Schema validation | `example_schema_test.go` | JSON Schema correctness for all field types |
-| Property tests | `internal/codegen/` (rapid) | Edge cases in metadata/property generation |
-| Stdio smoke test | `internal/examplemcp/stdio_test.go` | End-to-end: spawn server, list tools, call tools, validate responses |
+- Go golden: `testdata/golden/example.mcp.go.golden`.
+- Python goldens include dataclass/protobuf/dual handler outputs.
+- Java golden: `testdata/golden/example_mcp.java.golden`.
+- Kotlin golden: `testdata/golden/example_mcp.kt.golden`.
+- TypeScript golden: `testdata/golden/example_mcp.ts.golden`.
+- Regenerate fixtures through `easyp.test.yaml`; do not manually patch generated
+  output unless diagnosing a renderer bug.
 
 ## Common Mistakes to Avoid
 
-- **Don't regenerate with raw protoc** — always use `easyp` configs
-- **Don't forget golden snapshot** after regenerating test fixtures
-- **Don't add streaming RPCs** — MVP is unary-only, generator will reject them
-- **Don't use `required` proto label** — requiredness is a schema policy, not proto label
-- **Don't skip AGENTS.md updates** when changing features, layout, or commands
+- Do not assume the project is Go-only; most changes must preserve Python, JVM,
+  and TypeScript contracts.
+- Do not make Go tests depend on globally installed `protoc` or Python
+  packages. Use `protocompile` and `internal/pythontest` patterns.
+- Do not add direct `lang=javascript` without changing the documented MVP rule.
+- Do not collapse Python dual output into one module; `*_mcp.py` and
+  `*_mcp_pb.py` have intentional compatibility meaning.
+- Do not use SDK `addTool` shortcuts for JVM generated bindings; the project
+  owns low-level protocol mapping and validation.
+- Do not commit `.planning/**` artifacts unless the user explicitly asks.
+- Do not forget to update `AGENTS.md` when technology choices, layout,
+  supported features, public API, or verification commands change.

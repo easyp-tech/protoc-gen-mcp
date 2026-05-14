@@ -3,10 +3,11 @@ package codegen
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/easyp-tech/protoc-gen-mcp/internal/pythontest"
 )
 
 func renderExamplePythonForMapperTests(t *testing.T) string {
@@ -85,19 +86,14 @@ func prepareExamplePythonRuntime(t *testing.T) (tempRoot string, repoRoot string
 func runExamplePythonScript(t *testing.T, script string) {
 	t.Helper()
 
-	python, err := exec.LookPath("python3")
-	if err != nil {
-		t.Skipf("python3 not available: %v", err)
-	}
-
 	tempRoot, repoRoot := prepareExamplePythonRuntime(t)
-	cmd := exec.Command(python, "-c", fmt.Sprintf(
+	cmd := pythontest.Command(t, "-c", fmt.Sprintf(
 		"from internal.testproto.example.v1 import example_mcp as module\n"+
 			"from internal.testproto.example.v1 import example_pb2\n%s",
 		script,
 	))
 	cmd.Dir = tempRoot
-	cmd.Env = append(os.Environ(), "PYTHONPATH="+tempRoot+string(os.PathListSeparator)+repoRoot)
+	cmd.Env = pythontest.Env(t, "PYTHONPATH="+tempRoot+string(os.PathListSeparator)+repoRoot)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {

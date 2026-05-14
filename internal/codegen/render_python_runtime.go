@@ -2,7 +2,7 @@ package codegen
 
 import "google.golang.org/protobuf/compiler/protogen"
 
-func renderPythonRuntime(generated *protogen.GeneratedFile) {
+func renderPythonRuntime(generated *protogen.GeneratedFile, emitIdentity bool) {
 	generated.P("@dataclass(frozen=True)")
 	generated.P("class _RegisteredTool:")
 	generated.P("    name: str")
@@ -17,6 +17,7 @@ func renderPythonRuntime(generated *protogen.GeneratedFile) {
 	generated.P("    handler: Any")
 	generated.P("    annotations: dict[str, Any] | None")
 	generated.P("    icons: list[dict[str, Any]] | None")
+	generated.P("    execution: dict[str, Any] | None = None")
 	generated.P()
 	generated.P("class _ServerToolRegistry:")
 	generated.P("    def __init__(self, server: mcp.server.lowlevel.Server) -> None:")
@@ -48,6 +49,11 @@ func renderPythonRuntime(generated *protogen.GeneratedFile) {
 	generated.P("    json_format.ParseDict(arguments, message)")
 	generated.P("    return message")
 	generated.P()
+	if emitIdentity {
+		generated.P("def _identity(value: Any) -> Any:")
+		generated.P("    return value")
+		generated.P()
+	}
 	generated.P("def _normalize_tool_segment(segment: str | None) -> str:")
 	generated.P("    if segment is None:")
 	generated.P("        return \"\"")
@@ -158,6 +164,11 @@ func renderPythonRuntime(generated *protogen.GeneratedFile) {
 	generated.P("        return None")
 	generated.P("    return mcp.types.ToolAnnotations(**raw)")
 	generated.P()
+	generated.P("def _tool_execution(raw: dict[str, Any] | None) -> mcp.types.ToolExecution | None:")
+	generated.P("    if raw is None:")
+	generated.P("        return None")
+	generated.P("    return mcp.types.ToolExecution(**raw)")
+	generated.P()
 	generated.P("def _tool_error_result(message: str) -> mcp.types.CallToolResult:")
 	generated.P("    return mcp.types.CallToolResult(")
 	generated.P("        content=[mcp.types.TextContent(type=\"text\", text=message)],")
@@ -181,6 +192,7 @@ func renderPythonRuntime(generated *protogen.GeneratedFile) {
 	generated.P("        outputSchema=_load_schema(tool.output_schema_json),")
 	generated.P("        annotations=_tool_annotations(tool.annotations),")
 	generated.P("        icons=tool.icons,")
+	generated.P("        execution=_tool_execution(tool.execution),")
 	generated.P("    )")
 	generated.P()
 	generated.P("async def _maybe_await(result: Any) -> Any:")

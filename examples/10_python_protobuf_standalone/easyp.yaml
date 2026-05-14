@@ -1,0 +1,38 @@
+deps:
+  - github.com/easyp-tech/protoc-gen-mcp
+
+lint:
+  use:
+    - PACKAGE_DEFINED
+    - PACKAGE_LOWER_SNAKE_CASE
+    - PACKAGE_VERSION_SUFFIX
+    - FILE_LOWER_SNAKE_CASE
+    - MESSAGE_PASCAL_CASE
+    - FIELD_LOWER_SNAKE_CASE
+    - RPC_PASCAL_CASE
+    - SERVICE_PASCAL_CASE
+    - SERVICE_SUFFIX
+    - RPC_REQUEST_RESPONSE_UNIQUE
+    - RPC_REQUEST_STANDARD_NAME
+    - RPC_RESPONSE_STANDARD_NAME
+    - RPC_NO_CLIENT_STREAMING
+    - RPC_NO_SERVER_STREAMING
+
+  service_suffix: API
+
+generate:
+  inputs:
+    - directory:
+        path: proto
+        root: "."
+  plugins:
+    - name: python
+      with_imports: true
+      out: .
+    - command: ["go", "run", "../../cmd/protoc-gen-mcp"]
+      out: .
+      opts:
+        paths: source_relative
+        lang: python
+        python_runtime: google.protobuf
+        python_handler: dataclass+protobuf

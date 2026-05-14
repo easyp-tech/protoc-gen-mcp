@@ -3,7 +3,6 @@ package examplemcp_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
@@ -13,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/easyp-tech/protoc-gen-mcp/internal/examplemcp"
+	"github.com/easyp-tech/protoc-gen-mcp/internal/pythontest"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -307,34 +307,13 @@ func repoRoot(t *testing.T) string {
 func pythonExampleServerCommand(t *testing.T, root string) *exec.Cmd {
 	t.Helper()
 
-	python := pythonCommand(t)
-	probe := exec.Command(python, "-c", "import anyio, google.protobuf, jsonschema, mcp")
-	probe.Dir = root
-	if output, err := probe.CombinedOutput(); err != nil {
-		t.Fatalf("python runtime dependencies are not available: %v\n%s", err, output)
-	}
-
-	cmd := exec.Command(python, filepath.Join(root, "cmd/example-python-mcp-server/main.py"))
+	cmd := exec.Command(pythontest.Python(t), filepath.Join(root, "cmd/example-python-mcp-server/main.py"))
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(),
+	cmd.Env = pythontest.Env(t,
 		"PYTHONPATH="+root,
 		"PYTHONUNBUFFERED=1",
 	)
 	return cmd
-}
-
-func pythonCommand(t *testing.T) string {
-	t.Helper()
-
-	if path, err := exec.LookPath("python3"); err == nil {
-		return path
-	}
-	if path, err := exec.LookPath("python"); err == nil {
-		return path
-	}
-
-	t.Fatal("python3/python not found in PATH")
-	return ""
 }
 
 func decodeMap(t *testing.T, value any) map[string]any {

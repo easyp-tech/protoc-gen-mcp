@@ -1,0 +1,22 @@
+{
+  "name": "protoc-gen-mcp-typescript-standalone",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "easyp --cfg easyp.yaml mod download && easyp --cfg easyp.yaml generate -p proto -r . && rm -rf google",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json",
+    "run": "node dist/server.js"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "2.12.0",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "ajv": "8.20.0"
+  },
+  "devDependencies": {
+    "@bufbuild/protoc-gen-es": "2.12.0",
+    "@types/node": "24.12.2",
+    "typescript": "6.0.3"
+  }
+}

@@ -91,6 +91,7 @@ class _RegisteredTool:
     handler: Any
     annotations: dict[str, Any] | None
     icons: list[dict[str, Any]] | None
+    execution: dict[str, Any] | None = None
 
 class _ServerToolRegistry:
     def __init__(self, server: mcp.server.lowlevel.Server) -> None:
@@ -232,6 +233,11 @@ def _tool_annotations(raw: dict[str, Any] | None) -> mcp.types.ToolAnnotations |
         return None
     return mcp.types.ToolAnnotations(**raw)
 
+def _tool_execution(raw: dict[str, Any] | None) -> mcp.types.ToolExecution | None:
+    if raw is None:
+        return None
+    return mcp.types.ToolExecution(**raw)
+
 def _tool_error_result(message: str) -> mcp.types.CallToolResult:
     return mcp.types.CallToolResult(
         content=[mcp.types.TextContent(type="text", text=message)],
@@ -255,6 +261,7 @@ def _build_tool(tool: _RegisteredTool) -> Any:
         outputSchema=_load_schema(tool.output_schema_json),
         annotations=_tool_annotations(tool.annotations),
         icons=tool.icons,
+        execution=_tool_execution(tool.execution),
     )
 
 async def _maybe_await(result: Any) -> Any:
@@ -495,6 +502,7 @@ def register_users_api_tools(server: mcp.server.lowlevel.Server, impl: UsersAPIT
         handler=impl.list_users,
         annotations={"readOnlyHint": True},
         icons=[{"src": "https://example.com/crm-icon.png", "mimeType": "image/png", "sizes": [], "theme": ""}],
+        execution=None,
     ))
     registry.add_tool(_RegisteredTool(
         name=_tool_name(resolved_namespace, "UpdateUser"),
@@ -509,6 +517,7 @@ def register_users_api_tools(server: mcp.server.lowlevel.Server, impl: UsersAPIT
         handler=impl.update_user,
         annotations=None,
         icons=[{"src": "https://example.com/edit-icon.svg", "mimeType": "image/svg+xml", "sizes": [], "theme": ""}],
+        execution=None,
     ))
 
 USERS_API_LIST_USERS_INPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"limit\":{\"type\":\"integer\",\"description\":\"Maximum number of users to return.\",\"examples\":[-1],\"minimum\":1,\"maximum\":100},\"requiredTags\":{\"type\":[\"array\",\"null\"],\"items\":{\"type\":\"string\",\"description\":\"Filter users who must have ALL these tags.\",\"examples\":[\"example\"]},\"description\":\"Filter users who must have ALL these tags.\",\"examples\":[[\"example\"]]}},\"examples\":[{\"limit\":-1,\"requiredTags\":[\"example\"]}],\"required\":[\"limit\"],\"additionalProperties\":false}"
