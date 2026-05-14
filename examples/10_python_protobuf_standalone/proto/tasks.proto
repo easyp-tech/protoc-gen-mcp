@@ -1,0 +1,135 @@
+syntax = "proto3";
+
+package tasks.v1;
+
+import "google/protobuf/timestamp.proto";
+import "mcp/options/v1/options.proto";
+
+service TaskAPI {
+  option (mcp.options.v1.service) = {
+    namespace: "tasks"
+    description: "A small in-memory task service for raw protobuf Python MCP handlers."
+  };
+
+  rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse) {
+    option (mcp.options.v1.method) = {
+      title: "Create task"
+      description: "Create a task in the local in-memory task list."
+      annotations: {
+        destructive_hint: false
+        idempotent_hint: false
+        open_world_hint: false
+      }
+    };
+  }
+
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse) {
+    option (mcp.options.v1.method) = {
+      title: "List tasks"
+      description: "List tasks by completion state and tags."
+      annotations: {
+        read_only_hint: true
+        open_world_hint: false
+      }
+    };
+  }
+
+  rpc Health(HealthRequest) returns (HealthResponse) {
+    option (mcp.options.v1.method) = {
+      title: "Task server health"
+      description: "Verify that the raw protobuf task MCP server is alive."
+      annotations: {
+        read_only_hint: true
+        open_world_hint: false
+      }
+    };
+  }
+}
+
+message Task {
+  string id = 1 [(mcp.options.v1.field) = {
+    read_only: true
+    description: "Server-assigned task identifier."
+  }];
+
+  string title = 2 [(mcp.options.v1.field) = {
+    description: "Short human-readable task title."
+    min_length: 1
+    max_length: 120
+    examples: [{ string_value: "Ship protobuf handler docs" }]
+  }];
+
+  bool completed = 3 [(mcp.options.v1.field) = {
+    description: "Whether the task has been completed."
+  }];
+
+  repeated string tags = 4 [(mcp.options.v1.field) = {
+    description: "Optional tags used for filtering."
+    unique_items: true
+    examples: [
+      { array_value: { items: [{ string_value: "python" }, { string_value: "protobuf" }] } }
+    ]
+  }];
+
+  google.protobuf.Timestamp created_at = 5 [(mcp.options.v1.field) = {
+    read_only: true
+    description: "Server-assigned creation timestamp."
+  }];
+}
+
+message CreateTaskRequest {
+  string title = 1 [(mcp.options.v1.field) = {
+    description: "Short human-readable task title."
+    min_length: 1
+    max_length: 120
+    examples: [{ string_value: "Ship protobuf handler docs" }]
+  }];
+
+  repeated string tags = 2 [(mcp.options.v1.field) = {
+    description: "Optional tags used for filtering."
+    unique_items: true
+    examples: [
+      { array_value: { items: [{ string_value: "python" }, { string_value: "protobuf" }] } }
+    ]
+  }];
+}
+
+message CreateTaskResponse {
+  Task task = 1;
+}
+
+message ListTasksRequest {
+  optional bool include_completed = 1 [(mcp.options.v1.field) = {
+    description: "When false, completed tasks are excluded."
+    default_value: { bool_value: true }
+  }];
+
+  repeated string tags = 2 [(mcp.options.v1.field) = {
+    description: "Optional tags; a task must have every requested tag."
+    unique_items: true
+    examples: [
+      { array_value: { items: [{ string_value: "protobuf" }] } }
+    ]
+  }];
+
+  optional int32 limit = 3 [(mcp.options.v1.field) = {
+    description: "Maximum number of tasks to return."
+    minimum: 1.0
+    maximum: 50.0
+    default_value: { integer_value: 10 }
+  }];
+}
+
+message ListTasksResponse {
+  repeated Task tasks = 1;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  bool ok = 1;
+  int32 task_count = 2 [(mcp.options.v1.field) = {
+    read_only: true
+    description: "Current number of tasks in memory."
+  }];
+}
