@@ -337,6 +337,112 @@ func TestGenerate_PythonProtobufHandlerSkipsCrossFilePublicTypeModules(t *testin
 	}
 }
 
+func TestGenerate_PythonMultipleHandlersEmitsDataclassAndProtobufSidecars(t *testing.T) {
+	plugin := newExampleProtogenPlugin(t)
+	opts, err := ParseOptions("lang=python,python_runtime=google.protobuf,python_handler=dataclass,protobuf")
+	if err != nil {
+		t.Fatalf("ParseOptions: %v", err)
+	}
+
+	if err := Generate(plugin, opts); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	dataclassGenerated := string(generatedFileContent(t, plugin, "internal/testproto/example/v1/example_mcp.py"))
+	for _, snippet := range []string{
+		"@dataclass(slots=True)",
+		"UNSET = _UnsetType()",
+		"class ExampleAPIToolHandler(Protocol):",
+		"def create_report(self, ctx: ToolRequestContext, req: CreateReportRequest) -> CreateReportResponse | Awaitable[CreateReportResponse]:",
+		"def register_example_api_tools(server: mcp.server.lowlevel.Server, impl: ExampleAPIToolHandler, *, namespace: str | None = None) -> None:",
+	} {
+		if !strings.Contains(dataclassGenerated, snippet) {
+			t.Fatalf("dataclass sidecar missing snippet %q\n%s", snippet, dataclassGenerated)
+		}
+	}
+	if strings.Contains(dataclassGenerated, "req: example_pb2.CreateReportRequest") {
+		t.Fatalf("dataclass sidecar must not expose protobuf handler signatures\n%s", dataclassGenerated)
+	}
+
+	protobufGenerated := string(generatedFileContent(t, plugin, "internal/testproto/example/v1/example_mcp_pb.py"))
+	for _, snippet := range []string{
+		"class ExampleAPIToolHandler(Protocol):",
+		"def create_report(self, ctx: ToolRequestContext, req: example_pb2.CreateReportRequest) -> example_pb2.CreateReportResponse | Awaitable[example_pb2.CreateReportResponse]:",
+		"def register_example_api_tools(server: mcp.server.lowlevel.Server, impl: ExampleAPIToolHandler, *, namespace: str | None = None) -> None:",
+		"from_pb=_identity,",
+		"to_pb=_identity,",
+	} {
+		if !strings.Contains(protobufGenerated, snippet) {
+			t.Fatalf("protobuf sidecar missing snippet %q\n%s", snippet, protobufGenerated)
+		}
+	}
+	for _, snippet := range []string{
+		"@dataclass(slots=True)",
+		"UNSET = _UnsetType()",
+		"class CreateReportRequest:",
+		"def _from_pb_create_report_request",
+	} {
+		if strings.Contains(protobufGenerated, snippet) {
+			t.Fatalf("protobuf sidecar must not contain dataclass snippet %q\n%s", snippet, protobufGenerated)
+		}
+	}
+}
+
+func TestGenerate_PythonMultipleHandlersKeepsDataclassCrossFileTypesAndSkipsProtobufMessageOnlySidecar(t *testing.T) {
+	plugin := newTempProtogenPlugin(t, map[string]string{
+		"test/v1/shared.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/shared;sharedv1";`,
+			`message SharedRequest {}`,
+			`message SharedResponse {}`,
+			``,
+		}, "\n"),
+		"test/v1/service.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/service;servicev1";`,
+			`import "test/v1/shared.proto";`,
+			`service CrossFileAPI {`,
+			`  rpc UseShared(SharedRequest) returns (SharedResponse);`,
+			`}`,
+			``,
+		}, "\n"),
+	}, "test/v1/shared.proto", "test/v1/service.proto")
+	opts, err := ParseOptions("lang=python,python_handler=dataclass,protobuf")
+	if err != nil {
+		t.Fatalf("ParseOptions: %v", err)
+	}
+
+	if err := Generate(plugin, opts); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	sharedGenerated := string(generatedFileContent(t, plugin, "test/v1/shared_mcp.py"))
+	if !strings.Contains(sharedGenerated, "class SharedRequest:") {
+		t.Fatalf("dataclass shared public type module missing SharedRequest\n%s", sharedGenerated)
+	}
+
+	serviceDataclassGenerated := string(generatedFileContent(t, plugin, "test/v1/service_mcp.py"))
+	if !strings.Contains(serviceDataclassGenerated, "from test.v1 import shared_mcp as test_v1_shared_mcp") {
+		t.Fatalf("dataclass service sidecar must import shared public module\n%s", serviceDataclassGenerated)
+	}
+
+	serviceProtobufGenerated := string(generatedFileContent(t, plugin, "test/v1/service_mcp_pb.py"))
+	if !strings.Contains(serviceProtobufGenerated, "from test.v1 import shared_pb2") {
+		t.Fatalf("protobuf service sidecar must import shared protobuf module\n%s", serviceProtobufGenerated)
+	}
+	if strings.Contains(serviceProtobufGenerated, "shared_mcp") {
+		t.Fatalf("protobuf service sidecar must not import shared public module\n%s", serviceProtobufGenerated)
+	}
+
+	for _, file := range plugin.Response().GetFile() {
+		if file.GetName() == "test/v1/shared_mcp_pb.py" {
+			t.Fatalf("dual handler mode must not emit protobuf sidecar for message-only file:\n%s", file.GetContent())
+		}
+	}
+}
+
 func TestGenerate_PythonEmitsPublicTypesForHiddenOnlyServiceImports(t *testing.T) {
 	plugin := newTempProtogenPlugin(t, map[string]string{
 		"test/v1/shared.proto": strings.Join([]string{

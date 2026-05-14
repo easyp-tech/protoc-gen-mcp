@@ -124,6 +124,9 @@ A pure Python MCP server example that opts into `python_handler: protobuf`.
 - **Raw `*_pb2` handlers**: the server imports `from proto import tasks_mcp, tasks_pb2` and implements `TaskAPIToolHandler` with `tasks_pb2.*` request/response classes.
 - **Same generated registration**: `server.py` still registers tools through
   `tasks_mcp.register_task_api_tools(server, TaskStore())`.
+- **Dual-generation option**: projects that need both surfaces can use
+  `python_handler: dataclass+protobuf`; that keeps dataclass output in
+  `*_mcp.py` and adds raw protobuf output in `*_mcp_pb.py`.
 - **Generator-owned contract**: schemas, ProtoJSON parsing, validation,
   annotations, structured output, and stdio behavior remain in the generated
   `tasks_mcp.py` sidecar.

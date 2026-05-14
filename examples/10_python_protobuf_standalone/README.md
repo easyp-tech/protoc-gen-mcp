@@ -24,6 +24,12 @@ python_runtime: google.protobuf
 python_handler: protobuf
 ```
 
+`python_handler: protobuf` is protobuf-only and writes the raw handler sidecar
+to `proto/tasks_mcp.py`. If a project wants both public surfaces in one
+generation pass, use `python_handler: dataclass+protobuf`; then
+`proto/tasks_mcp.py` remains the dataclass sidecar and `proto/tasks_mcp_pb.py`
+contains the raw `tasks_pb2.*` handler sidecar.
+
 That generates:
 
 - `proto/tasks_pb2.py`

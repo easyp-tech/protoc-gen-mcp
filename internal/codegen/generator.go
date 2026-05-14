@@ -25,17 +25,22 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 		if err != nil {
 			return err
 		}
+		pythonHandlers := pythonHandlersForOptions(opts)
+		dualPythonHandlers := len(pythonHandlers) > 1
 		if err := emitPythonSupportFiles(plugin); err != nil {
 			return err
 		}
 		for _, file := range orderedFiles {
 			model := models[file.Desc.Path()]
-			if !pythonModelRequiresOutput(model) {
-				continue
-			}
-			emitPythonPackageInitFile(plugin, pythonPackageInitFiles, pythonOutputPath(file))
-			if err := renderPythonFile(plugin, model); err != nil {
-				return err
+			for _, handler := range pythonHandlers {
+				if !pythonModelRequiresOutputForHandler(model, handler) {
+					continue
+				}
+				outputPath := pythonOutputPathForHandler(file, handler, dualPythonHandlers)
+				emitPythonPackageInitFile(plugin, pythonPackageInitFiles, outputPath)
+				if err := renderPythonFileForHandler(plugin, model, handler, outputPath); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -249,10 +254,14 @@ func collectPythonModels(plugin *protogen.Plugin, opts Options) (map[string]File
 }
 
 func pythonModelRequiresOutput(model FileModel) bool {
+	return pythonModelRequiresOutputForHandler(model, model.Options.PythonHandler)
+}
+
+func pythonModelRequiresOutputForHandler(model FileModel, handler PythonHandler) bool {
 	if len(model.Services) > 0 {
 		return true
 	}
-	if model.Options.PythonHandler == PythonHandlerProtobuf {
+	if handler == PythonHandlerProtobuf {
 		return false
 	}
 	if model.PythonTypes == nil {

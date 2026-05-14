@@ -135,6 +135,43 @@ func TestParseOptions_PythonExplicitProtobufHandler(t *testing.T) {
 	}
 }
 
+func TestParseOptions_PythonMultipleHandlers(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+	}{
+		{
+			name: "comma continuation",
+			raw:  "lang=python,python_runtime=google.protobuf,python_handler=dataclass,protobuf",
+		},
+		{
+			name: "repeated option",
+			raw:  "lang=python,python_handler=dataclass,python_handler=protobuf",
+		},
+		{
+			name: "plus separated",
+			raw:  "lang=python,python_handler=dataclass+protobuf",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts, err := ParseOptions(tt.raw)
+			if err != nil {
+				t.Fatalf("ParseOptions returned error: %v", err)
+			}
+
+			want := []PythonHandler{PythonHandlerDataclass, PythonHandlerProtobuf}
+			if got := opts.PythonHandlers; !pythonHandlersEqual(got, want) {
+				t.Fatalf("PythonHandlers = %#v, want %#v", got, want)
+			}
+			if opts.PythonHandler != PythonHandlerDataclass {
+				t.Fatalf("PythonHandler = %q, want primary %q", opts.PythonHandler, PythonHandlerDataclass)
+			}
+		})
+	}
+}
+
 func TestParseOptions_PythonRuntimeConstants(t *testing.T) {
 	if PythonRuntimeGoogleProtobuf != "google.protobuf" {
 		t.Fatalf("PythonRuntimeGoogleProtobuf = %q, want %q", PythonRuntimeGoogleProtobuf, "google.protobuf")
@@ -145,6 +182,18 @@ func TestParseOptions_PythonRuntimeConstants(t *testing.T) {
 	if PythonRuntimeGrpclib != "grpclib" {
 		t.Fatalf("PythonRuntimeGrpclib = %q, want %q", PythonRuntimeGrpclib, "grpclib")
 	}
+}
+
+func pythonHandlersEqual(got, want []PythonHandler) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func TestParseOptions_PythonHandlerConstants(t *testing.T) {

@@ -17,7 +17,8 @@ TypeScript output and declarations.
   Protobuf-ES, and Ajv-backed raw JSON Schema validation
 - generated Python handlers default to dataclasses and explicit `oneof`
   wrapper types from `*_mcp.py`; `python_handler=protobuf` opts into raw
-  `*_pb2` handler request/response classes with the same registration helper
+  `*_pb2` handler request/response classes with the same registration helper;
+  `python_handler=dataclass+protobuf` generates both surfaces side by side
 - generated Kotlin handlers implement `<Service>ToolHandler` and are registered
   through `register<Service>Tools(server: Server, impl: <Service>ToolHandler, namespace: String? = null)`
 - generated Java handlers implement nested `<Service>ToolHandler` interfaces
@@ -288,6 +289,9 @@ generate:
         # Optional: use raw *_pb2 handler request/response classes instead of
         # the default generated dataclass API.
         # python_handler: protobuf
+        # Optional: generate both surfaces in one pass. This keeps *_mcp.py as
+        # the dataclass sidecar and adds *_mcp_pb.py for raw *_pb2 handlers.
+        # python_handler: dataclass+protobuf
     - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@latest"]
       out: .
       opts:
@@ -324,12 +328,14 @@ That generates language-specific protobuf output plus MCP sidecars such as
 TypeScript `*_mcp.ts` files. The Python target currently supports only
 `python_runtime=google.protobuf`; handler mode defaults to
 `python_handler=dataclass`, and `python_handler=protobuf` opts into raw
-`*_pb2` handlers. Generated Python output also emits a small `mcp/__init__.py`
-bridge so `mcp.options.*` protobuf modules can coexist with the official `mcp`
-SDK package in one import tree. No special Easyp override is required for
-`mcp.options.v1`, because the package declares `go_package` directly in
-`options.proto`. For reproducible builds, prefer pinning a specific tag instead
-of `@latest`.
+`*_pb2` handlers. `python_handler=dataclass+protobuf` generates both surfaces
+in one pass: `*_mcp.py` remains the dataclass sidecar and `*_mcp_pb.py` exposes
+the raw protobuf handler sidecar. Generated Python output also emits a small
+`mcp/__init__.py` bridge so `mcp.options.*` protobuf modules can coexist with
+the official `mcp` SDK package in one import tree. No special Easyp override is
+required for `mcp.options.v1`, because the package declares `go_package`
+directly in `options.proto`. For reproducible builds, prefer pinning a specific
+tag instead of `@latest`.
 
 For JVM consumers, the language selectors are `lang=java` and `lang=kotlin`.
 The Java path generates a Java sidecar alongside protobuf Java output. The
@@ -398,6 +404,19 @@ tasks_mcp.register_task_api_tools(server, TaskStore())
 See
 [examples/10_python_protobuf_standalone](examples/10_python_protobuf_standalone/)
 for the raw `*_pb2` standalone layout.
+
+If you want both handler surfaces from one generator invocation, use
+`python_handler: dataclass+protobuf`. The dataclass API is emitted to the
+normal `*_mcp.py` module, and the raw protobuf API is emitted to `*_mcp_pb.py`
+with the same protocol and registration names inside that module:
+
+```python
+from proto import tasks_mcp, tasks_mcp_pb, tasks_pb2
+
+# Dataclass implementation uses tasks_mcp.TaskAPIToolHandler.
+# Raw protobuf implementation uses tasks_mcp_pb.TaskAPIToolHandler.
+tasks_mcp_pb.register_task_api_tools(server, RawTaskStore())
+```
 
 For optional fields and `oneof` groups, the handler-facing absence sentinel is
 `UNSET`, not `None`. JSON `null` for a schema-optional field is mapped to

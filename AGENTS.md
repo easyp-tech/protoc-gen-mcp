@@ -182,6 +182,10 @@ architecture unless explicitly revised.
   where handler protocols accept and return raw generated `*_pb2` message
   classes, generated dataclass public types/mapper helpers are omitted, and
   registration remains `register_<service_name>_tools(server, impl, *, namespace=None)`
+- Generated Python modules support dual output with
+  `python_handler=dataclass+protobuf`: `*_mcp.py` remains the dataclass sidecar,
+  and `*_mcp_pb.py` exposes the raw protobuf sidecar with the same module-local
+  `<Service>ToolHandler` and `register_<service_name>_tools(...)` names
 - Generated Kotlin files expose `<Service>ToolHandler`
 - Generated Kotlin files expose
   `register<Service>Tools(server: Server, impl: <Service>ToolHandler, namespace: String? = null)`
@@ -208,7 +212,7 @@ architecture unless explicitly revised.
 - `cmd/protoc-gen-mcp` plugin scaffold and generated `*.mcp.go` bindings
   - typed plugin option parsing for `lang=go|python|kotlin|java|typescript` and
     `python_runtime=google.protobuf|betterproto|grpclib`, plus Python-only
-    `python_handler=dataclass|protobuf`
+    `python_handler=dataclass|protobuf|dataclass+protobuf`
   - generated TypeScript `*_mcp.ts` sidecars for `lang=typescript`, targeting
     the official `@modelcontextprotocol/sdk` low-level `Server` import path and
     Protobuf-ES `_pb.js` modules, including typed `<Service>ToolHandler`
@@ -258,6 +262,10 @@ architecture unless explicitly revised.
     registration uses identity converters through the existing
     `_RegisteredTool.from_pb/to_pb` seam, and message-only dependency files do
     not emit empty public `*_mcp.py` sidecars
+  - dual generated Python `python_handler=dataclass+protobuf` mode, where
+    dataclass output remains in `*_mcp.py` and raw protobuf output is emitted
+    to `*_mcp_pb.py`; protobuf-only `python_handler=protobuf` remains
+    backward-compatible and still emits raw handlers to `*_mcp.py`
   - generated Python `mcp/__init__.py` bridge support file so `mcp.options.*`
     protobuf output coexists with the official `mcp` SDK package namespace
   - generated Python package `__init__.py` files next to `*_mcp.py` output so
@@ -482,7 +490,7 @@ architecture unless explicitly revised.
 - Run generated Node stdio tests:
   - `go test ./internal/codegen -run 'TestTypeScriptGeneratedNodeServer.*OverStdio|TestTypeScriptGeneratedNodeServerRejectsInvalid(Input|Output)OverStdio' -count=1`
 - Run focused Python handler option and renderer tests:
-  - `go test ./internal/codegen -run 'TestParseOptions|TestPythonRenderer_EmitsDataclassPublicAPI|TestPythonRenderer_EmitsProtobufHandlerPublicAPI|TestPythonRenderer_ProtobufHandlerImportsCrossFileProtobufModules|TestGenerate_PythonProtobufHandlerSkipsCrossFilePublicTypeModules' -count=1`
+  - `go test ./internal/codegen -run 'TestParseOptions|TestGenerate_PythonMultipleHandlers|TestPythonRenderer_EmitsDataclassPublicAPI|TestPythonRenderer_EmitsProtobufHandlerPublicAPI|TestPythonRenderer_ProtobufHandlerImportsCrossFileProtobufModules|TestGenerate_PythonProtobufHandlerSkipsCrossFilePublicTypeModules' -count=1`
 - Run JVM compile gate:
   - `gradle --no-daemon -p examples/jvm :java-server:compileJava :kotlin-server:compileKotlin`
 - Install JVM example scripts:
