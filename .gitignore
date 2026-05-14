@@ -56,3 +56,4 @@ examples/6_java_standalone/build/
 examples/7_kotlin_standalone/.gradle/
 examples/7_kotlin_standalone/build/
 .DS_Store
+.idea/*
