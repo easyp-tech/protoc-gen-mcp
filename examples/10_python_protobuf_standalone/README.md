@@ -1,13 +1,15 @@
 # Standalone Python MCP Server With Raw Protobuf Handlers
 
 This example is structured like a user-owned Python project and opts into
-`python_handler: protobuf`. Generated handlers receive and return raw
-`*_pb2` message classes, represented here by `tasks_pb2.*`, instead of
-generated dataclasses.
+`python_handler: dataclass+protobuf`. Generation emits both public surfaces:
+`proto/tasks_mcp.py` for dataclass handlers and `proto/tasks_mcp_pb.py` for
+raw `*_pb2` handlers. The handwritten server uses the raw sidecar with
+`tasks_pb2.*` message classes.
 
 Use this layout when you already have Python server code written against
-standard `google.protobuf` generated classes. If you want the default
-dataclass API with `UNSET` and explicit `oneof` wrappers, use
+standard `google.protobuf` generated classes and also want dataclass bindings
+available. If you only want the default dataclass API with `UNSET` and
+explicit `oneof` wrappers, use
 [`../5_python_standalone`](../5_python_standalone/) instead.
 
 ## Generate
@@ -21,45 +23,45 @@ The key generator option is:
 ```yaml
 lang: python
 python_runtime: google.protobuf
-python_handler: protobuf
+python_handler: dataclass+protobuf
 ```
 
-`python_handler: protobuf` is protobuf-only and writes the raw handler sidecar
-to `proto/tasks_mcp.py`. If a project wants both public surfaces in one
-generation pass, use `python_handler: dataclass+protobuf`; then
-`proto/tasks_mcp.py` remains the dataclass sidecar and `proto/tasks_mcp_pb.py`
-contains the raw `tasks_pb2.*` handler sidecar.
+`python_handler: protobuf` remains available for protobuf-only projects and
+writes the raw handler sidecar to `proto/tasks_mcp.py`. This example uses
+`python_handler: dataclass+protobuf` to demonstrate simultaneous generation.
 
 That generates:
 
 - `proto/tasks_pb2.py`
 - `proto/tasks_mcp.py`
+- `proto/tasks_mcp_pb.py`
 - `proto/__init__.py`
 - `mcp/__init__.py`
 - `mcp/options/v1/options_pb2.py`
 
-The generated MCP sidecar still exposes the normal registration helper:
+The raw generated MCP sidecar still exposes the normal registration helper:
 
 ```python
-from proto import tasks_mcp, tasks_pb2
+from proto import tasks_mcp_pb, tasks_pb2
 
 
-class TaskStore(tasks_mcp.TaskAPIToolHandler):
+class TaskStore(tasks_mcp_pb.TaskAPIToolHandler):
     def create_task(
         self,
-        _ctx: tasks_mcp.ToolRequestContext,
+        _ctx: tasks_mcp_pb.ToolRequestContext,
         req: tasks_pb2.CreateTaskRequest,
     ) -> tasks_pb2.CreateTaskResponse:
         ...
 
 
-tasks_mcp.register_task_api_tools(server, TaskStore())
+tasks_mcp_pb.register_task_api_tools(server, TaskStore())
 ```
 
-In protobuf mode, generated dataclasses, `UNSET`, and dataclass mapper helpers
-are omitted. Runtime validation, ProtoJSON parsing, output validation,
+In the protobuf sidecar, generated dataclasses, `UNSET`, and dataclass mapper
+helpers are omitted. Runtime validation, ProtoJSON parsing, output validation,
 structured content, tool names, annotations, icons, and execution metadata are
-still owned by the generated MCP sidecar.
+still owned by the generated MCP sidecar. The dataclass sidecar remains
+available in `proto/tasks_mcp.py` for users who prefer wrapper types.
 
 ## Run
 

@@ -215,7 +215,7 @@ out the
 - [3_file_manager](examples/3_file_manager/) - Destructive tools and schema-based string parameter constraints.
 - [4_crm_system](examples/4_crm_system/) - A full mock system with FieldMask partial updates, custom icons mapping, schemas nested types, and advanced array filters.
 - [5_python_standalone](examples/5_python_standalone/) - A Python-only user-style project with its own `pyproject.toml`, `easyp.yaml`, generated bindings, and stdio server.
-- [10_python_protobuf_standalone](examples/10_python_protobuf_standalone/) - A Python-only user-style project that opts into `python_handler=protobuf` and implements handlers with raw `*_pb2` classes.
+- [10_python_protobuf_standalone](examples/10_python_protobuf_standalone/) - A Python-only user-style project that opts into `python_handler=dataclass+protobuf` and implements the raw `*_mcp_pb.py` sidecar with `*_pb2` classes.
 - [6_java_standalone](examples/6_java_standalone/) - A Java user-style project with its own Gradle build, `easyp.yaml`, protobuf contract, and generated MCP sidecar.
 - [7_kotlin_standalone](examples/7_kotlin_standalone/) - A Kotlin user-style project with its own Gradle build, `easyp.yaml`, protobuf contract, and generated MCP sidecar.
 - [8_typescript_standalone](examples/8_typescript_standalone/) - A TypeScript user-style project with its own npm package, `tsconfig.json`, `easyp.yaml`, Protobuf-ES output, generated MCP sidecar, and stdio server.

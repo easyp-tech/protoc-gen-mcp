@@ -61,8 +61,8 @@ architecture unless explicitly revised.
   server
 - `examples/10_python_protobuf_standalone`: Python-only user-style example
   with its own `pyproject.toml`, `easyp.yaml`, generated `proto`/`mcp`
-  packages, opt-in `python_handler=protobuf` sidecar, raw `*_pb2` handlers,
-  and stdio server
+  packages, opt-in `python_handler=dataclass+protobuf` sidecars, raw
+  `*_pb2` handlers through `*_mcp_pb.py`, and stdio server
 - `examples/6_java_standalone`: Java user-style standalone project with its
   own Gradle build, `easyp.yaml`, protobuf contract, generated Java protobuf
   classes, generated `lang=java` MCP sidecar, and handwritten stdio server
@@ -291,8 +291,8 @@ architecture unless explicitly revised.
   - `examples/10_python_protobuf_standalone` models an external Python-only
     raw `*_pb2` handler project with its own `pyproject.toml`, `easyp.yaml`,
     generated package `__init__.py` files, generated local `mcp.options.*`
-    modules, opt-in `python_handler=protobuf` sidecar, and checked-in stdio
-    server
+    modules, opt-in `python_handler=dataclass+protobuf` sidecars, and
+    checked-in stdio server that imports the raw `*_mcp_pb.py` sidecar
   - standalone examples use `examples/easyp.yaml` `deps` plus
     `examples/easyp.lock` to resolve `mcp/options/v1/options.proto` from
     `github.com/easyp-tech/protoc-gen-mcp` instead of depending on the local

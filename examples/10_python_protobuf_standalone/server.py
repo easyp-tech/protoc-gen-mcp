@@ -7,7 +7,7 @@ import mcp.server.lowlevel
 import mcp.server.stdio
 from google.protobuf import timestamp_pb2
 
-from proto import tasks_mcp, tasks_pb2
+from proto import tasks_mcp_pb, tasks_pb2
 
 
 def _now_timestamp() -> timestamp_pb2.Timestamp:
@@ -16,14 +16,14 @@ def _now_timestamp() -> timestamp_pb2.Timestamp:
     return timestamp
 
 
-class TaskStore(tasks_mcp.TaskAPIToolHandler):
+class TaskStore(tasks_mcp_pb.TaskAPIToolHandler):
     def __init__(self) -> None:
         self._next_id = 1
         self._tasks: dict[str, tasks_pb2.Task] = {}
 
     def create_task(
         self,
-        _ctx: tasks_mcp.ToolRequestContext,
+        _ctx: tasks_mcp_pb.ToolRequestContext,
         req: tasks_pb2.CreateTaskRequest,
     ) -> tasks_pb2.CreateTaskResponse:
         task_id = f"task-{self._next_id}"
@@ -41,7 +41,7 @@ class TaskStore(tasks_mcp.TaskAPIToolHandler):
 
     def list_tasks(
         self,
-        _ctx: tasks_mcp.ToolRequestContext,
+        _ctx: tasks_mcp_pb.ToolRequestContext,
         req: tasks_pb2.ListTasksRequest,
     ) -> tasks_pb2.ListTasksResponse:
         include_completed = req.include_completed if req.HasField("include_completed") else True
@@ -62,7 +62,7 @@ class TaskStore(tasks_mcp.TaskAPIToolHandler):
 
     def health(
         self,
-        _ctx: tasks_mcp.ToolRequestContext,
+        _ctx: tasks_mcp_pb.ToolRequestContext,
         _req: tasks_pb2.HealthRequest,
     ) -> tasks_pb2.HealthResponse:
         return tasks_pb2.HealthResponse(ok=True, task_count=len(self._tasks))
@@ -70,7 +70,7 @@ class TaskStore(tasks_mcp.TaskAPIToolHandler):
 
 def new_server() -> mcp.server.lowlevel.Server:
     server = mcp.server.lowlevel.Server("standalone-python-protobuf-tasks", version="0.1.0")
-    tasks_mcp.register_task_api_tools(server, TaskStore())
+    tasks_mcp_pb.register_task_api_tools(server, TaskStore())
     return server
 
 

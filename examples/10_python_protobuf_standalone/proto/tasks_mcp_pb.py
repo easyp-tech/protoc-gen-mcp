@@ -22,72 +22,6 @@ except ImportError:
 
 ToolRequestContext = mcp.server.session.ServerSession
 
-class _UnsetType:
-    __slots__ = ()
-
-    def __repr__(self) -> str:
-        return "UNSET"
-
-UNSET = _UnsetType()
-
-JSONValue: TypeAlias = dict[str, Any] | list[Any] | str | int | float | bool | None
-ProtoAny: TypeAlias = dict[str, Any]
-Timestamp: TypeAlias = str
-Duration: TypeAlias = str
-FieldMask: TypeAlias = str
-Struct: TypeAlias = dict[str, Any]
-Value: TypeAlias = JSONValue
-ListValue: TypeAlias = list[Any]
-BoolValue: TypeAlias = bool
-StringValue: TypeAlias = str
-BytesValue: TypeAlias = bytes
-Int32Value: TypeAlias = int
-UInt32Value: TypeAlias = int
-Int64Value: TypeAlias = int
-UInt64Value: TypeAlias = int
-FloatValue: TypeAlias = float
-DoubleValue: TypeAlias = float
-
-@dataclass(slots=True)
-class Empty:
-    pass
-
-@dataclass(slots=True)
-class CreateTaskRequest:
-    title: str
-    tags: list[str] = field(default_factory=list)
-
-@dataclass(slots=True)
-class Task:
-    id: str
-    title: str
-    completed: bool
-    created_at: Timestamp
-    tags: list[str] = field(default_factory=list)
-
-@dataclass(slots=True)
-class CreateTaskResponse:
-    task: Task
-
-@dataclass(slots=True)
-class ListTasksRequest:
-    include_completed: bool | _UnsetType = UNSET
-    tags: list[str] = field(default_factory=list)
-    limit: int | _UnsetType = UNSET
-
-@dataclass(slots=True)
-class ListTasksResponse:
-    tasks: list[Task] = field(default_factory=list)
-
-@dataclass(slots=True)
-class HealthRequest:
-    pass
-
-@dataclass(slots=True)
-class HealthResponse:
-    ok: bool
-    task_count: int
-
 @dataclass(frozen=True)
 class _RegisteredTool:
     name: str
@@ -133,6 +67,9 @@ def _load_schema(schema_json: str) -> dict[str, Any]:
 def _protojson_to_message(arguments: dict[str, Any], message: Any) -> Any:
     json_format.ParseDict(arguments, message)
     return message
+
+def _identity(value: Any) -> Any:
+    return value
 
 def _normalize_tool_segment(segment: str | None) -> str:
     if segment is None:
@@ -320,207 +257,12 @@ async def _dispatch_call(registry: _ServerToolRegistry, name: str, arguments: di
         raise RuntimeError(f"mcpruntime: validate output for tool {name!r}: {error}") from error
     return mcp.types.CallToolResult(content=content, structuredContent=payload)
 
-def _enum_from_pb(enum_type: type[enum.IntEnum], value: int) -> enum.IntEnum:
-    return enum_type(value)
-
-def _json_to_message(value: Any, message: Any) -> Any:
-    json_format.Parse(json.dumps(value), message)
-    return message
-
-def _from_pb_any(message: any_pb2.Any) -> ProtoAny:
-    return json.loads(_message_to_json(message))
-
-def _to_pb_any(value: ProtoAny) -> any_pb2.Any:
-    return _json_to_message(value, any_pb2.Any())
-
-def _from_pb_timestamp(message: timestamp_pb2.Timestamp) -> Timestamp:
-    return json.loads(_message_to_json(message))
-
-def _to_pb_timestamp(value: Timestamp) -> timestamp_pb2.Timestamp:
-    return _json_to_message(value, timestamp_pb2.Timestamp())
-
-def _from_pb_duration(message: duration_pb2.Duration) -> Duration:
-    return json.loads(_message_to_json(message))
-
-def _to_pb_duration(value: Duration) -> duration_pb2.Duration:
-    return _json_to_message(value, duration_pb2.Duration())
-
-def _from_pb_field_mask(message: field_mask_pb2.FieldMask) -> FieldMask:
-    return json.loads(_message_to_json(message))
-
-def _to_pb_field_mask(value: FieldMask) -> field_mask_pb2.FieldMask:
-    return _json_to_message(value, field_mask_pb2.FieldMask())
-
-def _from_pb_struct(message: struct_pb2.Struct) -> Struct:
-    return json.loads(_message_to_json(message))
-
-def _to_pb_struct(value: Struct) -> struct_pb2.Struct:
-    return _json_to_message(value, struct_pb2.Struct())
-
-def _from_pb_list_value(message: struct_pb2.ListValue) -> ListValue:
-    return json.loads(_message_to_json(message))
-
-def _to_pb_list_value(value: ListValue) -> struct_pb2.ListValue:
-    return _json_to_message(value, struct_pb2.ListValue())
-
-def _from_pb_value(message: struct_pb2.Value) -> Value:
-    return json.loads(_message_to_json(message))
-
-def _to_pb_value(value: Value) -> struct_pb2.Value:
-    return _json_to_message(value, struct_pb2.Value())
-
-def _from_pb_empty(message: empty_pb2.Empty) -> Empty:
-    return Empty()
-
-def _to_pb_empty(value: Empty) -> empty_pb2.Empty:
-    return empty_pb2.Empty()
-
-def _from_pb_bool_value(message: wrappers_pb2.BoolValue) -> BoolValue:
-    return message.value
-
-def _to_pb_bool_value(value: BoolValue) -> wrappers_pb2.BoolValue:
-    return wrappers_pb2.BoolValue(value=value)
-
-def _from_pb_string_value(message: wrappers_pb2.StringValue) -> StringValue:
-    return message.value
-
-def _to_pb_string_value(value: StringValue) -> wrappers_pb2.StringValue:
-    return wrappers_pb2.StringValue(value=value)
-
-def _from_pb_bytes_value(message: wrappers_pb2.BytesValue) -> BytesValue:
-    return message.value
-
-def _to_pb_bytes_value(value: BytesValue) -> wrappers_pb2.BytesValue:
-    return wrappers_pb2.BytesValue(value=value)
-
-def _from_pb_int32_value(message: wrappers_pb2.Int32Value) -> Int32Value:
-    return message.value
-
-def _to_pb_int32_value(value: Int32Value) -> wrappers_pb2.Int32Value:
-    return wrappers_pb2.Int32Value(value=value)
-
-def _from_pb_uint32_value(message: wrappers_pb2.UInt32Value) -> UInt32Value:
-    return message.value
-
-def _to_pb_uint32_value(value: UInt32Value) -> wrappers_pb2.UInt32Value:
-    return wrappers_pb2.UInt32Value(value=value)
-
-def _from_pb_int64_value(message: wrappers_pb2.Int64Value) -> Int64Value:
-    return message.value
-
-def _to_pb_int64_value(value: Int64Value) -> wrappers_pb2.Int64Value:
-    return wrappers_pb2.Int64Value(value=value)
-
-def _from_pb_uint64_value(message: wrappers_pb2.UInt64Value) -> UInt64Value:
-    return message.value
-
-def _to_pb_uint64_value(value: UInt64Value) -> wrappers_pb2.UInt64Value:
-    return wrappers_pb2.UInt64Value(value=value)
-
-def _from_pb_float_value(message: wrappers_pb2.FloatValue) -> FloatValue:
-    return message.value
-
-def _to_pb_float_value(value: FloatValue) -> wrappers_pb2.FloatValue:
-    return wrappers_pb2.FloatValue(value=value)
-
-def _from_pb_double_value(message: wrappers_pb2.DoubleValue) -> DoubleValue:
-    return message.value
-
-def _to_pb_double_value(value: DoubleValue) -> wrappers_pb2.DoubleValue:
-    return wrappers_pb2.DoubleValue(value=value)
-
-def _from_pb_create_task_request(message: tasks_pb2.CreateTaskRequest) -> CreateTaskRequest:
-    return CreateTaskRequest(
-        title=message.title,
-        tags=list(message.tags),
-    )
-
-def _to_pb_create_task_request(value: CreateTaskRequest) -> tasks_pb2.CreateTaskRequest:
-    message = tasks_pb2.CreateTaskRequest()
-    message.title = value.title
-    message.tags.extend(value.tags)
-    return message
-
-def _from_pb_task(message: tasks_pb2.Task) -> Task:
-    return Task(
-        id=message.id,
-        title=message.title,
-        completed=message.completed,
-        tags=list(message.tags),
-        created_at=_from_pb_timestamp(message.created_at),
-    )
-
-def _to_pb_task(value: Task) -> tasks_pb2.Task:
-    message = tasks_pb2.Task()
-    message.id = value.id
-    message.title = value.title
-    message.completed = value.completed
-    message.tags.extend(value.tags)
-    message.created_at.CopyFrom(_to_pb_timestamp(value.created_at))
-    return message
-
-def _from_pb_create_task_response(message: tasks_pb2.CreateTaskResponse) -> CreateTaskResponse:
-    return CreateTaskResponse(
-        task=_from_pb_task(message.task),
-    )
-
-def _to_pb_create_task_response(value: CreateTaskResponse) -> tasks_pb2.CreateTaskResponse:
-    message = tasks_pb2.CreateTaskResponse()
-    message.task.CopyFrom(_to_pb_task(value.task))
-    return message
-
-def _from_pb_list_tasks_request(message: tasks_pb2.ListTasksRequest) -> ListTasksRequest:
-    return ListTasksRequest(
-        include_completed=message.include_completed if message.HasField("include_completed") else UNSET,
-        tags=list(message.tags),
-        limit=message.limit if message.HasField("limit") else UNSET,
-    )
-
-def _to_pb_list_tasks_request(value: ListTasksRequest) -> tasks_pb2.ListTasksRequest:
-    message = tasks_pb2.ListTasksRequest()
-    if value.include_completed is not UNSET:
-        message.include_completed = value.include_completed
-    message.tags.extend(value.tags)
-    if value.limit is not UNSET:
-        message.limit = value.limit
-    return message
-
-def _from_pb_list_tasks_response(message: tasks_pb2.ListTasksResponse) -> ListTasksResponse:
-    return ListTasksResponse(
-        tasks=[_from_pb_task(item) for item in message.tasks],
-    )
-
-def _to_pb_list_tasks_response(value: ListTasksResponse) -> tasks_pb2.ListTasksResponse:
-    message = tasks_pb2.ListTasksResponse()
-    message.tasks.extend(_to_pb_task(item) for item in value.tasks)
-    return message
-
-def _from_pb_health_request(message: tasks_pb2.HealthRequest) -> HealthRequest:
-    return HealthRequest(
-    )
-
-def _to_pb_health_request(value: HealthRequest) -> tasks_pb2.HealthRequest:
-    message = tasks_pb2.HealthRequest()
-    return message
-
-def _from_pb_health_response(message: tasks_pb2.HealthResponse) -> HealthResponse:
-    return HealthResponse(
-        ok=message.ok,
-        task_count=message.task_count,
-    )
-
-def _to_pb_health_response(value: HealthResponse) -> tasks_pb2.HealthResponse:
-    message = tasks_pb2.HealthResponse()
-    message.ok = value.ok
-    message.task_count = value.task_count
-    return message
-
 class TaskAPIToolHandler(Protocol):
-    def create_task(self, ctx: ToolRequestContext, req: CreateTaskRequest) -> CreateTaskResponse | Awaitable[CreateTaskResponse]:
+    def create_task(self, ctx: ToolRequestContext, req: tasks_pb2.CreateTaskRequest) -> tasks_pb2.CreateTaskResponse | Awaitable[tasks_pb2.CreateTaskResponse]:
         ...
-    def list_tasks(self, ctx: ToolRequestContext, req: ListTasksRequest) -> ListTasksResponse | Awaitable[ListTasksResponse]:
+    def list_tasks(self, ctx: ToolRequestContext, req: tasks_pb2.ListTasksRequest) -> tasks_pb2.ListTasksResponse | Awaitable[tasks_pb2.ListTasksResponse]:
         ...
-    def health(self, ctx: ToolRequestContext, req: HealthRequest) -> HealthResponse | Awaitable[HealthResponse]:
+    def health(self, ctx: ToolRequestContext, req: tasks_pb2.HealthRequest) -> tasks_pb2.HealthResponse | Awaitable[tasks_pb2.HealthResponse]:
         ...
 
 def register_task_api_tools(server: mcp.server.lowlevel.Server, impl: TaskAPIToolHandler, *, namespace: str | None = None) -> None:
@@ -536,8 +278,8 @@ def register_task_api_tools(server: mcp.server.lowlevel.Server, impl: TaskAPIToo
         output_schema_json=TASK_API_CREATE_TASK_OUTPUT_SCHEMA_JSON,
         request_type=tasks_pb2.CreateTaskRequest,
         response_type=tasks_pb2.CreateTaskResponse,
-        from_pb=_from_pb_create_task_request,
-        to_pb=_to_pb_create_task_response,
+        from_pb=_identity,
+        to_pb=_identity,
         handler=impl.create_task,
         annotations={"destructiveHint": False, "openWorldHint": False},
         icons=None,
@@ -551,8 +293,8 @@ def register_task_api_tools(server: mcp.server.lowlevel.Server, impl: TaskAPIToo
         output_schema_json=TASK_API_LIST_TASKS_OUTPUT_SCHEMA_JSON,
         request_type=tasks_pb2.ListTasksRequest,
         response_type=tasks_pb2.ListTasksResponse,
-        from_pb=_from_pb_list_tasks_request,
-        to_pb=_to_pb_list_tasks_response,
+        from_pb=_identity,
+        to_pb=_identity,
         handler=impl.list_tasks,
         annotations={"readOnlyHint": True, "openWorldHint": False},
         icons=None,
@@ -566,8 +308,8 @@ def register_task_api_tools(server: mcp.server.lowlevel.Server, impl: TaskAPIToo
         output_schema_json=TASK_API_HEALTH_OUTPUT_SCHEMA_JSON,
         request_type=tasks_pb2.HealthRequest,
         response_type=tasks_pb2.HealthResponse,
-        from_pb=_from_pb_health_request,
-        to_pb=_to_pb_health_response,
+        from_pb=_identity,
+        to_pb=_identity,
         handler=impl.health,
         annotations={"readOnlyHint": True, "openWorldHint": False},
         icons=None,

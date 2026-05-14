@@ -35,4 +35,4 @@ generate:
         paths: source_relative
         lang: python
         python_runtime: google.protobuf
-        python_handler: protobuf
+        python_handler: dataclass+protobuf
