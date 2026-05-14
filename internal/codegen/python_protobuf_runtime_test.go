@@ -464,3 +464,179 @@ else:
     raise AssertionError("expected RuntimeError for output marshal failure")
 `)
 }
+
+func TestPythonProtobufRuntime_DispatchesAsyncHandlers(t *testing.T) {
+	runExamplePythonProtobufScript(t, `
+import asyncio
+
+class DummyServer:
+    pass
+
+registry = module._ServerToolRegistry(DummyServer())
+
+async def handler(_ctx, req):
+    await asyncio.sleep(0)
+    assert isinstance(req, example_pb2.CreateReportRequest)
+    return example_pb2.CreateReportResponse(
+        report_id="async-42",
+        total_count=req.count,
+        status=example_pb2.REPORT_STATUS_OK,
+        details=req.details,
+    )
+
+registry.add_tool(module._RegisteredTool(
+    name="example_CreateReport",
+    title="Create report",
+    description="Create a report for a city.",
+    input_schema_json=module.EXAMPLE_API_CREATE_REPORT_INPUT_SCHEMA_JSON,
+    output_schema_json=module.EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON,
+    request_type=example_pb2.CreateReportRequest,
+    response_type=example_pb2.CreateReportResponse,
+    from_pb=module._identity,
+    to_pb=module._identity,
+    handler=handler,
+    annotations=None,
+    icons=None,
+))
+
+result = asyncio.run(module._dispatch_call(
+    registry,
+    "example_CreateReport",
+    {
+        "city": "Paris",
+        "count": 2,
+        "details": {"label": "today"},
+    },
+    None,
+))
+assert result.structuredContent["reportId"] == "async-42"
+assert result.structuredContent["totalCount"] == "2"
+assert result.structuredContent["status"] == "REPORT_STATUS_OK"
+`)
+}
+
+func TestPythonProtobufRuntime_HandlerBusinessErrorsReturnToolErrorResult(t *testing.T) {
+	runExamplePythonProtobufScript(t, `
+import asyncio
+
+class DummyServer:
+    pass
+
+registry = module._ServerToolRegistry(DummyServer())
+
+def handler(_ctx, _req):
+    raise RuntimeError("boom")
+
+registry.add_tool(module._RegisteredTool(
+    name="example_CreateReport",
+    title="Create report",
+    description="Create a report for a city.",
+    input_schema_json=module.EXAMPLE_API_CREATE_REPORT_INPUT_SCHEMA_JSON,
+    output_schema_json=module.EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON,
+    request_type=example_pb2.CreateReportRequest,
+    response_type=example_pb2.CreateReportResponse,
+    from_pb=module._identity,
+    to_pb=module._identity,
+    handler=handler,
+    annotations=None,
+    icons=None,
+))
+
+result = asyncio.run(module._dispatch_call(
+    registry,
+    "example_CreateReport",
+    {
+        "city": "Paris",
+        "count": 2,
+        "details": {"label": "today"},
+    },
+    None,
+))
+assert result.isError is True
+assert result.content[0].type == "text"
+assert result.content[0].text == "boom"
+assert result.structuredContent is None
+`)
+}
+
+func TestPythonProtobufRuntime_UnknownToolRaisesInvalidParams(t *testing.T) {
+	runExamplePythonProtobufScript(t, `
+import asyncio
+import mcp.types
+from mcp.server.lowlevel import Server
+from mcp.shared.exceptions import McpError
+
+class Handler(module.ExampleAPIToolHandler):
+    def create_report(self, _ctx, _req):
+        return example_pb2.CreateReportResponse(
+            report_id="ok",
+            status=example_pb2.REPORT_STATUS_OK,
+            details=example_pb2.ReportDetails(label="ok"),
+        )
+
+    def ping(self, _ctx, _req):
+        return example_pb2.PingResponse()
+
+    def describe_advanced_shapes(self, _ctx, _req):
+        return example_pb2.DescribeAdvancedShapesResponse()
+
+    def describe_scalar_shapes(self, _ctx, _req):
+        return example_pb2.DescribeScalarShapesResponse()
+
+    def hidden_thing(self, _ctx, _req):
+        return example_pb2.HiddenThingResponse()
+
+async def main():
+    server = Server("protobuf-runtime-test", version="1.0.0")
+    module.register_example_api_tools(server, Handler())
+    registry = module._get_registry(server)
+
+    try:
+        await registry.call_tool("missing_tool", {"city": "Paris", "count": 2})
+    except McpError as exc:
+        assert exc.error.code == mcp.types.INVALID_PARAMS
+        assert "missing_tool" in exc.error.message
+        assert "unknown tool" in exc.error.message
+    else:
+        raise AssertionError("expected missing tool to raise McpError")
+
+asyncio.run(main())
+`)
+}
+
+func TestPythonProtobufRuntime_DuplicateRegistrationFails(t *testing.T) {
+	runExamplePythonProtobufScript(t, `
+from mcp.server.lowlevel import Server
+
+class Handler(module.ExampleAPIToolHandler):
+    def create_report(self, _ctx, _req):
+        return example_pb2.CreateReportResponse(
+            report_id="ok",
+            status=example_pb2.REPORT_STATUS_OK,
+            details=example_pb2.ReportDetails(label="ok"),
+        )
+
+    def ping(self, _ctx, _req):
+        return example_pb2.PingResponse()
+
+    def describe_advanced_shapes(self, _ctx, _req):
+        return example_pb2.DescribeAdvancedShapesResponse()
+
+    def describe_scalar_shapes(self, _ctx, _req):
+        return example_pb2.DescribeScalarShapesResponse()
+
+    def hidden_thing(self, _ctx, _req):
+        return example_pb2.HiddenThingResponse()
+
+server = Server("protobuf-runtime-test", version="1.0.0")
+handler = Handler()
+module.register_example_api_tools(server, handler)
+
+try:
+    module.register_example_api_tools(server, handler)
+except ValueError as exc:
+    assert "duplicate tool registration: example_CreateReport" in str(exc)
+else:
+    raise AssertionError("expected duplicate registration to fail")
+`)
+}
