@@ -394,6 +394,34 @@ func getEnumValueOptions(enumValue *protogen.EnumValue) (*mcpoptionsv1.EnumValue
 	return options, nil
 }
 
+func getPromptOptions(message *protogen.Message) (*mcpoptionsv1.PromptOptions, error) {
+	value, err := getExtension(message.Desc.Options(), mcpoptionsv1.E_Prompt)
+	if err != nil || value == nil {
+		return nil, err
+	}
+
+	options, ok := value.(*mcpoptionsv1.PromptOptions)
+	if !ok {
+		return nil, fmt.Errorf("message %s returned unexpected prompt options type %T", message.Desc.FullName(), value)
+	}
+
+	return options, nil
+}
+
+func getResourceOptions(message *protogen.Message) (*mcpoptionsv1.ResourceOptions, error) {
+	value, err := getExtension(message.Desc.Options(), mcpoptionsv1.E_Resource)
+	if err != nil || value == nil {
+		return nil, err
+	}
+
+	options, ok := value.(*mcpoptionsv1.ResourceOptions)
+	if !ok {
+		return nil, fmt.Errorf("message %s returned unexpected resource options type %T", message.Desc.FullName(), value)
+	}
+
+	return options, nil
+}
+
 // materializeExampleValue converts a proto ExampleValue to a Go any value
 // suitable for JSON Schema examples/defaults.
 // Returns (nil, false) if the value is nil or has no kind set.

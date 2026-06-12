@@ -712,3 +712,141 @@ extend google.protobuf.OneofOptions {
   // oneof stores MCP metadata for a protobuf oneof group.
   OneofOptions oneof = 91007;
 }
+
+// ═══════════════════════════════════════════════════════════
+// PROMPTS — Phase 2
+// ═══════════════════════════════════════════════════════════
+
+// PromptOptions marks a proto message as an MCP Prompt.
+// Each field of the message becomes a prompt argument.
+// Requiredness follows proto3 rules:
+//   - singular field → required argument
+//   - optional field → optional argument
+//
+// Nested messages, repeated, map, and oneof fields are not allowed
+// in prompt messages — the generator will produce a fail-fast error.
+//
+// Example:
+//   message CodeReview {
+//     option (mcp.options.v1.prompt) = {
+//       name: "code_review"
+//       description: "Review code quality"
+//     };
+//     string code = 1;
+//     optional string focus = 2;
+//   }
+message PromptOptions {
+  // name overrides the prompt name.
+  // Default: snake_case of the message name.
+  // Final name: "{namespace}_{name}" (same logic as tools).
+  string name = 1;
+
+  // title sets the human-readable title for the prompt.
+  string title = 2;
+
+  // description of the prompt shown to clients and agents.
+  string description = 3;
+
+  // icons for the prompt.
+  repeated Icon icons = 4;
+}
+
+// Extend google.protobuf.MessageOptions to attach MCP prompt metadata.
+//
+// Usage in a user proto file:
+//
+//   message CodeReview {
+//     option (mcp.options.v1.prompt) = {
+//       name: "code_review"
+//       description: "Analyze code quality and suggest improvements"
+//     };
+//     string code = 1;
+//     optional string focus_area = 2;
+//   }
+// ResourceAudience identifies the intended consumer of an MCP resource.
+enum ResourceAudience {
+  RESOURCE_AUDIENCE_UNSPECIFIED = 0;
+  RESOURCE_AUDIENCE_USER = 1;
+  RESOURCE_AUDIENCE_ASSISTANT = 2;
+}
+
+// ResourceAnnotations carries MCP-level metadata for a resource.
+// These map to the MCP spec's Annotations object (audience + priority),
+// which is distinct from ToolAnnotations (hints).
+message ResourceAnnotations {
+  // audience lists the intended consumers (user, assistant, or both).
+  repeated ResourceAudience audience = 1;
+
+  // priority is a hint for ordering in resource lists (0.0–1.0).
+  optional double priority = 2;
+}
+
+// ResourceOptions defines MCP resource metadata attached to a proto message.
+//
+// Exactly one of `uri` or `uri_template` must be set:
+//   - `uri`:          static resource, registered via server.AddResource().
+//   - `uri_template`: parameterised resource (RFC 6570 simple-string),
+//                     registered via server.AddResourceTemplate().
+//
+// Message fields describe the output schema — they are serialised via
+// ProtoJSON when a client reads the resource.
+//
+// Usage:
+//
+//   message AppConfig {
+//     option (mcp.options.v1.resource) = {
+//       uri: "config://app"
+//       name: "app_config"
+//       description: "Application configuration"
+//     };
+//     string version = 1;
+//     string environment = 2;
+//   }
+//
+//   message UserProfile {
+//     option (mcp.options.v1.resource) = {
+//       uri_template: "users://{user_id}/profile"
+//       description: "User profile data"
+//     };
+//     string user_id = 1;
+//     string display_name = 2;
+//   }
+message ResourceOptions {
+  // uri is the fixed URI for a static resource.
+  // Mutually exclusive with uri_template.
+  string uri = 1;
+
+  // uri_template is a parameterised URI (RFC 6570 simple-string)
+  // for a template resource. Must contain at least one {param}.
+  // Mutually exclusive with uri.
+  string uri_template = 2;
+
+  // name overrides the display name of the resource.
+  // Default: snake_case of the message name.
+  string name = 3;
+
+  // description of the resource shown to clients and agents.
+  string description = 4;
+
+  // mime_type specifies the MIME type of resource content.
+  // Default: "application/json".
+  string mime_type = 5;
+
+  // annotations carries MCP-level resource metadata (audience, priority).
+  ResourceAnnotations annotations = 6;
+
+  // icons for the resource.
+  repeated Icon icons = 7;
+}
+
+extend google.protobuf.MessageOptions {
+  // prompt marks a message as an MCP Prompt definition.
+  // The generator scans all messages for this option — no file-level
+  // marker needed.
+  PromptOptions prompt = 91008;
+
+  // resource marks a message as an MCP Resource definition.
+  // Exactly one of uri or uri_template must be set in the options.
+  // The generator scans all messages for this option.
+  ResourceOptions resource = 91009;
+}

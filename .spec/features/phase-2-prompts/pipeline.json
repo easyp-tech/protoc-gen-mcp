@@ -1,0 +1,18 @@
+{
+  "feature": "phase-2-prompts",
+  "phase": "done",
+  "created_at": "2026-06-09T17:27:08Z",
+  "current_artifact": null,
+  "history": [
+    {"phase": "explore", "artifact": ".spec/features/phase-2-prompts/explore.md", "approved_at": "2026-06-09T20:34:23Z"},
+    {"phase": "requirements", "artifact": ".spec/features/phase-2-prompts/requirements.md", "approved_at": "2026-06-10T09:41:44Z"},
+    {"phase": "design", "artifact": ".spec/features/phase-2-prompts/design.md", "approved_at": "2026-06-10T10:55:20Z"},
+    {"phase": "task-plan", "artifact": ".spec/features/phase-2-prompts/task-plan.md", "approved_at": "2026-06-10T10:58:37Z"},
+    {"phase": "implementation", "artifact": "/Users/zergslaw/.gemini/antigravity/brain/7bbffc56-235e-4c64-bf21-8d5a35b2e893/walkthrough.md", "approved_at": "2026-06-11T09:28:08Z"},
+    {"phase": "review", "artifact": ".spec/features/phase-2-prompts/review.md", "approved_at": "2026-06-11T13:41:59Z"}
+  ],
+  "review_base_commit": "44991ebff1c3a49ab9771835a075192a7c6732b6",
+  "tasks": [],
+  "finish_action": null,
+  "finished_at": null
+}

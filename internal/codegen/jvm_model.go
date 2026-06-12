@@ -10,6 +10,8 @@ type JVMFileModel struct {
 	GeneratedFilenamePrefix string
 	ProtoPackage            string
 	Services                []JVMServiceModel
+	Prompts                 []PromptModel
+	Resources               []ResourceModel
 	Types                   JVMTypeGraph
 }
 

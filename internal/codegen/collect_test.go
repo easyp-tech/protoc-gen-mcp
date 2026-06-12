@@ -131,6 +131,85 @@ func newExampleProtogenPlugin(t *testing.T) *protogen.Plugin {
 	})
 }
 
+func newPromptsProtogenPlugin(t *testing.T) *protogen.Plugin {
+	t.Helper()
+
+	return newCompiledProtogenPlugin(t, []string{"internal/testproto/prompts/v1/prompts.proto"}, &protocompile.SourceResolver{
+		ImportPaths: []string{repoRoot(t)},
+	})
+}
+
+func newResourcesProtogenPlugin(t *testing.T) *protogen.Plugin {
+	t.Helper()
+
+	return newCompiledProtogenPlugin(t, []string{"internal/testproto/resources/v1/resources.proto"}, &protocompile.SourceResolver{
+		ImportPaths: []string{repoRoot(t)},
+	})
+}
+
+func TestCollectFileModel_Resources(t *testing.T) {
+	plugin := newResourcesProtogenPlugin(t)
+	file := plugin.FilesByPath["internal/testproto/resources/v1/resources.proto"]
+	if file == nil {
+		t.Fatal("resources proto file not found in plugin")
+	}
+
+	model, err := CollectFileModel(file, Options{Language: LanguageGo})
+	if err != nil {
+		t.Fatalf("CollectFileModel: %v", err)
+	}
+
+	if len(model.Resources) != 3 {
+		t.Fatalf("resource count = %d, want 3", len(model.Resources))
+	}
+
+	// Static resource: ServerStatus.
+	ss := model.Resources[0]
+	if ss.Name != "server_status" {
+		t.Errorf("Resources[0].Name = %q, want %q", ss.Name, "server_status")
+	}
+	if ss.URI != "server://status" {
+		t.Errorf("Resources[0].URI = %q, want %q", ss.URI, "server://status")
+	}
+	if ss.IsTemplate {
+		t.Error("Resources[0].IsTemplate = true, want false")
+	}
+	if len(ss.Params) != 0 {
+		t.Errorf("Resources[0].Params = %d, want 0", len(ss.Params))
+	}
+
+	// Template resource: UserProfile (single param).
+	up := model.Resources[1]
+	if up.Name != "user_profile" {
+		t.Errorf("Resources[1].Name = %q, want %q", up.Name, "user_profile")
+	}
+	if up.URITemplate != "users://{user_id}/profile" {
+		t.Errorf("Resources[1].URITemplate = %q, want %q", up.URITemplate, "users://{user_id}/profile")
+	}
+	if !up.IsTemplate {
+		t.Error("Resources[1].IsTemplate = false, want true")
+	}
+	if len(up.Params) != 1 || up.Params[0].Name != "user_id" {
+		t.Errorf("Resources[1].Params = %v, want [{user_id}]", up.Params)
+	}
+
+	// Template resource: Document (multi param).
+	doc := model.Resources[2]
+	if doc.Name != "document" {
+		t.Errorf("Resources[2].Name = %q, want %q", doc.Name, "document")
+	}
+	if !doc.IsTemplate {
+		t.Error("Resources[2].IsTemplate = false, want true")
+	}
+	if len(doc.Params) != 2 {
+		t.Fatalf("Resources[2].Params count = %d, want 2", len(doc.Params))
+	}
+	if doc.Params[0].Name != "project_id" || doc.Params[1].Name != "document_id" {
+		t.Errorf("Resources[2].Params = %v, want [project_id, document_id]", doc.Params)
+	}
+}
+
+
 func TestCollectFileModel_ProtoSyntaxGate(t *testing.T) {
 	t.Run("accepts proto3", func(t *testing.T) {
 		plugin := newTempProtogenPlugin(t, map[string]string{
@@ -521,4 +600,113 @@ func assertIRTypeHasNoFieldNames(t *testing.T, typ reflect.Type, disallowed map[
 	}
 
 	walk(typ)
+}
+
+func TestValidateToolNameLength(t *testing.T) {
+	tests := []struct {
+		name       string
+		namespace  string
+		methodName string
+		wantErr    bool
+		errContain string
+	}{
+		{
+			name:       "empty namespace, short method",
+			namespace:  "",
+			methodName: "Health",
+			wantErr:    false,
+		},
+		{
+			name:       "namespace+method exactly 64",
+			namespace:  "ns",
+			methodName: strings.Repeat("x", 61), // "ns" + "_" + 61 = 64
+			wantErr:    false,
+		},
+		{
+			name:       "namespace+method 65 chars",
+			namespace:  "ns",
+			methodName: strings.Repeat("x", 62), // "ns" + "_" + 62 = 65
+			wantErr:    true,
+			errContain: "65",
+		},
+		{
+			name:       "dots normalized before length check",
+			namespace:  "my.company",
+			methodName: "Do", // "my_company" + "_" + "Do" = 13
+			wantErr:    false,
+		},
+		{
+			name:       "no namespace, long method 65",
+			namespace:  "",
+			methodName: strings.Repeat("a", 65),
+			wantErr:    true,
+			errContain: "65",
+		},
+		{
+			name:       "no namespace, method exactly 64",
+			namespace:  "",
+			methodName: strings.Repeat("b", 64),
+			wantErr:    false,
+		},
+		{
+			name:       "error contains max limit",
+			namespace:  "ns",
+			methodName: strings.Repeat("z", 62), // 65 total
+			wantErr:    true,
+			errContain: "64",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateToolNameLength(tc.namespace, tc.methodName)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("validateToolNameLength unexpectedly succeeded")
+				}
+				if tc.errContain != "" && !strings.Contains(err.Error(), tc.errContain) {
+					t.Fatalf("error = %q, want it to contain %q", err.Error(), tc.errContain)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("validateToolNameLength unexpectedly failed: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestCollectFileModel_RejectsToolNameExceeding64Chars(t *testing.T) {
+	longNamespace := strings.Repeat("a", 50) // 50 chars
+	longMethod := strings.Repeat("b", 20)    // 50 + 1 + 20 = 71 > 64
+
+	plugin := newTempProtogenPlugin(t, map[string]string{
+		"test/v1/longname.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/longname;longnamev1";`,
+			`import "mcp/options/v1/options.proto";`,
+			`message Request {}`,
+			`message Response {}`,
+			`service LongNameService {`,
+			`  option (mcp.options.v1.service) = {`,
+			`    namespace: "` + longNamespace + `"`,
+			`  };`,
+			`  rpc ` + longMethod + `(Request) returns (Response);`,
+			`}`,
+			"",
+		}, "\n"),
+	}, "test/v1/longname.proto")
+	file := plugin.FilesByPath["test/v1/longname.proto"]
+	if file == nil {
+		t.Fatal("longname proto file not found in plugin")
+	}
+
+	_, err := CollectFileModel(file, Options{Language: LanguageGo})
+	if err == nil {
+		t.Fatal("CollectFileModel unexpectedly succeeded for tool name exceeding 64 chars")
+	}
+	if !strings.Contains(err.Error(), "exceeds maximum length") {
+		t.Fatalf("CollectFileModel error = %v, want tool name length rejection", err)
+	}
 }

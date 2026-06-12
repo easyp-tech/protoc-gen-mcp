@@ -36,6 +36,8 @@ func CollectJVMFileModel(file *protogen.File, model FileModel) (JVMFileModel, er
 		GeneratedFilenamePrefix: jvmGeneratedFilenamePrefixForProtoPath(model.ProtoPath),
 		ProtoPackage:            string(file.Desc.Package()),
 		Services:                make([]JVMServiceModel, 0, len(model.Services)),
+		Prompts:                 model.Prompts,
+		Resources:               model.Resources,
 		Types:                   typeGraph,
 	}
 

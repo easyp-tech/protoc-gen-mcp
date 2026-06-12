@@ -164,7 +164,101 @@ func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 		}
 	}
 
+	if len(model.Prompts) > 0 {
+		renderKotlinPrompts(generated, model)
+	}
+
+	if len(model.Resources) > 0 {
+		renderKotlinResources(generated, model)
+	}
+
 	return nil
+}
+
+func renderKotlinResources(generated *protogen.GeneratedFile, model JVMFileModel) {
+	fileBase := jvmFileBaseName(model.ProtoPath)
+	interfaceName := jvmExportedIdentifier(fileBase) + "ResourceHandler"
+	registerName := "register" + jvmExportedIdentifier(fileBase) + "Resources"
+
+	generated.P()
+	generated.P("interface ", interfaceName, " {")
+	for _, resource := range model.Resources {
+		methodName := jvmMethodName(resource.ProtoName)
+		if resource.IsTemplate {
+			generated.P("    suspend fun list", resource.ProtoName, "s(): List<io.modelcontextprotocol.kotlin.sdk.types.Resource>")
+			paramList := ""
+			for i, param := range resource.Params {
+				if i > 0 {
+					paramList += ", "
+				}
+				paramList += param.Name + ": String"
+			}
+			generated.P("    suspend fun read", resource.ProtoName, "(", paramList, "): Any")
+		} else {
+			generated.P("    suspend fun ", methodName, "(): Any")
+		}
+	}
+	generated.P("}")
+	generated.P()
+
+	generated.P("fun ", registerName, "(server: Server, impl: ", interfaceName, ", namespace: String? = null) {")
+	generated.P("    // TODO: full Kotlin resource registration")
+	generated.P("    throw NotImplementedError(\"MCP Resources for Kotlin are not yet fully supported\")")
+	generated.P("}")
+	generated.P()
+}
+
+func renderKotlinPrompts(generated *protogen.GeneratedFile, model JVMFileModel) {
+	fileBase := jvmFileBaseName(model.ProtoPath)
+	interfaceName := jvmExportedIdentifier(fileBase) + "PromptHandler"
+	registerName := "register" + jvmExportedIdentifier(fileBase) + "Prompts"
+
+	generated.P()
+	generated.P("interface ", interfaceName, " {")
+	for _, prompt := range model.Prompts {
+		generated.P("    suspend fun ", jvmMethodName(prompt.ProtoName), "(arguments: Map<String, String>): List<io.modelcontextprotocol.kotlin.sdk.types.PromptMessage>")
+	}
+	generated.P("}")
+	generated.P()
+
+	generated.P("fun ", registerName, "(server: Server, impl: ", interfaceName, ", namespace: String? = null) {")
+	for _, prompt := range model.Prompts {
+		generated.P("    server.addPrompt(")
+		generated.P("        name = promptName(namespace, ", quote(prompt.Name), "),")
+		if prompt.Title != "" {
+			generated.P("        title = ", quote(prompt.Title), ",")
+		}
+		generated.P("        description = ", kotlinNullableString(prompt.Description), ",")
+		generated.P("        arguments = listOf(")
+		for _, arg := range prompt.Arguments {
+			generated.P("            io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = ", quote(arg.Name), ", description = ", kotlinNullableString(arg.Description), ", required = ", fmt.Sprintf("%t", arg.Required), "),")
+		}
+		generated.P("        ),")
+		generated.P("    ) { request ->")
+		generated.P("        val args = request.arguments ?: emptyMap()")
+		// Validate required arguments.
+		for _, arg := range prompt.Arguments {
+			if arg.Required {
+				generated.P("        require(args.containsKey(", quote(arg.Name), ")) { \"missing required prompt argument: ", arg.Name, "\" }")
+			}
+		}
+		generated.P("        val messages = impl.", jvmMethodName(prompt.ProtoName), "(args)")
+		generated.P("        io.modelcontextprotocol.kotlin.sdk.types.GetPromptResult(messages = messages)")
+		generated.P("    }")
+	}
+	generated.P("}")
+	generated.P()
+
+	generated.P("private fun promptName(namespace: String?, promptName: String): String {")
+	generated.P("    val normalizedNamespace = normalizeToolSegment(namespace ?: \"\")")
+	generated.P("    val normalizedPromptName = normalizeToolSegment(promptName)")
+	generated.P("    return when {")
+	generated.P("        normalizedNamespace.isEmpty() -> normalizedPromptName")
+	generated.P("        normalizedPromptName.isEmpty() -> normalizedNamespace")
+	generated.P(`        else -> "${normalizedNamespace}_${normalizedPromptName}"`)
+	generated.P("    }")
+	generated.P("}")
+	generated.P()
 }
 
 type kotlinRenderInfo struct {

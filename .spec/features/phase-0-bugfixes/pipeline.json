@@ -1,0 +1,18 @@
+{
+  "feature": "phase-0-bugfixes",
+  "phase": "done",
+  "created_at": "2026-06-09T17:26:40Z",
+  "current_artifact": null,
+  "history": [
+    {"phase": "explore", "artifact": "/Users/zergslaw/Documents/Projects/easyp-tech/protoc-gen-mcp/.spec/features/phase-0-bugfixes/explore.md", "approved_at": "2026-06-09T18:40:42Z"},
+    {"phase": "requirements", "artifact": "/Users/zergslaw/Documents/Projects/easyp-tech/protoc-gen-mcp/.spec/features/phase-0-bugfixes/requirements.md", "approved_at": "2026-06-09T18:42:05Z"},
+    {"phase": "design", "artifact": "/Users/zergslaw/Documents/Projects/easyp-tech/protoc-gen-mcp/.spec/features/phase-0-bugfixes/design.md", "approved_at": "2026-06-09T18:44:43Z"},
+    {"phase": "task-plan", "artifact": "/Users/zergslaw/Documents/Projects/easyp-tech/protoc-gen-mcp/.spec/features/phase-0-bugfixes/task-plan.md", "approved_at": "2026-06-09T18:48:13Z"},
+    {"phase": "implementation", "artifact": "/Users/zergslaw/Documents/Projects/easyp-tech/protoc-gen-mcp/.spec/features/phase-0-bugfixes/implementation.md", "approved_at": "2026-06-09T18:56:03Z"},
+    {"phase": "review", "artifact": "/Users/zergslaw/Documents/Projects/easyp-tech/protoc-gen-mcp/.spec/features/phase-0-bugfixes/review.md", "approved_at": "2026-06-09T18:57:07Z"}
+  ],
+  "review_base_commit": "44991ebff1c3a49ab9771835a075192a7c6732b6",
+  "tasks": [],
+  "finish_action": null,
+  "finished_at": null
+}

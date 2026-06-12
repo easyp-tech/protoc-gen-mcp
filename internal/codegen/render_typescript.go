@@ -33,6 +33,16 @@ func renderTypeScriptFile(plugin *protogen.Plugin, model TypeScriptFileModel) er
 		generated.P()
 	}
 
+	if len(model.Prompts) > 0 {
+		renderTypeScriptPrompts(generated, model)
+		generated.P()
+	}
+
+	if len(model.Resources) > 0 {
+		renderTypeScriptResources(generated, model)
+		generated.P()
+	}
+
 	renderTypeScriptPrivateRegistryHelpers(generated)
 	return nil
 }
@@ -43,8 +53,13 @@ func renderTypeScriptImports(generated *protogen.GeneratedFile, model TypeScript
 	generated.P(`import type { JsonValue, Registry } from "@bufbuild/protobuf";`)
 	generated.P(`import { Server } from "@modelcontextprotocol/sdk/server/index.js";`)
 	generated.P(`import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";`)
-	generated.P(`import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from "@modelcontextprotocol/sdk/types.js";`)
-	generated.P(`import type { CallToolRequest } from "@modelcontextprotocol/sdk/types.js";`)
+	if len(model.Prompts) > 0 {
+		generated.P(`import { CallToolRequestSchema, ErrorCode, GetPromptRequestSchema, ListPromptsRequestSchema, ListToolsRequestSchema, McpError } from "@modelcontextprotocol/sdk/types.js";`)
+		generated.P(`import type { CallToolRequest, GetPromptResult, PromptArgument } from "@modelcontextprotocol/sdk/types.js";`)
+	} else {
+		generated.P(`import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from "@modelcontextprotocol/sdk/types.js";`)
+		generated.P(`import type { CallToolRequest } from "@modelcontextprotocol/sdk/types.js";`)
+	}
 	generated.P(`import type { CallToolResult, ServerNotification, ServerRequest, Tool } from "@modelcontextprotocol/sdk/types.js";`)
 	generated.P(`import { Ajv2020 } from "ajv/dist/2020.js";`)
 	generated.P(`import type { ValidateFunction } from "ajv/dist/2020.js";`)
@@ -522,4 +537,137 @@ func typescriptStringArrayLiteral(values []string) string {
 		items = append(items, typescriptStringLiteral(value))
 	}
 	return "[" + strings.Join(items, ", ") + "]"
+}
+
+func typescriptFileBaseName(protoPath string) string {
+	base := strings.TrimSuffix(protoPath, ".proto")
+	if idx := strings.LastIndex(base, "/"); idx >= 0 {
+		base = base[idx+1:]
+	}
+	return base
+}
+
+func renderTypeScriptPrompts(generated *protogen.GeneratedFile, model TypeScriptFileModel) {
+	fileBase := typescriptFileBaseName(model.ProtoPath)
+	interfaceName := typescriptExportedIdentifier(fileBase) + "PromptHandler"
+	registerName := "register" + typescriptExportedIdentifier(fileBase) + "Prompts"
+
+	// Handler interface.
+	generated.P("export interface ", interfaceName, " {")
+	for _, prompt := range model.Prompts {
+		generated.P("  ", typescriptMethodName(prompt.ProtoName), "(arguments: Record<string, string>): Promise<GetPromptResult> | GetPromptResult;")
+	}
+	generated.P("}")
+	generated.P()
+
+	// Prompt registry type.
+	generated.P("type RegisteredPrompt = {")
+	generated.P("  name: string;")
+	generated.P("  title?: string;")
+	generated.P("  description?: string;")
+	generated.P("  arguments: PromptArgument[];")
+	generated.P("  handler: (args: Record<string, string>) => Promise<GetPromptResult> | GetPromptResult;")
+	generated.P("};")
+	generated.P()
+
+	// Register function — collects prompts and installs handlers once.
+	generated.P("export function ", registerName, "(server: Server, impl: ", interfaceName, ", namespace?: string): void {")
+	generated.P("  const prompts: RegisteredPrompt[] = [")
+	for _, prompt := range model.Prompts {
+		generated.P("    {")
+		generated.P("      name: promptName(namespace, ", typescriptStringLiteral(prompt.Name), "),")
+		if prompt.Title != "" {
+			generated.P("      title: ", typescriptStringLiteral(prompt.Title), ",")
+		}
+		if prompt.Description != "" {
+			generated.P("      description: ", typescriptStringLiteral(prompt.Description), ",")
+		}
+		generated.P("      arguments: [")
+		for _, arg := range prompt.Arguments {
+			generated.P("        { name: ", typescriptStringLiteral(arg.Name), ", description: ", typescriptStringLiteral(arg.Description), ", required: ", typescriptBoolLiteral(arg.Required), " },")
+		}
+		generated.P("      ],")
+		generated.P("      handler: impl.", typescriptMethodName(prompt.ProtoName), ".bind(impl),")
+		generated.P("    },")
+	}
+	generated.P("  ];")
+	generated.P()
+
+	// Install ListPrompts handler.
+	generated.P("  server.setRequestHandler(ListPromptsRequestSchema, async () => ({")
+	generated.P("    prompts: prompts.map((p) => ({")
+	generated.P("      name: p.name,")
+	generated.P("      ...(p.title !== undefined && { title: p.title }),")
+	generated.P("      ...(p.description !== undefined && { description: p.description }),")
+	generated.P("      arguments: p.arguments,")
+	generated.P("    })),")
+	generated.P("  }));")
+	generated.P()
+
+	// Install GetPrompt handler — dispatches to the matching prompt.
+	generated.P("  server.setRequestHandler(GetPromptRequestSchema, async (request) => {")
+	generated.P("    const requestedName = request.params.name;")
+	generated.P("    const prompt = prompts.find((p) => p.name === requestedName);")
+	generated.P("    if (prompt === undefined) {")
+	generated.P("      throw new McpError(ErrorCode.InvalidParams, `unknown prompt '${requestedName}'`);")
+	generated.P("    }")
+	generated.P("    const args = request.params.arguments ?? {};")
+	// Validate required arguments.
+	generated.P("    for (const arg of prompt.arguments) {")
+	generated.P("      if (arg.required && !(arg.name in args)) {")
+	generated.P("        throw new McpError(ErrorCode.InvalidParams, `missing required prompt argument: ${arg.name}`);")
+	generated.P("      }")
+	generated.P("    }")
+	generated.P("    return await prompt.handler(args as Record<string, string>);")
+	generated.P("  });")
+	generated.P("}")
+	generated.P()
+
+	// Prompt name helper.
+	generated.P("function promptName(namespace: string | undefined, promptName: string): string {")
+	generated.P("  const normalizedNamespace = normalizeToolSegment(namespace ?? \"\");")
+	generated.P("  const normalizedPromptName = normalizeToolSegment(promptName);")
+	generated.P("  if (normalizedNamespace === \"\") {")
+	generated.P("    return normalizedPromptName;")
+	generated.P("  }")
+	generated.P("  if (normalizedPromptName === \"\") {")
+	generated.P("    return normalizedNamespace;")
+	generated.P("  }")
+	generated.P("  return `${normalizedNamespace}_${normalizedPromptName}`;")
+	generated.P("}")
+}
+
+func renderTypeScriptResources(generated *protogen.GeneratedFile, model TypeScriptFileModel) {
+	fileBase := typescriptFileBaseName(model.ProtoPath)
+	interfaceName := typescriptExportedIdentifier(fileBase) + "ResourceHandler"
+	registerName := "register" + typescriptExportedIdentifier(fileBase) + "Resources"
+
+	generated.P("export interface ", interfaceName, " {")
+	for _, resource := range model.Resources {
+		methodName := typescriptMethodName(resource.ProtoName)
+		if resource.IsTemplate {
+			generated.P("  list", resource.ProtoName, "s(): Promise<Array<{ name: string; uri: string; description?: string }>>;")
+			paramList := ""
+			for i, param := range resource.Params {
+				if i > 0 {
+					paramList += ", "
+				}
+				paramList += param.Name + ": string"
+			}
+			generated.P("  read", resource.ProtoName, "(", paramList, "): Promise<unknown>;")
+		} else {
+			generated.P("  ", methodName, "(): Promise<unknown>;")
+		}
+	}
+	generated.P("}")
+	generated.P()
+
+	generated.P("export function ", registerName, "(")
+	generated.P("  server: Server,")
+	generated.P("  impl: ", interfaceName, ",")
+	generated.P("  namespace?: string,")
+	generated.P("): void {")
+	generated.P("  // TODO: full TypeScript resource registration")
+	generated.P("  throw new Error(\"MCP Resources for TypeScript are not yet fully supported\");")
+	generated.P("}")
 }

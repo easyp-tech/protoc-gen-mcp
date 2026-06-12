@@ -31,6 +31,12 @@ func resolveOptions(defaultNamespace string, options []RegisterOption) RegisterO
 	return resolved
 }
 
+// ResolveOptions applies the given RegisterOption functions to a default
+// namespace. Exported for use by generated resource registration code.
+func ResolveOptions(defaultNamespace string, options []RegisterOption) RegisterOptions {
+	return resolveOptions(defaultNamespace, options)
+}
+
 func qualifyToolName(namespace, name string) string {
 	namespace = normalizeToolSegment(namespace)
 	name = normalizeToolSegment(name)

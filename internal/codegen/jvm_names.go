@@ -18,6 +18,14 @@ func jvmGeneratedFilenamePrefixForProtoPath(protoPath string) string {
 	return strings.Join(parts, "/")
 }
 
+func jvmFileBaseName(protoPath string) string {
+	base := strings.TrimSuffix(protoPath, ".proto")
+	if idx := strings.LastIndex(base, "/"); idx >= 0 {
+		base = base[idx+1:]
+	}
+	return base
+}
+
 func jvmPublicTypeName(message *protogen.Message) string {
 	return jvmPublicIdentifier(descriptorTypePath(message.Desc.FullName(), message.Desc.ParentFile().Package()))
 }

@@ -171,7 +171,112 @@ func renderPythonFileForHandler(plugin *protogen.Plugin, model FileModel, handle
 		}
 	}
 
+	if len(model.Prompts) > 0 {
+		renderPythonPrompts(generated, model)
+	}
+
+	if len(model.Resources) > 0 {
+		renderPythonResources(generated, model)
+	}
+
 	return nil
+}
+
+func renderPythonResources(generated *protogen.GeneratedFile, model FileModel) {
+	fileBase := pythonFileBaseName(model.ProtoPath)
+	protocolName := pythonExportedIdentifier(fileBase) + "ResourceHandler"
+	registerName := "register_" + toSnakeCase(fileBase) + "_resources"
+
+	generated.P()
+	generated.P()
+	generated.P("class ", protocolName, "(Protocol):")
+	generated.P("    \"\"\"Handler protocol for MCP resources in ", model.ProtoPath, ".\"\"\"")
+	for _, resource := range model.Resources {
+		methodName := toSnakeCase(resource.ProtoName)
+		if resource.IsTemplate {
+			generated.P("    async def list_", methodName, "s(self) -> list[mcp.types.Resource]:")
+			generated.P("        ...")
+			paramList := "self"
+			for _, param := range resource.Params {
+				paramList += ", " + param.Name + ": str"
+			}
+			generated.P("    async def read_", methodName, "(", paramList, ") -> Any:")
+			generated.P("        ...")
+		} else {
+			generated.P("    async def read_", methodName, "(self) -> Any:")
+			generated.P("        ...")
+		}
+	}
+	generated.P()
+
+	generated.P()
+	generated.P("def ", registerName, "(")
+	generated.P("    server: mcp.server.lowlevel.Server,")
+	generated.P("    impl: ", protocolName, ",")
+	generated.P("    *,")
+	generated.P("    namespace: str | None = None,")
+	generated.P(") -> None:")
+	generated.P("    \"\"\"Registers MCP resources for ", fileBase, ".\"\"\"")
+	generated.P("    if impl is None:")
+	generated.P("        raise ValueError(\"", registerName, ": impl is nil\")")
+	generated.P("    # TODO: full Python resource registration using server.read_resource decorator")
+	generated.P("    raise NotImplementedError(\"MCP Resources for Python are not yet fully supported\")")
+	generated.P()
+}
+
+func renderPythonPrompts(generated *protogen.GeneratedFile, model FileModel) {
+	// Build a file-level handler name from the proto file name.
+	fileBase := pythonFileBaseName(model.ProtoPath)
+	protocolName := pythonExportedIdentifier(fileBase) + "PromptHandler"
+	registerName := "register_" + toSnakeCase(fileBase) + "_prompts"
+
+	generated.P()
+	generated.P("def _prompt_name(namespace: str | None, prompt_name: str) -> str:")
+	generated.P("    if namespace is None or _normalize_tool_segment(namespace) == '':")
+	generated.P("        return _normalize_tool_segment(prompt_name)")
+	generated.P("    return f\"{_normalize_tool_segment(namespace)}_{_normalize_tool_segment(prompt_name)}\"")
+	generated.P()
+	generated.P("class ", protocolName, "(Protocol):")
+	for _, prompt := range model.Prompts {
+		generated.P("    async def ", pythonMethodName(prompt.ProtoName), "(self, arguments: dict[str, str]) -> mcp.types.GetPromptResult:")
+		generated.P("        ...")
+	}
+	generated.P()
+
+	generated.P("def ", registerName, "(server: mcp.server.lowlevel.Server, impl: ", protocolName, ", *, namespace: str | None = None) -> None:")
+	generated.P("    if impl is None:")
+	generated.P("        raise ValueError(\"", registerName, ": impl is nil\")")
+	for _, prompt := range model.Prompts {
+		generated.P("    @server.add_prompt(")
+		generated.P("        name=_prompt_name(namespace, ", quote(prompt.Name), "),")
+		if prompt.Title != "" {
+			generated.P("        title=", quote(prompt.Title), ",")
+		}
+		if prompt.Description != "" {
+			generated.P("        description=", quote(prompt.Description), ",")
+		}
+		generated.P("        arguments=[")
+		for _, arg := range prompt.Arguments {
+			generated.P("            mcp.types.PromptArgument(name=", quote(arg.Name), ", description=", quote(arg.Description), ", required=", pythonBool(arg.Required), "),")
+		}
+		generated.P("        ],")
+		generated.P("    )")
+		generated.P("    async def ", pythonPromptHandlerFuncName(prompt.ProtoName), "(arguments: dict[str, str] | None = None) -> mcp.types.GetPromptResult:")
+		generated.P("        return await impl.", pythonMethodName(prompt.ProtoName), "(arguments or {})")
+	}
+	generated.P()
+}
+
+func pythonPromptHandlerFuncName(protoName string) string {
+	return "_handle_prompt_" + toSnakeCase(protoName)
+}
+
+func pythonFileBaseName(protoPath string) string {
+	base := strings.TrimSuffix(protoPath, ".proto")
+	if idx := strings.LastIndex(base, "/"); idx >= 0 {
+		base = base[idx+1:]
+	}
+	return base
 }
 
 func (p pythonRenderInfo) pythonHandlerMethodTypeRefs(method MethodModel, protobufHandlerMode bool) (string, string, error) {

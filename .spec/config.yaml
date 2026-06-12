@@ -1,0 +1,8 @@
+# .spec/config.yaml
+context: Go 1.24+ protoc plugin, multi-language codegen (Go/Python/Kotlin/Java/TypeScript), easyp v0.15.2-rc1, google.golang.org/protobuf, github.com/modelcontextprotocol/go-sdk/mcp v1.6.0, proto3 only, MCP spec 2025-11-25
+rules.explore: Focus on MCP protocol spec compliance, check go-sdk API surface for AddPrompt/AddResource/AddResourceTemplate, verify proto extension number conflicts
+rules.requirements: Requirements must reference MCP spec sections, use WHEN/SHALL grammar, trace to ROADMAP.md phases
+rules.design: ADR must consider proto backward compatibility, all 5 language renderers, golden test updates
+rules.task-plan: Test command: go test ./... -count=1; Build command: go build ./cmd/protoc-gen-mcp; Lint: easyp lint
+rules.implementation: Run tests after each task, update golden files, keep AGENTS.md in sync
+rules.review: Check proto backward compatibility, verify all 5 language renderers updated, golden test coverage

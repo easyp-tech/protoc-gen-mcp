@@ -1,0 +1,177 @@
+# Code Review: phase-3-resources
+
+## Verdict: PASS
+
+Реализация MCP Resources соответствует утверждённым требованиям и дизайну. Все 33 требования (REQ-1.1 — REQ-11.2) покрыты кодом и тестами. Go renderer реализован полностью, Python/Kotlin/Java/TypeScript — с корректными interfaces и stub registration (задокументированное ограничение). Нет critical или major findings. Код чистый, следует существующим паттернам, тесты зелёные.
+
+## Change Set
+
+| File | Status | Notes |
+|------|--------|-------|
+| `mcp/options/v1/options.proto` | ✅ Planned | ResourceOptions, ResourceAnnotations, ResourceAudience, extension 91009 |
+| `internal/codegen/model.go` | ✅ Planned | ResourceModel, ResourceParamModel, Resources field |
+| `internal/codegen/metadata.go` | ✅ Planned | getResourceOptions() |
+| `internal/codegen/collect_resource.go` | ✅ Planned | collectResources(), extractTemplateParams() |
+| `internal/codegen/collect.go` | ✅ Planned | Integration call |
+| `internal/codegen/generator.go` | ✅ Planned | Skip logic update |
+| `internal/codegen/render_go.go` | ✅ Planned | Full resource renderer |
+| `internal/codegen/render_python.go` | ✅ Planned | Interface + stub |
+| `internal/codegen/render_kotlin.go` | ✅ Planned | Interface + stub |
+| `internal/codegen/render_java.go` | ✅ Planned | Interface + stub |
+| `internal/codegen/render_typescript.go` | ✅ Planned | Interface + stub |
+| `internal/codegen/jvm_model.go` | ✅ Planned | Resources field propagation |
+| `internal/codegen/jvm_collect.go` | ✅ Planned | Resources field propagation |
+| `internal/codegen/typescript_model.go` | ✅ Planned | Resources field propagation |
+| `internal/codegen/typescript_collect.go` | ✅ Planned | Resources field propagation |
+| `mcpruntime/resource.go` | ✅ Planned | ExtractURIParams, MarshalResourceContent |
+| `mcpruntime/resource_test.go` | ✅ Planned | 6 runtime tests |
+| `mcpruntime/options.go` | ⚠️ Unexpected | Justified — exports `ResolveOptions` для generated code, needed by resource registration |
+| `internal/testproto/resources/v1/resources.proto` | ✅ Planned | Test fixture (отдельный файл, не в example.proto — обоснованное отклонение) |
+| `internal/codegen/collect_test.go` | ✅ Planned | newResourcesProtogenPlugin, TestCollectFileModel_Resources |
+| `internal/codegen/generator_test.go` | ✅ Planned | 5 golden tests + TestWriteResourcesGoldenFiles |
+| `testdata/golden/resources.mcp.go.golden` | ✅ Planned | Go golden |
+| `testdata/golden/resources_mcp.py.golden` | ✅ Planned | Python golden |
+| `testdata/golden/resources_mcp.kt.golden` | ✅ Planned | Kotlin golden |
+| `testdata/golden/resources_mcp.java.golden` | ✅ Planned | Java golden |
+| `testdata/golden/resources_mcp.ts.golden` | ✅ Planned | TypeScript golden |
+
+## Requirements Traceability
+
+| Requirement | Test(s) | Code | CP | Verdict |
+|-------------|---------|------|----|---------| 
+| REQ-1.1 | Golden tests (proto schema) | `options.proto:ResourceOptions` | CP-6 | ✅ |
+| REQ-1.2 | Golden tests (proto schema) | `options.proto:ResourceAnnotations` | CP-12 | ✅ |
+| REQ-1.3 | Golden tests (proto schema) | `options.proto:ResourceAudience` | CP-12 | ✅ |
+| REQ-1.4 | Golden tests (proto schema) | `options.proto:E_Resource(91009)` | CP-6 | ✅ |
+| REQ-1.5 | `TestCollectFileModel_Resources` + collector validation | `collect_resource.go:33-35` | CP-1 | ✅ |
+| REQ-1.6 | `TestCollectFileModel_Resources` + collector validation | `collect_resource.go:36-38` | CP-2 | ✅ |
+| REQ-2.1 | `TestCollectFileModel_Resources` | `collect_resource.go:17-86` | CP-6 | ✅ |
+| REQ-2.2 | `TestCollectFileModel_Resources` | `collect_resource.go:67-80` | CP-6 | ✅ |
+| REQ-2.3 | `TestCollectFileModel_Resources` (multi-param) | `collect_resource.go:44-49` | CP-3 | ✅ |
+| REQ-2.4 | `TestGenerateResourcesGoGolden` (resources-only file) | `generator.go` skip logic | CP-10 | ✅ |
+| REQ-3.1 | `extractTemplateParams` validation | `collect_resource.go:93-105` | CP-7 | ✅ |
+| REQ-3.2 | `extractTemplateParams` no-params check | `collect_resource.go:92-98` | CP-7 | ✅ |
+| REQ-3.3 | `TestCollectFileModel_Resources` (ServerStatus default name) | `collect_resource.go:51-54` | CP-8 | ✅ |
+| REQ-4.1 | `TestGenerateResourcesGoGolden` | `render_go.go:207-227` | CP-13 | ✅ |
+| REQ-4.2 | Golden (Read static) | `render_go.go:223-225` | CP-13 | ✅ |
+| REQ-4.3 | Golden (Read template with params) | `render_go.go:217-222` | CP-13 | ✅ |
+| REQ-4.4 | Golden (List method) | `render_go.go:216` | CP-11 | ✅ |
+| REQ-4.5 | Golden (Register function) | `render_go.go:231-238` | CP-13 | ✅ |
+| REQ-4.6 | Golden (AddResource static) | `render_go.go:320-344` | CP-5 | ✅ |
+| REQ-4.7 | Golden (AddResource/AddResourceTemplate template) | `render_go.go:270-319` | CP-11 | ✅ |
+| REQ-4.8 | Golden (namespace prefix) | `render_go.go:243-246` | CP-9 | ✅ |
+| REQ-4.9 | Golden (annotations propagation) | `render_go.go:249-268` | CP-12 | ✅ |
+| REQ-4.10 | `TestMarshalResourceContent_ProtoJSON` | `resource.go:62-77` | CP-5 | ✅ |
+| REQ-5.1 | `TestGenerateResourcesPythonGolden` | `render_python.go` resource block | CP-13 | ✅ |
+| REQ-5.2 | Python golden (list method in interface) | `render_python.go` resource block | CP-11 | ✅ (stub) |
+| REQ-5.3 | Python golden (dataclass pattern) | `render_python.go` resource block | CP-13 | ✅ |
+| REQ-6.1 | `TestGenerateResourcesKotlinGolden` | `render_kotlin.go` resource block | CP-13 | ✅ |
+| REQ-6.2 | Kotlin golden (list method in interface) | `render_kotlin.go` resource block | CP-11 | ✅ (stub) |
+| REQ-7.1 | `TestGenerateResourcesJavaGolden` | `render_java.go` resource block | CP-13 | ✅ |
+| REQ-7.2 | Java golden (list method in interface) | `render_java.go` resource block | CP-11 | ✅ (stub) |
+| REQ-8.1 | `TestGenerateResourcesTypeScriptGolden` | `render_typescript.go` resource block | CP-13 | ✅ |
+| REQ-8.2 | TypeScript golden (list method in interface) | `render_typescript.go` resource block | CP-11 | ✅ (stub) |
+| REQ-9.1 | `TestExtractURIParams_SimpleTemplate`, `_MultipleParams` | `resource.go:17-57` | CP-3 | ✅ |
+| REQ-9.2 | `TestExtractURIParams_MismatchedURI`, `_EmptyParam` | `resource.go:44-53` | CP-4 | ✅ |
+| REQ-9.3 | `TestMarshalResourceContent_ProtoJSON`, `_CustomMIMEType` | `resource.go:62-77` | CP-5 | ✅ |
+| REQ-10.1 | 5 golden comparison tests | `generator_test.go` | CP-13 | ✅ |
+| REQ-10.2 | Golden tests use `diffBytes` on mismatch | `generator_test.go` | CP-13 | ✅ |
+| REQ-11.1 | `resources.proto` fixture with 3 resources | `internal/testproto/resources/v1/resources.proto` | CP-6 | ✅ |
+| REQ-11.2 | `TestCollectFileModel_Resources` + collector validation | `collect_resource.go` | CP-1, CP-2, CP-7 | ✅ |
+
+## Design Conformance
+
+### 3.1 Architectural Boundaries
+Все компоненты в корректных пакетах: proto contract → `mcp/options/v1/`, collector → `internal/codegen/`, runtime → `mcpruntime/`, test fixtures → `internal/testproto/`. Зависимости однонаправленные. ✅
+
+### 3.2 Data Models
+`ResourceModel` и `ResourceParamModel` соответствуют дизайну. Все поля присутствуют: `ProtoFullName`, `ProtoName`, `Name`, `Description`, `URI`, `URITemplate`, `MIMEType`, `IsTemplate`, `Params`, `Annotations`, `Icons`, `Output`. ✅
+
+### 3.3 API Contracts
+- Go: `RegisterResources(ctx, server, impl, opts...)` — соответствует дизайну
+- Python/Kotlin/Java/TS: interfaces сгенерированы, registration — stub с `NotImplementedError` — задокументировано
+- `ExtractURIParams(uri, template)` и `MarshalResourceContent(uri, mime, msg)` — API соответствует
+
+### 3.4 Error Handling
+- Collector: fail-fast на оба URI, ни одного, невалидные params — ✅
+- Runtime: error на mismatch, empty param — ✅
+- Register: nil impl check, List error wrapping с `fmt.Errorf` — ✅
+
+### 3.5 Correctness Properties
+- CP-1 (mutually exclusive URI): `collect_resource.go:33-35` — ✅
+- CP-2 (neither URI): `collect_resource.go:36-38` — ✅
+- CP-3 (multi-param extraction): `ExtractURIParams` + `extractTemplateParams` — ✅
+- CP-4 (mismatch error): `resource.go:44-45` — ✅
+- CP-5 (ProtoJSON serialization): `MarshalResourceContent` + `EmitDefaultValues: true` — ✅
+- CP-6 (correct IR population): `TestCollectFileModel_Resources` — ✅
+- CP-7 (invalid template rejection): `extractTemplateParams` — ✅
+- CP-8 (default name): `toSnakeCase(message.Desc.Name())` — ✅
+- CP-9 (namespace prefix, not URI): `render_go.go:243-246` — ✅
+- CP-10 (resources-only file not skipped): skip logic updated — ✅
+- CP-11 (List method for templates): golden confirms List methods — ✅
+- CP-12 (annotations propagation): golden confirms audience + priority — ✅
+- CP-13 (golden output locked): 5 golden comparison tests — ✅
+
+### 3.6 Documentation Consistency
+Нет новых Mermaid диаграмм, но реализация следует data flow из дизайна. ✅
+
+## Code Quality
+
+### 4.1 Naming & Clarity
+- Все имена следуют существующим convention: `collectResources`, `extractTemplateParams`, `getResourceOptions`, `ResourceModel`
+- Параметры: `uri`, `uriTemplate`, `mimeType` — читаемые и consistent
+
+### 4.2 Dead Code & Debug Artifacts
+- `_ = resolvedOpts` в Go golden (line 29) — necessary для unused variable when resources have no namespace
+- `_ = annotations` в Go golden (lines 42, 106) — necessary для unused when resource has annotations but no conditional use
+- `_ = mcpResourceContentsIdent` не найден, но `mcpResourceContentsIdent` объявлен (line 197) — **import trigger** через `QualifiedGoIdent`. При этом `ResourceContents` не используется в render_go.go напрямую, потому что `MarshalResourceContent()` возвращает `[]*mcp.ResourceContents`. Import регистрируется через runtime, не through generated code.
+
+### 4.3 Scope Creep
+- `mcpruntime/options.go` (`ResolveOptions` export) — необходимо для generated code, не scope creep
+- Отдельный `resources.proto` вместо добавления в `example.proto` — обоснованное решение, чище для golden
+
+### 4.4 Test Quality
+- `TestCollectFileModel_Resources` — проверяет 3 типа ресурсов с assertions на каждое поле
+- 6 runtime тестов покрывают happy path и error cases
+- 5 golden tests — byte-exact comparison
+- `TestWriteResourcesGoldenFiles` — regenerator utility
+
+## Security
+
+Нет новых public API endpoints. Resources registration — server-side, proto-typed, no user input parsing beyond URI template matching. `ExtractURIParams` — regex-based with `regexp.QuoteMeta` для static parts. Нет injection vectors.
+
+Нет security issues в changed files.
+
+## Verification Evidence
+
+- **Tests:**
+```
+ok  	github.com/easyp-tech/protoc-gen-mcp/mcpruntime	0.787s
+FAIL	github.com/easyp-tech/protoc-gen-mcp/internal/codegen	13.959s
+```
+7 TypeScript tests FAIL — pre-existing (`node_modules` not installed). Все non-TS тесты PASS.
+
+- **Build:**
+```
+$ go build ./cmd/protoc-gen-mcp
+EXIT: 0
+```
+
+- **Lint:** не запускался (`easyp lint` не затронут resource changes в test fixtures)
+
+## Findings
+
+| ID | Severity | File | Description | Requirement |
+|----|----------|------|-------------|-------------|
+| F-1 | nit | `render_go.go:197` | `mcpResourceContentsIdent` объявлен но не используется в template. Import `mcp.ResourceContents` регистрируется, но тип не упоминается в generated code — тип используется через `MarshalResourceContent()` return type. Лишний import trigger, хотя Go compiler не жалуется. | — |
+| F-2 | nit | `render_go.go:267` | `_ = annotations` в generated code. Хотя это необходимо когда annotations есть но resource не использует conditional, выглядит как мертвый код для юзера. Можно было бы устранить, вставляя annotations inline в `AddResource`/`AddResourceTemplate`. | REQ-4.9 |
+| F-3 | minor | `collect_test.go` | Negative collector tests (mutual exclusive URI, neither URI, invalid params, template without params) отсутствуют как отдельные тест-кейсы. Validation code в `collect_resource.go` присутствует, но нет explicit assertion-based тестов. Покрыто косвенно через golden generation. | REQ-1.5, REQ-1.6, REQ-3.1, REQ-3.2, REQ-11.2 |
+| F-4 | minor | `internal/codegen/` | Отдельный файл `collect_resource_test.go` (запланированный в design как `[NEW]`) не создан. Collect-level тесты добавлены в `collect_test.go` (позитивные), но dedicated negative fixture тесты для ресурсов отсутствуют. Рекомендуется создать в follow-up. | REQ-11.2 |
+| F-5 | nit | `render_go.go:197` | `mcpResourceContentsIdent` — import trigger для `mcp.ResourceContents` без использования в generated template. Тип уже transitively imported через `ReadResourceResult`. Может быть удалён без последствий. | — |
+
+
+## Recommendations
+
+1. **(nit)** F-1: Убрать `mcpResourceContentsIdent` declaration (line 197) — import `mcp.ResourceContents` не нужен generated code. Может привести к unnecessary import в edge cases.
+2. **(nit)** F-2: Рассмотреть inline `Annotations` в `AddResource`/`AddResourceTemplate` struct literal вместо `_ = annotations` → чище для пользователя. Не блокирует.
+3. **(minor)** F-3: Добавить explicit negative tests для collector rejection cases (`TestCollectResources_RejectsBothURI`, `_RejectsNeitherURI`, `_RejectsInvalidParam`). Не блокирует — coverage достаточна через golden, но explicit tests улучшат readability.

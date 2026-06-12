@@ -1,13 +1,26 @@
 # protoc-gen-mcp
 
-`protoc-gen-mcp` generates Go, Python, Kotlin, Java, and TypeScript MCP tool
-bindings from protobuf services. JavaScript users consume the compiled
-TypeScript output and declarations.
+`protoc-gen-mcp` generates Go, Python, Kotlin, Java, and TypeScript MCP
+bindings from protobuf definitions — covering **tools**, **prompts**, and
+**resources**. JavaScript users consume the compiled TypeScript output and
+declarations.
+
+## Supported MCP Primitives
+
+| Primitive | Go | Python | Kotlin | Java | TypeScript |
+|-----------|:--:|:------:|:------:|:----:|:----------:|
+| **Tools** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
+| **Prompts** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
+| **Resources** | ✅ Full | ⚠️ Interface | ⚠️ Interface | ⚠️ Interface | ⚠️ Interface |
 
 ## MVP
 
 - protobuf is the source of truth
 - generator emits typed Go, Python, Kotlin, Java, and TypeScript MCP bindings
+- **Tools**: generated from `service` RPC methods with `(mcp.options.v1.method)`
+- **Prompts**: generated from `message` types with `(mcp.options.v1.prompt)`
+- **Resources**: generated from `message` types with `(mcp.options.v1.resource)`
+  — static (fixed URI) and template (parameterized URI) resources
 - Go runtime uses the official Go MCP SDK
 - Python runtime targets the official MCP Python SDK with `google.protobuf`
 - Kotlin runtime targets the official `io.modelcontextprotocol:kotlin-sdk-server`
@@ -711,11 +724,38 @@ Used via: `[(mcp.options.v1.field) = { ... }]`
 - **EnumValue Options (`mcp.options.v1.enum_value`)**: `description`, `hidden` (often used to hide sentinel zeroes).
 - **Oneof Options (`mcp.options.v1.oneof`)**: `description`, `required`.
 
+### Prompt Options
+Used via: `option (mcp.options.v1.prompt) = { ... };` on a message.
+
+- `name`: Override the prompt name (default: snake_case of message name).
+- `title`: Human-readable title.
+- `description`: Description shown to clients.
+- `icons`: Icons for the prompt.
+
+Message fields become prompt arguments. Singular fields are required; `optional`
+and `repeated` fields become optional arguments.
+
+### Resource Options
+Used via: `option (mcp.options.v1.resource) = { ... };` on a message.
+
+- `uri`: Static URI for fixed resources (mutually exclusive with `uri_template`).
+- `uri_template`: Parameterized URI template with `{param}` placeholders
+  (mutually exclusive with `uri`).
+- `name`: Human-readable display name.
+- `description`: Description of the resource.
+- `mime_type`: MIME type of the resource content (default: `application/json`).
+- `annotations`: `ResourceAnnotations` with `audience` and `priority` hints.
+- `icons`: Icons for the resource.
+
+Static resources generate `Read<Message>(ctx)` handlers.
+Template resources generate `List<Message>s(ctx)` + `Read<Message>(ctx, params...)` handlers.
+
 Comments are also used as metadata:
 
 - plain comment lines become descriptions
 - `Example: ...` adds one schema example (though `FieldOptions.examples` offers stronger typing).
 - `Examples: ... | ...` adds multiple schema examples.
+- `Examples in JSON: ...` uses the raw JSON string as an inline example.
 
 ## Generated API And Server Integration
 
@@ -849,9 +889,12 @@ JavaScript sidecar.
 
 ## Status
 
-This repository currently implements the MVP only:
+This repository implements three MCP server primitives:
 
-- tools only
+- **Tools** — full support across 5 languages (Go, Python, Kotlin, Java, TypeScript)
+- **Prompts** — full support across 5 languages
+- **Resources** — full Go support; Python, Kotlin, Java, TypeScript generate
+  typed handler interfaces with stub registration (full implementation planned)
 - unary RPC only
 - proto3 only
 - supported protobuf features: scalar, enum, nested message, repeated,
@@ -861,8 +904,8 @@ This repository currently implements the MVP only:
   `Struct`, `Value`, `ListValue`, `BoolValue`, `StringValue`, `BytesValue`,
   `Int32Value`, `UInt32Value`, `Int64Value`, `UInt64Value`, `FloatValue`,
   and `DoubleValue`
-- generated MCP schema requiredness is proto3-driven: a singular field WITHOUT 
-  the `optional` keyword is required. A singular field WITH the `optional` keyword 
+- generated MCP schema requiredness is proto3-driven: a singular field WITHOUT
+  the `optional` keyword is required. A singular field WITH the `optional` keyword
   is optional. `repeated`, `map`, and `oneof` fields are always optional.
 - fields that are not required by that generated MCP schema accept explicit
   JSON `null` to match ProtoJSON parser behavior for unset values

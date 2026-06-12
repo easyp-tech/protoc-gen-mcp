@@ -2,6 +2,7 @@ package codegen
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/easyp-tech/protoc-gen-mcp/internal/schema"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -97,6 +98,10 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 				methodModel.Icons = serviceModel.Icons
 			}
 
+			if err := validateToolNameLength(serviceModel.Namespace, methodModel.Name); err != nil {
+				return FileModel{}, fmt.Errorf("method %s: %w", method.Desc.FullName(), err)
+			}
+
 			serviceModel.Methods = append(serviceModel.Methods, methodModel)
 			pythonGraphMethods = append(pythonGraphMethods, method)
 		}
@@ -114,6 +119,18 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 		}
 		model.PythonTypes = &pythonTypes
 	}
+
+	prompts, err := collectPrompts(file)
+	if err != nil {
+		return FileModel{}, err
+	}
+	model.Prompts = prompts
+
+	resources, err := collectResources(file)
+	if err != nil {
+		return FileModel{}, err
+	}
+	model.Resources = resources
 
 	return model, nil
 }
@@ -194,4 +211,39 @@ func newTypeRef(message *protogen.Message) TypeRef {
 		ProtoFullName:    string(message.Desc.FullName()),
 		ProtoDisplayName: string(message.Desc.Name()),
 	}
+}
+
+// maxToolNameLength is the maximum allowed length for a fully qualified MCP
+// tool name (namespace + "_" + methodName). Claude Desktop and several MCP
+// clients enforce a 64-character limit.
+const maxToolNameLength = 64
+
+// validateToolNameLength checks that the fully qualified MCP tool name does not
+// exceed maxToolNameLength after dot-to-underscore normalization.
+func validateToolNameLength(namespace, methodName string) error {
+	namespace = normalizeSegment(namespace)
+	methodName = normalizeSegment(methodName)
+
+	var fullName string
+	if namespace == "" {
+		fullName = methodName
+	} else {
+		fullName = namespace + "_" + methodName
+	}
+
+	if len(fullName) > maxToolNameLength {
+		return fmt.Errorf("tool name %q exceeds maximum length: %d > %d", fullName, len(fullName), maxToolNameLength)
+	}
+
+	return nil
+}
+
+// normalizeSegment replaces dots with underscores and trims whitespace,
+// mirroring the runtime normalizeToolSegment behavior.
+func normalizeSegment(segment string) string {
+	segment = strings.TrimSpace(segment)
+	if segment == "" {
+		return ""
+	}
+	return strings.ReplaceAll(segment, ".", "_")
 }

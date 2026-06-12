@@ -176,6 +176,33 @@ class EnumValueOptions:
     description: str
     hidden: bool
 
+@dataclass(slots=True)
+class PromptOptions:
+    name: str
+    title: str
+    description: str
+    icons: list[Icon] = field(default_factory=list)
+
+class ResourceAudience(enum.IntEnum):
+    RESOURCE_AUDIENCE_UNSPECIFIED = 0
+    RESOURCE_AUDIENCE_USER = 1
+    RESOURCE_AUDIENCE_ASSISTANT = 2
+
+@dataclass(slots=True)
+class ResourceAnnotations:
+    audience: list[ResourceAudience] = field(default_factory=list)
+    priority: float | _UnsetType = UNSET
+
+@dataclass(slots=True)
+class ResourceOptions:
+    uri: str
+    uri_template: str
+    name: str
+    description: str
+    mime_type: str
+    annotations: ResourceAnnotations
+    icons: list[Icon] = field(default_factory=list)
+
 @dataclass(frozen=True)
 class _RegisteredTool:
     name: str
@@ -760,5 +787,56 @@ def _to_pb_enum_value_options(value: EnumValueOptions) -> options_pb2.EnumValueO
     message = options_pb2.EnumValueOptions()
     message.description = value.description
     message.hidden = value.hidden
+    return message
+
+def _from_pb_prompt_options(message: options_pb2.PromptOptions) -> PromptOptions:
+    return PromptOptions(
+        name=message.name,
+        title=message.title,
+        description=message.description,
+        icons=[_from_pb_icon(item) for item in message.icons],
+    )
+
+def _to_pb_prompt_options(value: PromptOptions) -> options_pb2.PromptOptions:
+    message = options_pb2.PromptOptions()
+    message.name = value.name
+    message.title = value.title
+    message.description = value.description
+    message.icons.extend(_to_pb_icon(item) for item in value.icons)
+    return message
+
+def _from_pb_resource_annotations(message: options_pb2.ResourceAnnotations) -> ResourceAnnotations:
+    return ResourceAnnotations(
+        audience=[_enum_from_pb(ResourceAudience, item) for item in message.audience],
+        priority=message.priority if message.HasField("priority") else UNSET,
+    )
+
+def _to_pb_resource_annotations(value: ResourceAnnotations) -> options_pb2.ResourceAnnotations:
+    message = options_pb2.ResourceAnnotations()
+    message.audience.extend(int(item) for item in value.audience)
+    if value.priority is not UNSET:
+        message.priority = value.priority
+    return message
+
+def _from_pb_resource_options(message: options_pb2.ResourceOptions) -> ResourceOptions:
+    return ResourceOptions(
+        uri=message.uri,
+        uri_template=message.uri_template,
+        name=message.name,
+        description=message.description,
+        mime_type=message.mime_type,
+        annotations=_from_pb_resource_annotations(message.annotations),
+        icons=[_from_pb_icon(item) for item in message.icons],
+    )
+
+def _to_pb_resource_options(value: ResourceOptions) -> options_pb2.ResourceOptions:
+    message = options_pb2.ResourceOptions()
+    message.uri = value.uri
+    message.uri_template = value.uri_template
+    message.name = value.name
+    message.description = value.description
+    message.mime_type = value.mime_type
+    message.annotations.CopyFrom(_to_pb_resource_annotations(value.annotations))
+    message.icons.extend(_to_pb_icon(item) for item in value.icons)
     return message
 

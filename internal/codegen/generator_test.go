@@ -1704,3 +1704,229 @@ func firstDiffLine(want string, got string) string {
 	}
 	return "(contents differ, but no differing line was isolated)"
 }
+
+// ── Prompt golden tests ─────────────────────────────────────────────────────
+
+func promptsJavaOutputPath() string {
+	return javaSidecarOutputPath(jvmGeneratedFilenamePrefixForProtoPath("internal/testproto/prompts/v1/prompts.proto"))
+}
+
+func TestGeneratePromptsGoGolden(t *testing.T) {
+	plugin := newPromptsProtogenPlugin(t)
+	if err := Generate(plugin, Options{Language: LanguageGo}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	got := generatedFileContent(t, plugin, "internal/testproto/prompts/v1/prompts.mcp.go")
+	want := readGoldenFile(t, repoRoot(t), "testdata/golden/prompts.mcp.go.golden")
+	if !bytes.Equal(got, want) {
+		t.Fatalf("fresh Go Prompts renderer output differs from golden:\n%s", diffBytes(want, got))
+	}
+}
+
+func TestGeneratePromptsPythonGolden(t *testing.T) {
+	plugin := newPromptsProtogenPlugin(t)
+	if err := Generate(plugin, Options{Language: LanguagePython}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	got := generatedFileContent(t, plugin, "internal/testproto/prompts/v1/prompts_mcp.py")
+	want := readGoldenFile(t, repoRoot(t), "testdata/golden/prompts_mcp.py.golden")
+	if !bytes.Equal(got, want) {
+		t.Fatalf("fresh Python Prompts renderer output differs from golden:\n%s", diffBytes(want, got))
+	}
+}
+
+func TestGeneratePromptsKotlinGolden(t *testing.T) {
+	plugin := newPromptsProtogenPlugin(t)
+	if err := Generate(plugin, Options{Language: LanguageKotlin}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	got := generatedFileContent(t, plugin, "internal/testproto/prompts/v1/prompts_mcp.kt")
+	want := readGoldenFile(t, repoRoot(t), "testdata/golden/prompts_mcp.kt.golden")
+	if !bytes.Equal(got, want) {
+		t.Fatalf("fresh Kotlin Prompts renderer output differs from golden:\n%s", diffBytes(want, got))
+	}
+}
+
+func TestGeneratePromptsJavaGolden(t *testing.T) {
+	plugin := newPromptsProtogenPlugin(t)
+	if err := Generate(plugin, Options{Language: LanguageJava}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	got := generatedFileContent(t, plugin, promptsJavaOutputPath())
+	want := readGoldenFile(t, repoRoot(t), "testdata/golden/prompts_mcp.java.golden")
+	if !bytes.Equal(got, want) {
+		t.Fatalf("fresh Java Prompts renderer output differs from golden:\n%s", diffBytes(want, got))
+	}
+}
+
+func TestGeneratePromptsTypeScriptGolden(t *testing.T) {
+	plugin := newPromptsProtogenPlugin(t)
+	if err := Generate(plugin, Options{Language: LanguageTypeScript}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	got := generatedFileContent(t, plugin, "internal/testproto/prompts/v1/prompts_mcp.ts")
+	want := readGoldenFile(t, repoRoot(t), "testdata/golden/prompts_mcp.ts.golden")
+	if !bytes.Equal(got, want) {
+		t.Fatalf("fresh TypeScript Prompts renderer output differs from golden:\n%s", diffBytes(want, got))
+	}
+}
+
+func readGoldenFile(t *testing.T, root, relPath string) []byte {
+	t.Helper()
+
+	wantPath := filepath.Join(root, relPath)
+	want, err := os.ReadFile(wantPath)
+	if err != nil {
+		t.Fatalf("read golden file %q: %v", wantPath, err)
+	}
+	return want
+}
+
+// TestWritePromptsGoldenFiles regenerates golden files for the prompts fixture.
+// Run with: go test -run TestWritePromptsGoldenFiles -v
+// After generating, re-run the comparison tests to verify.
+func TestWritePromptsGoldenFiles(t *testing.T) {
+	if os.Getenv("WRITE_GOLDEN") != "1" {
+		t.Skip("set WRITE_GOLDEN=1 to regenerate prompt golden files")
+	}
+
+	root := repoRoot(t)
+	goldenDir := filepath.Join(root, "testdata/golden")
+
+	type goldenCase struct {
+		lang     Language
+		outPath  string
+		filename string
+	}
+	cases := []goldenCase{
+		{LanguageGo, "internal/testproto/prompts/v1/prompts.mcp.go", "prompts.mcp.go.golden"},
+		{LanguagePython, "internal/testproto/prompts/v1/prompts_mcp.py", "prompts_mcp.py.golden"},
+		{LanguageKotlin, "internal/testproto/prompts/v1/prompts_mcp.kt", "prompts_mcp.kt.golden"},
+		{LanguageJava, promptsJavaOutputPath(), "prompts_mcp.java.golden"},
+		{LanguageTypeScript, "internal/testproto/prompts/v1/prompts_mcp.ts", "prompts_mcp.ts.golden"},
+	}
+
+	for _, tc := range cases {
+		plugin := newPromptsProtogenPlugin(t)
+		if err := Generate(plugin, Options{Language: tc.lang}); err != nil {
+			t.Fatalf("Generate(%s): %v", tc.lang, err)
+		}
+		got := generatedFileContent(t, plugin, tc.outPath)
+		target := filepath.Join(goldenDir, tc.filename)
+		if err := os.WriteFile(target, got, 0o644); err != nil {
+			t.Fatalf("write golden %q: %v", target, err)
+		}
+		t.Logf("wrote %s (%d bytes)", target, len(got))
+	}
+}
+
+func resourcesJavaOutputPath() string {
+	return javaSidecarOutputPath(jvmGeneratedFilenamePrefixForProtoPath("internal/testproto/resources/v1/resources.proto"))
+}
+
+func TestGenerateResourcesGoGolden(t *testing.T) {
+	plugin := newResourcesProtogenPlugin(t)
+	if err := Generate(plugin, Options{Language: LanguageGo}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	got := generatedFileContent(t, plugin, "internal/testproto/resources/v1/resources.mcp.go")
+	want := readGoldenFile(t, repoRoot(t), "testdata/golden/resources.mcp.go.golden")
+	if !bytes.Equal(got, want) {
+		t.Fatalf("fresh Go Resources renderer output differs from golden:\n%s", diffBytes(want, got))
+	}
+}
+
+func TestGenerateResourcesPythonGolden(t *testing.T) {
+	plugin := newResourcesProtogenPlugin(t)
+	if err := Generate(plugin, Options{Language: LanguagePython}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	got := generatedFileContent(t, plugin, "internal/testproto/resources/v1/resources_mcp.py")
+	want := readGoldenFile(t, repoRoot(t), "testdata/golden/resources_mcp.py.golden")
+	if !bytes.Equal(got, want) {
+		t.Fatalf("fresh Python Resources renderer output differs from golden:\n%s", diffBytes(want, got))
+	}
+}
+
+func TestGenerateResourcesKotlinGolden(t *testing.T) {
+	plugin := newResourcesProtogenPlugin(t)
+	if err := Generate(plugin, Options{Language: LanguageKotlin}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	got := generatedFileContent(t, plugin, "internal/testproto/resources/v1/resources_mcp.kt")
+	want := readGoldenFile(t, repoRoot(t), "testdata/golden/resources_mcp.kt.golden")
+	if !bytes.Equal(got, want) {
+		t.Fatalf("fresh Kotlin Resources renderer output differs from golden:\n%s", diffBytes(want, got))
+	}
+}
+
+func TestGenerateResourcesJavaGolden(t *testing.T) {
+	plugin := newResourcesProtogenPlugin(t)
+	if err := Generate(plugin, Options{Language: LanguageJava}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	got := generatedFileContent(t, plugin, resourcesJavaOutputPath())
+	want := readGoldenFile(t, repoRoot(t), "testdata/golden/resources_mcp.java.golden")
+	if !bytes.Equal(got, want) {
+		t.Fatalf("fresh Java Resources renderer output differs from golden:\n%s", diffBytes(want, got))
+	}
+}
+
+func TestGenerateResourcesTypeScriptGolden(t *testing.T) {
+	plugin := newResourcesProtogenPlugin(t)
+	if err := Generate(plugin, Options{Language: LanguageTypeScript}); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	got := generatedFileContent(t, plugin, "internal/testproto/resources/v1/resources_mcp.ts")
+	want := readGoldenFile(t, repoRoot(t), "testdata/golden/resources_mcp.ts.golden")
+	if !bytes.Equal(got, want) {
+		t.Fatalf("fresh TypeScript Resources renderer output differs from golden:\n%s", diffBytes(want, got))
+	}
+}
+
+// TestWriteResourcesGoldenFiles regenerates golden files for the resources fixture.
+// Run with: WRITE_GOLDEN=1 go test -run TestWriteResourcesGoldenFiles -v
+func TestWriteResourcesGoldenFiles(t *testing.T) {
+	if os.Getenv("WRITE_GOLDEN") != "1" {
+		t.Skip("set WRITE_GOLDEN=1 to regenerate resource golden files")
+	}
+
+	root := repoRoot(t)
+	goldenDir := filepath.Join(root, "testdata/golden")
+
+	type goldenCase struct {
+		lang     Language
+		outPath  string
+		filename string
+	}
+	cases := []goldenCase{
+		{LanguageGo, "internal/testproto/resources/v1/resources.mcp.go", "resources.mcp.go.golden"},
+		{LanguagePython, "internal/testproto/resources/v1/resources_mcp.py", "resources_mcp.py.golden"},
+		{LanguageKotlin, "internal/testproto/resources/v1/resources_mcp.kt", "resources_mcp.kt.golden"},
+		{LanguageJava, resourcesJavaOutputPath(), "resources_mcp.java.golden"},
+		{LanguageTypeScript, "internal/testproto/resources/v1/resources_mcp.ts", "resources_mcp.ts.golden"},
+	}
+
+	for _, tc := range cases {
+		plugin := newResourcesProtogenPlugin(t)
+		if err := Generate(plugin, Options{Language: tc.lang}); err != nil {
+			t.Fatalf("Generate(%s): %v", tc.lang, err)
+		}
+		got := generatedFileContent(t, plugin, tc.outPath)
+		target := filepath.Join(goldenDir, tc.filename)
+		if err := os.WriteFile(target, got, 0o644); err != nil {
+			t.Fatalf("write golden %q: %v", target, err)
+		}
+		t.Logf("wrote %s (%d bytes)", target, len(got))
+	}
+}

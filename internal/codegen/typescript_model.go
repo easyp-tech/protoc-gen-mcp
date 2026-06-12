@@ -11,6 +11,8 @@ type TypeScriptFileModel struct {
 	Imports                 []TypeScriptImport
 	RegistryRefs            []TypeScriptRegistryRef
 	Services                []TypeScriptServiceModel
+	Prompts                 []PromptModel
+	Resources               []ResourceModel
 }
 
 type TypeScriptServiceModel struct {

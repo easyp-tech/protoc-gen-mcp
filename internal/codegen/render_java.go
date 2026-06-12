@@ -179,13 +179,176 @@ func renderJavaFile(plugin *protogen.Plugin, model JVMFileModel) error {
 		}
 	}
 
-	if len(model.Services) > 0 {
+	if len(model.Prompts) > 0 {
+		renderJavaPrompts(generated, model)
+	}
+
+	if len(model.Resources) > 0 {
+		renderJavaResources(generated, model)
+	}
+
+	if len(model.Services) > 0 || len(model.Prompts) > 0 || len(model.Resources) > 0 {
 		generated.P()
 	}
 	renderJavaRuntime(generated, descriptorAccessors)
 	generated.P("}")
 
 	return nil
+}
+
+func renderJavaResources(generated *protogen.GeneratedFile, model JVMFileModel) {
+	fileBase := jvmFileBaseName(model.ProtoPath)
+	interfaceName := jvmExportedIdentifier(fileBase) + "ResourceHandler"
+	registerName := "register" + jvmExportedIdentifier(fileBase) + "Resources"
+
+	generated.P()
+	generated.P("    public interface ", interfaceName, " {")
+	for _, resource := range model.Resources {
+		methodName := jvmMethodName(resource.ProtoName)
+		if resource.IsTemplate {
+			generated.P("        java.util.List<Object> list", resource.ProtoName, "s();")
+			paramList := ""
+			for i, param := range resource.Params {
+				if i > 0 {
+					paramList += ", "
+				}
+				paramList += "String " + param.Name
+			}
+			generated.P("        Object read", resource.ProtoName, "(", paramList, ");")
+		} else {
+			generated.P("        Object ", methodName, "();")
+		}
+	}
+	generated.P("    }")
+	generated.P()
+
+	generated.P("    public static void ", registerName, "(")
+	generated.P("            io.modelcontextprotocol.sdk.server.McpServerTransportProvider transportProvider,")
+	generated.P("            ", interfaceName, " impl,")
+	generated.P("            String namespace) {")
+	generated.P("        // TODO: full Java resource registration")
+	generated.P("        throw new UnsupportedOperationException(\"MCP Resources for Java are not yet fully supported\");")
+	generated.P("    }")
+}
+
+func renderJavaPrompts(generated *protogen.GeneratedFile, model JVMFileModel) {
+	fileBase := jvmFileBaseName(model.ProtoPath)
+	interfaceName := jvmExportedIdentifier(fileBase) + "PromptHandler"
+	registerName := "register" + jvmExportedIdentifier(fileBase) + "Prompts"
+
+	generated.P()
+	generated.P("  public interface ", interfaceName, " {")
+	for _, prompt := range model.Prompts {
+		generated.P("    List<Map<String, Object>> ", jvmMethodName(prompt.ProtoName), "(Map<String, String> arguments) throws Exception;")
+	}
+	generated.P("  }")
+	generated.P()
+
+	generated.P("  public static void ", registerName, "(")
+	generated.P("      McpServerTransportProvider transportProvider,")
+	generated.P("      ", interfaceName, " impl,")
+	generated.P("      String namespace) {")
+	generated.P("    if (transportProvider == null) {")
+	generated.P("      throw new IllegalArgumentException(\"transportProvider must not be null\");")
+	generated.P("    }")
+	generated.P("    if (impl == null) {")
+	generated.P("      throw new IllegalArgumentException(\"impl must not be null\");")
+	generated.P("    }")
+	for _, prompt := range model.Prompts {
+		generated.P("    // Register prompt: ", prompt.Name)
+		generated.P("    {")
+		generated.P("      String resolvedName = promptName(namespace, ", quote(prompt.Name), ");")
+		generated.P("      Map<String, Object> promptMap = new LinkedHashMap<>();")
+		generated.P("      promptMap.put(\"name\", resolvedName);")
+		if prompt.Title != "" {
+			generated.P("      promptMap.put(\"title\", ", quote(prompt.Title), ");")
+		}
+		if prompt.Description != "" {
+			generated.P("      promptMap.put(\"description\", ", quote(prompt.Description), ");")
+		}
+		generated.P("      List<Map<String, Object>> argsSpec = new ArrayList<>();")
+		// Build required arg names list for validation.
+		var requiredArgNames []string
+		for _, arg := range prompt.Arguments {
+			generated.P("      {")
+			generated.P("        Map<String, Object> argMap = new LinkedHashMap<>();")
+			generated.P("        argMap.put(\"name\", ", quote(arg.Name), ");")
+			generated.P("        argMap.put(\"description\", ", quote(arg.Description), ");")
+			generated.P("        argMap.put(\"required\", ", javaBoolLiteral(arg.Required), ");")
+			generated.P("        argsSpec.add(argMap);")
+			generated.P("      }")
+			if arg.Required {
+				requiredArgNames = append(requiredArgNames, arg.Name)
+			}
+		}
+		generated.P("      promptMap.put(\"arguments\", argsSpec);")
+		// Build required-names array literal.
+		reqArrayLiteral := "new String[0]"
+		if len(requiredArgNames) > 0 {
+			items := make([]string, 0, len(requiredArgNames))
+			for _, name := range requiredArgNames {
+				items = append(items, quote(name))
+			}
+			reqArrayLiteral = "new String[]{" + strings.Join(items, ", ") + "}"
+		}
+		generated.P("      String[] requiredArgs = ", reqArrayLiteral, ";")
+		generated.P("      registerPrompt(transportProvider, resolvedName, promptMap, requiredArgs, (args) -> impl.", jvmMethodName(prompt.ProtoName), "(args));")
+		generated.P("    }")
+	}
+	generated.P("  }")
+	generated.P()
+	generated.P("  private static String promptName(String namespace, String promptName) {")
+	generated.P("    String normalizedNamespace = normalizeToolSegment(namespace != null ? namespace : \"\");")
+	generated.P("    String normalizedPromptName = normalizeToolSegment(promptName);")
+	generated.P("    if (normalizedNamespace.isEmpty()) {")
+	generated.P("      return normalizedPromptName;")
+	generated.P("    }")
+	generated.P("    if (normalizedPromptName.isEmpty()) {")
+	generated.P("      return normalizedNamespace;")
+	generated.P("    }")
+	generated.P("    return normalizedNamespace + \"_\" + normalizedPromptName;")
+	generated.P("  }")
+	generated.P()
+	generated.P("  @FunctionalInterface")
+	generated.P("  private interface PromptInvoker {")
+	generated.P("    List<Map<String, Object>> handle(Map<String, String> arguments) throws Exception;")
+	generated.P("  }")
+	generated.P()
+	generated.P("  private static final class RegisteredPrompt {")
+	generated.P("    private final String name;")
+	generated.P("    private final Map<String, Object> metadata;")
+	generated.P("    private final String[] requiredArgs;")
+	generated.P("    private final PromptInvoker handler;")
+	generated.P()
+	generated.P("    private RegisteredPrompt(String name, Map<String, Object> metadata, String[] requiredArgs, PromptInvoker handler) {")
+	generated.P("      this.name = name;")
+	generated.P("      this.metadata = metadata;")
+	generated.P("      this.requiredArgs = requiredArgs;")
+	generated.P("      this.handler = handler;")
+	generated.P("    }")
+	generated.P("  }")
+	generated.P()
+	generated.P("  private static final Map<McpServerTransportProvider, List<RegisteredPrompt>> PROMPT_REGISTRIES =")
+	generated.P("      Collections.synchronizedMap(new WeakHashMap<>());")
+	generated.P()
+	generated.P("  private static void registerPrompt(")
+	generated.P("      McpServerTransportProvider transportProvider,")
+	generated.P("      String name,")
+	generated.P("      Map<String, Object> metadata,")
+	generated.P("      String[] requiredArgs,")
+	generated.P("      PromptInvoker handler) {")
+	generated.P("    synchronized (PROMPT_REGISTRIES) {")
+	generated.P("      List<RegisteredPrompt> prompts = PROMPT_REGISTRIES.computeIfAbsent(transportProvider, (k) -> new ArrayList<>());")
+	generated.P("      prompts.add(new RegisteredPrompt(name, metadata, requiredArgs, handler));")
+	generated.P("    }")
+	generated.P("  }")
+}
+
+func javaBoolLiteral(value bool) string {
+	if value {
+		return "Boolean.TRUE"
+	}
+	return "Boolean.FALSE"
 }
 
 type javaDescriptorAccessor struct {

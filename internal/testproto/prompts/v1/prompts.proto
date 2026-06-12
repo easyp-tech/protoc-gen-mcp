@@ -1,0 +1,100 @@
+syntax = "proto3";
+
+package internal.testproto.prompts.v1;
+
+option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/testproto/prompts/v1;promptsv1";
+
+import "mcp/options/v1/options.proto";
+
+// ExpertiseLevel controls the depth of analysis.
+enum ExpertiseLevel {
+  // Hidden zero-value.
+  EXPERTISE_LEVEL_NONE = 0 [(mcp.options.v1.enum_value) = {
+    hidden: true
+  }];
+  // Beginner level.
+  EXPERTISE_LEVEL_BEGINNER = 1;
+  // Intermediate level.
+  EXPERTISE_LEVEL_INTERMEDIATE = 2;
+  // Expert level.
+  EXPERTISE_LEVEL_EXPERT = 3;
+}
+
+// CodeReview is a prompt for analyzing code quality.
+message CodeReview {
+  option (mcp.options.v1.prompt) = {
+    name: "code_review"
+    description: "Analyze code quality and suggest improvements"
+    icons: [{ src: "https://example.com/review.svg" }]
+  };
+
+  // Source code to review.
+  string code = 1 [(mcp.options.v1.field) = {
+    description: "Source code to review"
+  }];
+
+  // Programming language.
+  string language = 2 [(mcp.options.v1.field) = {
+    description: "Programming language (go, python, java, etc)"
+  }];
+
+  // Specific area to focus on.
+  optional string focus_area = 3 [(mcp.options.v1.field) = {
+    description: "Specific area: security, performance, readability"
+  }];
+}
+
+// Summarize is a prompt for summarizing documents.
+message Summarize {
+  option (mcp.options.v1.prompt) = {
+    name: "summarize"
+    title: "Document Summarizer"
+    description: "Summarize a document or text"
+  };
+
+  // The text content to summarize.
+  string content = 1 [(mcp.options.v1.field) = {
+    description: "Text content to summarize"
+  }];
+
+  // Maximum length of summary.
+  optional int32 max_length = 2 [(mcp.options.v1.field) = {
+    description: "Maximum length of the summary in words"
+  }];
+
+  // Optional output format.
+  optional string format = 3 [(mcp.options.v1.field) = {
+    description: "Output format: bullet_points, paragraph, tldr"
+  }];
+}
+
+// ExplainError is a prompt for explaining error messages.
+message ExplainError {
+  option (mcp.options.v1.prompt) = {
+    name: "explain_error"
+    description: "Explain an error message and suggest fixes"
+  };
+
+  // The error message to explain.
+  string error_message = 1 [(mcp.options.v1.field) = {
+    description: "The error message or stack trace"
+  }];
+
+  // The programming language context.
+  string language = 2 [(mcp.options.v1.field) = {
+    description: "Programming language context"
+  }];
+
+  // The expertise level for the explanation.
+  ExpertiseLevel level = 3 [(mcp.options.v1.field) = {
+    description: "Expertise level for the explanation"
+  }];
+}
+
+// PlainMessage is NOT a prompt — used to test that non-prompt messages are ignored.
+message PlainMessage {
+  // Name of the plain message.
+  string name = 1;
+  // Value of the plain message.
+  int32 value = 2;
+}

@@ -34,6 +34,8 @@ func CollectTypeScriptFileModel(file *protogen.File, model FileModel) (TypeScrip
 		ProtoPackage:            string(file.Desc.Package()),
 		CurrentFile:             currentFile,
 		Services:                make([]TypeScriptServiceModel, 0, len(model.Services)),
+		Prompts:                 model.Prompts,
+		Resources:               model.Resources,
 	}
 
 	for _, service := range model.Services {

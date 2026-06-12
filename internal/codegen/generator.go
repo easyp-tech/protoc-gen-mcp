@@ -54,7 +54,7 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 		}
 		for _, file := range orderedFiles {
 			model := models[file.Desc.Path()]
-			if len(model.Services) == 0 {
+			if len(model.Services) == 0 && len(model.Prompts) == 0 && len(model.Resources) == 0 {
 				continue
 			}
 			if err := renderKotlinFile(plugin, model); err != nil {
@@ -69,7 +69,7 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 		}
 		for _, file := range orderedFiles {
 			model := models[file.Desc.Path()]
-			if len(model.Services) == 0 {
+			if len(model.Services) == 0 && len(model.Prompts) == 0 && len(model.Resources) == 0 {
 				continue
 			}
 			if err := renderJavaFile(plugin, model); err != nil {
@@ -84,7 +84,7 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 		}
 		for _, file := range orderedFiles {
 			model := models[file.Desc.Path()]
-			if len(model.Services) == 0 {
+			if len(model.Services) == 0 && len(model.Prompts) == 0 && len(model.Resources) == 0 {
 				continue
 			}
 			if err := renderTypeScriptFile(plugin, model); err != nil {
@@ -106,7 +106,7 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 
 		switch opts.Language {
 		case LanguageGo:
-			if len(model.Services) == 0 {
+			if len(model.Services) == 0 && len(model.Prompts) == 0 && len(model.Resources) == 0 {
 				continue
 			}
 			if err := renderGoFile(plugin, model); err != nil {
@@ -259,6 +259,12 @@ func pythonModelRequiresOutput(model FileModel) bool {
 
 func pythonModelRequiresOutputForHandler(model FileModel, handler PythonHandler) bool {
 	if len(model.Services) > 0 {
+		return true
+	}
+	if len(model.Prompts) > 0 {
+		return true
+	}
+	if len(model.Resources) > 0 {
 		return true
 	}
 	if handler == PythonHandlerProtobuf {

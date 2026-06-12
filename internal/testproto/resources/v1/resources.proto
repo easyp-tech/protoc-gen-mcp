@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package internal.testproto.resources.v1;
+
+option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/testproto/resources/v1;resourcesv1";
+
+import "mcp/options/v1/options.proto";
+
+// ServerStatus is a static resource returning server health info.
+message ServerStatus {
+  option (mcp.options.v1.resource) = {
+    name: "server_status"
+    uri: "server://status"
+    description: "Current server status and health information"
+    mime_type: "application/json"
+    annotations: {
+      audience: [RESOURCE_AUDIENCE_USER, RESOURCE_AUDIENCE_ASSISTANT]
+      priority: 0.8
+    }
+    icons: [{ src: "https://example.com/status.svg" }]
+  };
+
+  // Whether the server is healthy.
+  bool healthy = 1;
+  // Server uptime in seconds.
+  int64 uptime_seconds = 2;
+  // Server version string.
+  string version = 3;
+}
+
+// UserProfile is a template resource for user profiles.
+message UserProfile {
+  option (mcp.options.v1.resource) = {
+    name: "user_profile"
+    uri_template: "users://{user_id}/profile"
+    description: "User profile information"
+  };
+
+  // The user's unique identifier.
+  string user_id = 1;
+  // The user's display name.
+  string display_name = 2;
+  // The user's email address.
+  string email = 3;
+  // Whether the user is active.
+  bool active = 4;
+}
+
+// Document is a template resource with multiple URI parameters.
+message Document {
+  option (mcp.options.v1.resource) = {
+    name: "document"
+    uri_template: "projects://{project_id}/documents/{document_id}"
+    description: "Project document"
+    mime_type: "application/json"
+    annotations: {
+      priority: 0.5
+    }
+  };
+
+  // The document title.
+  string title = 1;
+  // The document body content.
+  string body = 2;
+  // The document author.
+  string author = 3;
+}
+
+// PlainData is NOT a resource — used to test that non-resource messages are ignored.
+message PlainData {
+  string key = 1;
+  string value = 2;
+}
