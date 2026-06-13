@@ -1,9 +1,11 @@
 package mcpruntime_test
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"slices"
 	"strings"
 	"testing"
@@ -11,20 +13,213 @@ import (
 	examplev1 "github.com/easyp-tech/protoc-gen-mcp/internal/testproto/example/v1"
 	"github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
+// testClient is a minimal JSON-RPC client for testing, communicating via io.Pipe.
+type testClient struct {
+	t       *testing.T
+	scanner *bufio.Scanner
+	writer  io.Writer
+	nextID  int
+}
+
+type jsonrpcRequest struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id,omitempty"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params,omitempty"`
+}
+
+type jsonrpcResponse struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id"`
+	Result  json.RawMessage `json:"result,omitempty"`
+	Error   *jsonrpcError   `json:"error,omitempty"`
+}
+
+type jsonrpcError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+type toolsListResult struct {
+	Tools []toolInfo `json:"tools"`
+}
+
+type toolInfo struct {
+	Name        string     `json:"name"`
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	InputSchema any        `json:"inputSchema,omitempty"`
+	Annotations any        `json:"annotations,omitempty"`
+	Icons       any        `json:"icons,omitempty"`
+}
+
+type callToolResult struct {
+	Content           []json.RawMessage `json:"content,omitempty"`
+	StructuredContent json.RawMessage   `json:"structuredContent,omitempty"`
+	IsError           bool              `json:"isError,omitempty"`
+}
+
+type textContent struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+func (c *testClient) call(method string, params any) jsonrpcResponse {
+	c.t.Helper()
+
+	paramsBytes, err := json.Marshal(params)
+	if err != nil {
+		c.t.Fatalf("marshal params: %v", err)
+	}
+
+	id := c.nextID
+	c.nextID++
+
+	idBytes, _ := json.Marshal(id)
+	req := jsonrpcRequest{
+		JSONRPC: "2.0",
+		ID:      idBytes,
+		Method:  method,
+		Params:  paramsBytes,
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		c.t.Fatalf("marshal request: %v", err)
+	}
+	data = append(data, '\n')
+	if _, err := c.writer.Write(data); err != nil {
+		c.t.Fatalf("write request: %v", err)
+	}
+
+	if !c.scanner.Scan() {
+		c.t.Fatalf("no response for %s (scanner error: %v)", method, c.scanner.Err())
+	}
+
+	var resp jsonrpcResponse
+	if err := json.Unmarshal(c.scanner.Bytes(), &resp); err != nil {
+		c.t.Fatalf("unmarshal response for %s: %v", method, err)
+	}
+	return resp
+}
+
+func (c *testClient) notify(method string, params any) {
+	c.t.Helper()
+
+	paramsBytes, err := json.Marshal(params)
+	if err != nil {
+		c.t.Fatalf("marshal params: %v", err)
+	}
+
+	req := jsonrpcRequest{
+		JSONRPC: "2.0",
+		Method:  method,
+		Params:  paramsBytes,
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		c.t.Fatalf("marshal notification: %v", err)
+	}
+	data = append(data, '\n')
+	if _, err := c.writer.Write(data); err != nil {
+		c.t.Fatalf("write notification: %v", err)
+	}
+}
+
+func (c *testClient) initialize() {
+	c.t.Helper()
+	resp := c.call("initialize", map[string]any{
+		"protocolVersion": "2025-11-25",
+		"capabilities":    map[string]any{},
+		"clientInfo":      map[string]any{"name": "test-client", "version": "v0.0.1"},
+	})
+	if resp.Error != nil {
+		c.t.Fatalf("initialize failed: code=%d msg=%s", resp.Error.Code, resp.Error.Message)
+	}
+	c.notify("notifications/initialized", map[string]any{})
+}
+
+func (c *testClient) listTools() toolsListResult {
+	c.t.Helper()
+	resp := c.call("tools/list", map[string]any{})
+	if resp.Error != nil {
+		c.t.Fatalf("tools/list failed: code=%d msg=%s", resp.Error.Code, resp.Error.Message)
+	}
+	var result toolsListResult
+	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		c.t.Fatalf("unmarshal tools/list result: %v", err)
+	}
+	return result
+}
+
+func (c *testClient) callTool(name string, arguments map[string]any) (callToolResult, *jsonrpcError) {
+	c.t.Helper()
+	resp := c.call("tools/call", map[string]any{
+		"name":      name,
+		"arguments": arguments,
+	})
+	if resp.Error != nil {
+		return callToolResult{}, resp.Error
+	}
+	var result callToolResult
+	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		c.t.Fatalf("unmarshal tools/call result: %v", err)
+	}
+	return result, nil
+}
+
+func newExampleSession(t *testing.T, handler exampleHandler, options ...mcpruntime.RegisterOption) (*testClient, func()) {
+	t.Helper()
+
+	server := newServer()
+	if err := examplev1.RegisterExampleAPITools(server, handler, options...); err != nil {
+		t.Fatalf("RegisterExampleAPITools() failed: %v", err)
+	}
+
+	return connectClient(t, server)
+}
+
+func newServer() *mcpruntime.Server {
+	return mcpruntime.NewServer("protoc-gen-mcp-test-server", "v0.0.1")
+}
+
+func connectClient(t *testing.T, server *mcpruntime.Server) (*testClient, func()) {
+	t.Helper()
+
+	clientReader, serverWriter := io.Pipe()
+	serverReader, clientWriter := io.Pipe()
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		mcpruntime.ServeIO(ctx, server, serverReader, serverWriter)
+		serverWriter.Close()
+	}()
+
+	scanner := bufio.NewScanner(clientReader)
+	scanner.Buffer(make([]byte, 0, 1<<20), 1<<20)
+
+	client := &testClient{
+		t:       t,
+		scanner: scanner,
+		writer:  clientWriter,
+		nextID:  1,
+	}
+	client.initialize()
+
+	return client, func() {
+		cancel()
+		clientWriter.Close()
+	}
+}
+
 func TestRegisterExampleAPIToolsHappyPath(t *testing.T) {
-	ctx := context.Background()
-	clientSession, cleanup := newExampleSession(t, exampleHandler{})
+	client, cleanup := newExampleSession(t, exampleHandler{})
 	defer cleanup()
 
-	tools, err := clientSession.ListTools(ctx, nil)
-	if err != nil {
-		t.Fatalf("ListTools() failed: %v", err)
-	}
+	tools := client.listTools()
 
 	var toolNames []string
 	for _, tool := range tools.Tools {
@@ -115,18 +310,15 @@ func TestRegisterExampleAPIToolsHappyPath(t *testing.T) {
 	validateToolInputSchema(t, tools.Tools, "example_DescribeScalarShapes", scalarShapeArguments())
 	validateToolInputSchema(t, tools.Tools, "example_DescribeScalarShapes", nullableScalarShapeArguments())
 
-	result, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
-		Name: "example_CreateReport",
-		Arguments: map[string]any{
-			"city":    "Paris",
-			"count":   2,
-			"details": map[string]any{"label": "today"},
-			"labels":  []string{"primary", "daily"},
-			"units":   "metric",
-		},
+	result, rpcErr := client.callTool("example_CreateReport", map[string]any{
+		"city":    "Paris",
+		"count":   2,
+		"details": map[string]any{"label": "today"},
+		"labels":  []string{"primary", "daily"},
+		"units":   "metric",
 	})
-	if err != nil {
-		t.Fatalf("CallTool(CreateReport) failed: %v", err)
+	if rpcErr != nil {
+		t.Fatalf("CallTool(CreateReport) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if result.IsError {
 		t.Fatalf("CreateReport returned tool error: %+v", result)
@@ -135,13 +327,13 @@ func TestRegisterExampleAPIToolsHappyPath(t *testing.T) {
 		t.Fatalf("CreateReport content count = %d, want 1", len(result.Content))
 	}
 
-	textContent, ok := result.Content[0].(*mcp.TextContent)
-	if !ok {
-		t.Fatalf("CreateReport content[0] has type %T, want *mcp.TextContent", result.Content[0])
+	var tc textContent
+	if err := json.Unmarshal(result.Content[0], &tc); err != nil {
+		t.Fatalf("unmarshal text content: %v", err)
 	}
 
-	textJSON := decodeMap(t, []byte(textContent.Text))
-	structuredJSON := decodeAnyMap(t, result.StructuredContent)
+	textJSON := decodeMap(t, []byte(tc.Text))
+	structuredJSON := decodeMap(t, result.StructuredContent)
 	if !mapsEqual(textJSON, structuredJSON) {
 		t.Fatalf("text content and structured content differ:\ntext=%v\nstructured=%v", textJSON, structuredJSON)
 	}
@@ -160,18 +352,15 @@ func TestRegisterExampleAPIToolsHappyPath(t *testing.T) {
 		t.Fatalf("details.label = %v, want today", got)
 	}
 
-	pingResult, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "example_Health",
-		Arguments: map[string]any{},
-	})
-	if err != nil {
-		t.Fatalf("CallTool(Health) failed: %v", err)
+	pingResult, rpcErr := client.callTool("example_Health", map[string]any{})
+	if rpcErr != nil {
+		t.Fatalf("CallTool(Health) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if pingResult.IsError {
 		t.Fatalf("Health returned tool error: %+v", pingResult)
 	}
 
-	pingStructured := decodeAnyMap(t, pingResult.StructuredContent)
+	pingStructured := decodeMap(t, pingResult.StructuredContent)
 	ack, ok := pingStructured["ack"].(map[string]any)
 	if !ok {
 		t.Fatalf("ack has type %T, want map[string]any", pingStructured["ack"])
@@ -180,57 +369,54 @@ func TestRegisterExampleAPIToolsHappyPath(t *testing.T) {
 		t.Fatalf("ack = %v, want empty object", ack)
 	}
 
-	advancedResult, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
-		Name: "example_DescribeAdvancedShapes",
-		Arguments: map[string]any{
-			"labels":     map[string]any{"env": "prod"},
-			"quantities": map[string]any{"1": "one", "2": "two"},
-			"toggles":    map[string]any{"true": "enabled"},
-			"limits":     map[string]any{"18446744073709551615": "max"},
-			"observedAt": "2026-03-09T10:11:12Z",
-			"ttl":        "3600s",
-			"payload":    map[string]any{"kind": "demo", "nested": map[string]any{"ok": true}},
-			"items":      []any{"a", 2.0, false, map[string]any{"x": "y"}},
-			"dynamic":    map[string]any{"city": "Paris"},
-			"note":       "hello",
-			"total":      "42",
-			"enabled":    true,
-			"ratio":      "NaN",
-			"mask":       "labels,observedAt",
-			"blob":       "aGVsbG8=",
-			"smallTotal": 7,
-			"uintTotal":  11,
-			"hugeTotal":  "99",
-			"weight":     1.5,
-			"rawRatio":   "Infinity",
-			"tree": map[string]any{
-				"name": "root",
-				"child": map[string]any{
-					"name": "leaf",
-				},
-				"children": []any{
-					map[string]any{"name": "branch"},
-				},
+	advancedResult, rpcErr := client.callTool("example_DescribeAdvancedShapes", map[string]any{
+		"labels":     map[string]any{"env": "prod"},
+		"quantities": map[string]any{"1": "one", "2": "two"},
+		"toggles":    map[string]any{"true": "enabled"},
+		"limits":     map[string]any{"18446744073709551615": "max"},
+		"observedAt": "2026-03-09T10:11:12Z",
+		"ttl":        "3600s",
+		"payload":    map[string]any{"kind": "demo", "nested": map[string]any{"ok": true}},
+		"items":      []any{"a", 2.0, false, map[string]any{"x": "y"}},
+		"dynamic":    map[string]any{"city": "Paris"},
+		"note":       "hello",
+		"total":      "42",
+		"enabled":    true,
+		"ratio":      "NaN",
+		"mask":       "labels,observedAt",
+		"blob":       "aGVsbG8=",
+		"smallTotal": 7,
+		"uintTotal":  11,
+		"hugeTotal":  "99",
+		"weight":     1.5,
+		"rawRatio":   "Infinity",
+		"tree": map[string]any{
+			"name": "root",
+			"child": map[string]any{
+				"name": "leaf",
 			},
-			"detailAny": map[string]any{
-				"@type": "type.googleapis.com/internal.testproto.example.v1.ReportDetails",
-				"label": "from-any",
+			"children": []any{
+				map[string]any{"name": "branch"},
 			},
-			"durationAny": map[string]any{
-				"@type": "type.googleapis.com/google.protobuf.Duration",
-				"value": "3600s",
-			},
-			"cityAlias": "paris-fr",
 		},
+		"detailAny": map[string]any{
+			"@type": "type.googleapis.com/internal.testproto.example.v1.ReportDetails",
+			"label": "from-any",
+		},
+		"durationAny": map[string]any{
+			"@type": "type.googleapis.com/google.protobuf.Duration",
+			"value": "3600s",
+		},
+		"cityAlias": "paris-fr",
 	})
-	if err != nil {
-		t.Fatalf("CallTool(DescribeAdvancedShapes) failed: %v", err)
+	if rpcErr != nil {
+		t.Fatalf("CallTool(DescribeAdvancedShapes) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if advancedResult.IsError {
 		t.Fatalf("DescribeAdvancedShapes returned tool error: %+v", advancedResult)
 	}
 
-	advancedStructured := decodeAnyMap(t, advancedResult.StructuredContent)
+	advancedStructured := decodeMap(t, advancedResult.StructuredContent)
 	if got := advancedStructured["observedAt"]; got != "2026-03-09T10:11:12Z" {
 		t.Fatalf("observedAt = %v, want 2026-03-09T10:11:12Z", got)
 	}
@@ -317,18 +503,15 @@ func TestRegisterExampleAPIToolsHappyPath(t *testing.T) {
 		t.Fatalf("limits[max] = %v, want max", got)
 	}
 
-	scalarResult, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "example_DescribeScalarShapes",
-		Arguments: scalarShapeArguments(),
-	})
-	if err != nil {
-		t.Fatalf("CallTool(DescribeScalarShapes) failed: %v", err)
+	scalarResult, rpcErr := client.callTool("example_DescribeScalarShapes", scalarShapeArguments())
+	if rpcErr != nil {
+		t.Fatalf("CallTool(DescribeScalarShapes) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if scalarResult.IsError {
 		t.Fatalf("DescribeScalarShapes returned tool error: %+v", scalarResult)
 	}
 
-	scalarStructured := decodeAnyMap(t, scalarResult.StructuredContent)
+	scalarStructured := decodeMap(t, scalarResult.StructuredContent)
 	if got := scalarStructured["boolFlag"]; got != true {
 		t.Fatalf("boolFlag = %v, want true", got)
 	}
@@ -371,63 +554,52 @@ func TestRegisterExampleAPIToolsHappyPath(t *testing.T) {
 }
 
 func TestRegisterExampleAPIToolsNullableInput(t *testing.T) {
-	ctx := context.Background()
-	clientSession, cleanup := newExampleSession(t, exampleHandler{})
+	client, cleanup := newExampleSession(t, exampleHandler{})
 	defer cleanup()
 
-	if _, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
-		Name: "example_CreateReport",
-		Arguments: map[string]any{
-			"city":    "Paris",
-			"count":   2,
-			"details": map[string]any{"label": "today"},
-			"units":   nil,
-			"labels":  nil,
-		},
-	}); err != nil {
-		t.Fatalf("CallTool(CreateReport) with null optional fields failed: %v", err)
+	if _, rpcErr := client.callTool("example_CreateReport", map[string]any{
+		"city":    "Paris",
+		"count":   2,
+		"details": map[string]any{"label": "today"},
+		"units":   nil,
+		"labels":  nil,
+	}); rpcErr != nil {
+		t.Fatalf("CallTool(CreateReport) with null optional fields failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 
-	if _, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
-		Name: "example_DescribeAdvancedShapes",
-		Arguments: map[string]any{
-			"labels":      map[string]any{"env": "prod"},
-			"observedAt":  nil,
-			"ttl":         nil,
-			"payload":     nil,
-			"items":       nil,
-			"dynamic":     nil,
-			"note":        nil,
-			"total":       nil,
-			"enabled":     nil,
-			"ratio":       nil,
-			"mask":        nil,
-			"blob":        nil,
-			"smallTotal":  nil,
-			"uintTotal":   nil,
-			"hugeTotal":   nil,
-			"weight":      nil,
-			"rawRatio":    nil,
-			"tree":        nil,
-			"detailAny":   nil,
-			"durationAny": nil,
-			"cityDetails": nil,
-		},
-	}); err != nil {
-		t.Fatalf("CallTool(DescribeAdvancedShapes) with null optional fields failed: %v", err)
+	if _, rpcErr := client.callTool("example_DescribeAdvancedShapes", map[string]any{
+		"labels":      map[string]any{"env": "prod"},
+		"observedAt":  nil,
+		"ttl":         nil,
+		"payload":     nil,
+		"items":       nil,
+		"dynamic":     nil,
+		"note":        nil,
+		"total":       nil,
+		"enabled":     nil,
+		"ratio":       nil,
+		"mask":        nil,
+		"blob":        nil,
+		"smallTotal":  nil,
+		"uintTotal":   nil,
+		"hugeTotal":   nil,
+		"weight":      nil,
+		"rawRatio":    nil,
+		"tree":        nil,
+		"detailAny":   nil,
+		"durationAny": nil,
+		"cityDetails": nil,
+	}); rpcErr != nil {
+		t.Fatalf("CallTool(DescribeAdvancedShapes) with null optional fields failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 
-	if _, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "example_DescribeScalarShapes",
-		Arguments: nullableScalarShapeArguments(),
-	}); err != nil {
-		t.Fatalf("CallTool(DescribeScalarShapes) with null optional fields failed: %v", err)
+	if _, rpcErr := client.callTool("example_DescribeScalarShapes", nullableScalarShapeArguments()); rpcErr != nil {
+		t.Fatalf("CallTool(DescribeScalarShapes) with null optional fields failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 }
 
 func TestRegisterExampleAPIToolsInvalidInput(t *testing.T) {
-	ctx := context.Background()
-	clientSession, cleanup := newExampleSession(t, exampleHandler{})
+	client, cleanup := newExampleSession(t, exampleHandler{})
 	defer cleanup()
 
 	testCases := []struct {
@@ -474,18 +646,14 @@ func TestRegisterExampleAPIToolsInvalidInput(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			_, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
-				Name:      testCase.toolName,
-				Arguments: testCase.arguments,
-			})
-			assertJSONRPCErrorCode(t, err, jsonrpc.CodeInvalidParams)
+			_, rpcErr := client.callTool(testCase.toolName, testCase.arguments)
+			assertJSONRPCErrorCode(t, rpcErr, mcpruntime.CodeInvalidParams)
 		})
 	}
 }
 
 func TestRegisterExampleAPIToolsOutputValidationFailure(t *testing.T) {
-	ctx := context.Background()
-	clientSession, cleanup := newExampleSession(t, exampleHandler{
+	client, cleanup := newExampleSession(t, exampleHandler{
 		createReport: func(context.Context, *examplev1.CreateReportRequest) (*examplev1.CreateReportResponse, error) {
 			return &examplev1.CreateReportResponse{
 				ReportId:   "report-1",
@@ -496,19 +664,16 @@ func TestRegisterExampleAPIToolsOutputValidationFailure(t *testing.T) {
 	})
 	defer cleanup()
 
-	_, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
-		Name: "example_CreateReport",
-		Arguments: map[string]any{
-			"city":    "Paris",
-			"count":   2,
-			"details": map[string]any{"label": "today"},
-		},
+	_, rpcErr := client.callTool("example_CreateReport", map[string]any{
+		"city":    "Paris",
+		"count":   2,
+		"details": map[string]any{"label": "today"},
 	})
-	if err == nil {
+	if rpcErr == nil {
 		t.Fatal("CallTool(CreateReport) unexpectedly succeeded")
 	}
-	if !strings.Contains(err.Error(), "validate output") {
-		t.Fatalf("output validation error = %v, want validate output message", err)
+	if !strings.Contains(rpcErr.Message, "validate output") {
+		t.Fatalf("output validation error = %v, want validate output message", rpcErr.Message)
 	}
 }
 
@@ -523,13 +688,10 @@ func TestRegisterExampleAPIToolsNamespaceOverride(t *testing.T) {
 		t.Fatalf("RegisterExampleAPITools(custom.v1) failed: %v", err)
 	}
 
-	clientSession, cleanup := connectClient(t, server)
+	client, cleanup := connectClient(t, server)
 	defer cleanup()
 
-	tools, err := clientSession.ListTools(context.Background(), nil)
-	if err != nil {
-		t.Fatalf("ListTools() failed: %v", err)
-	}
+	tools := client.listTools()
 
 	var toolNames []string
 	for _, tool := range tools.Tools {
@@ -707,60 +869,11 @@ func (handler exampleHandler) HiddenThing(
 	return &examplev1.HiddenThingResponse{}, nil
 }
 
-func newExampleSession(t *testing.T, handler exampleHandler, options ...mcpruntime.RegisterOption) (*mcp.ClientSession, func()) {
+func assertJSONRPCErrorCode(t *testing.T, rpcErr *jsonrpcError, want int) {
 	t.Helper()
 
-	server := newServer()
-	if err := examplev1.RegisterExampleAPITools(server, handler, options...); err != nil {
-		t.Fatalf("RegisterExampleAPITools() failed: %v", err)
-	}
-
-	return connectClient(t, server)
-}
-
-func newServer() *mcp.Server {
-	return mcp.NewServer(&mcp.Implementation{
-		Name:    "protoc-gen-mcp-test-server",
-		Version: "v0.0.1",
-	}, nil)
-}
-
-func connectClient(t *testing.T, server *mcp.Server) (*mcp.ClientSession, func()) {
-	t.Helper()
-
-	ctx := context.Background()
-	clientTransport, serverTransport := mcp.NewInMemoryTransports()
-
-	serverSession, err := server.Connect(ctx, serverTransport, nil)
-	if err != nil {
-		t.Fatalf("server.Connect() failed: %v", err)
-	}
-
-	client := mcp.NewClient(&mcp.Implementation{
-		Name:    "protoc-gen-mcp-test-client",
-		Version: "v0.0.1",
-	}, nil)
-	clientSession, err := client.Connect(ctx, clientTransport, nil)
-	if err != nil {
-		t.Fatalf("client.Connect() failed: %v", err)
-	}
-
-	return clientSession, func() {
-		clientSession.Close()
-		serverSession.Close()
-	}
-}
-
-func assertJSONRPCErrorCode(t *testing.T, err error, want int64) {
-	t.Helper()
-
-	if err == nil {
+	if rpcErr == nil {
 		t.Fatal("got nil error, want non-nil")
-	}
-
-	var rpcErr *jsonrpc.Error
-	if !errors.As(err, &rpcErr) {
-		t.Fatalf("got error type %T, want *jsonrpc.Error: %v", err, err)
 	}
 	if rpcErr.Code != want {
 		t.Fatalf("jsonrpc error code = %d, want %d", rpcErr.Code, want)
@@ -877,7 +990,7 @@ func mapsEqual(left map[string]any, right map[string]any) bool {
 	return string(leftRaw) == string(rightRaw)
 }
 
-func validateToolInputSchema(t *testing.T, tools []*mcp.Tool, toolName string, arguments map[string]any) {
+func validateToolInputSchema(t *testing.T, tools []toolInfo, toolName string, arguments map[string]any) {
 	t.Helper()
 
 	tool := findTool(t, tools, toolName)
@@ -906,15 +1019,18 @@ func validateToolInputSchema(t *testing.T, tools []*mcp.Tool, toolName string, a
 	}
 }
 
-func findTool(t *testing.T, tools []*mcp.Tool, toolName string) *mcp.Tool {
+func findTool(t *testing.T, tools []toolInfo, toolName string) toolInfo {
 	t.Helper()
 
 	for _, tool := range tools {
-		if tool != nil && tool.Name == toolName {
+		if tool.Name == toolName {
 			return tool
 		}
 	}
 
 	t.Fatalf("tool %q not found in tools/list", toolName)
-	return nil
+	return toolInfo{}
 }
+
+// Ensure unused imports are referenced.
+var _ = errors.New

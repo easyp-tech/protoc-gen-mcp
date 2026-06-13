@@ -9,8 +9,6 @@ import (
 	"sync"
 
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
@@ -30,8 +28,8 @@ type ToolSpec[Req proto.Message, Resp proto.Message] struct {
 	Namespace        string
 	InputSchemaJSON  string
 	OutputSchemaJSON string
-	Annotations      *mcp.ToolAnnotations
-	Icons            []mcp.Icon
+	Annotations      *ToolAnnotations
+	Icons            []Icon
 	NewRequest       func() Req
 	NewResponse      func() Resp
 	Handler          func(context.Context, Req) (Resp, error)
@@ -39,7 +37,7 @@ type ToolSpec[Req proto.Message, Resp proto.Message] struct {
 
 // RegisterProtoTool registers a protobuf-backed tool on the target MCP server.
 func RegisterProtoTool[Req proto.Message, Resp proto.Message](
-	server *mcp.Server,
+	server *Server,
 	spec ToolSpec[Req, Resp],
 	options ...RegisterOption,
 ) error {
@@ -78,7 +76,7 @@ func RegisterProtoTool[Req proto.Message, Resp proto.Message](
 		return err
 	}
 
-	server.AddTool(&mcp.Tool{
+	server.AddTool(&Tool{
 		Name:         fullName,
 		Title:        spec.Title,
 		Description:  spec.Description,
@@ -86,7 +84,7 @@ func RegisterProtoTool[Req proto.Message, Resp proto.Message](
 		OutputSchema: outputSchema,
 		Annotations:  spec.Annotations,
 		Icons:        spec.Icons,
-	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	}, func(ctx context.Context, req *CallToolRequest) (*CallToolResult, error) {
 		rawArguments, err := marshalArguments(req)
 		if err != nil {
 			return nil, invalidParamsError(fullName, err)
@@ -105,9 +103,10 @@ func RegisterProtoTool[Req proto.Message, Resp proto.Message](
 
 		response, err := spec.Handler(ctx, request)
 		if err != nil {
-			var result mcp.CallToolResult
-			result.SetError(err)
-			return &result, nil
+			return &CallToolResult{
+				IsError: true,
+				Content: []Content{&TextContent{Type: "text", Text: err.Error()}},
+			}, nil
 		}
 
 		var zeroResponse Resp
@@ -119,16 +118,16 @@ func RegisterProtoTool[Req proto.Message, Resp proto.Message](
 			EmitDefaultValues: true,
 		}.Marshal(response)
 		if err != nil {
-			return nil, fmt.Errorf("mcpruntime: marshal output for tool %q: %w", fullName, err)
+			return nil, &JSONRPCError{Code: CodeInternalError, Message: fmt.Sprintf("mcpruntime: marshal output for tool %q: %v", fullName, err)}
 		}
 
 		if err := validateJSON(structuredContent, outputResolved); err != nil {
-			return nil, fmt.Errorf("mcpruntime: validate output for tool %q: %w", fullName, err)
+			return nil, &JSONRPCError{Code: CodeInternalError, Message: fmt.Sprintf("mcpruntime: validate output for tool %q: %v", fullName, err)}
 		}
 
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{Text: string(structuredContent)},
+		return &CallToolResult{
+			Content: []Content{
+				&TextContent{Type: "text", Text: string(structuredContent)},
 			},
 			StructuredContent: json.RawMessage(structuredContent),
 		}, nil
@@ -137,7 +136,7 @@ func RegisterProtoTool[Req proto.Message, Resp proto.Message](
 	return nil
 }
 
-func reserveToolName(server *mcp.Server, toolName string) error {
+func reserveToolName(server *Server, toolName string) error {
 	registryAny, _ := serverRegistries.LoadOrStore(server, &serverRegistry{
 		tools: make(map[string]struct{}),
 	})
@@ -155,21 +154,21 @@ func reserveToolName(server *mcp.Server, toolName string) error {
 	return nil
 }
 
-func marshalArguments(req *mcp.CallToolRequest) ([]byte, error) {
-	if req == nil || req.Params.Arguments == nil {
+func marshalArguments(req *CallToolRequest) ([]byte, error) {
+	if req == nil || req.Arguments == nil {
 		return []byte("{}"), nil
 	}
 
-	if len(req.Params.Arguments) == 0 {
+	if len(req.Arguments) == 0 {
 		return []byte("{}"), nil
 	}
 
-	return req.Params.Arguments, nil
+	return req.Arguments, nil
 }
 
 func invalidParamsError(toolName string, err error) error {
-	return &jsonrpc.Error{
-		Code:    jsonrpc.CodeInvalidParams,
+	return &JSONRPCError{
+		Code:    CodeInvalidParams,
 		Message: fmt.Sprintf("invalid arguments for tool %q: %v", toolName, err),
 	}
 }

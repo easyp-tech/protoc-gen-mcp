@@ -1,9 +1,10 @@
 package codegen
 
 import (
-	"context"
+	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,19 +15,195 @@ import (
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/protobuf/compiler/protogen"
 )
 
-func TestTypeScriptGeneratedNodeServerOverStdio(t *testing.T) {
-	session := connectTypeScriptGeneratedNodeServer(t, "")
-	defer session.Close()
+type tsJsonrpcRequest struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id,omitempty"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params,omitempty"`
+}
 
-	ctx := context.Background()
-	tools, err := session.ListTools(ctx, nil)
+type tsJsonrpcResponse struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id"`
+	Result  json.RawMessage `json:"result,omitempty"`
+	Error   *tsJsonrpcError `json:"error,omitempty"`
+}
+
+type tsJsonrpcError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+type tsStdioClient struct {
+	t       *testing.T
+	stdin   io.WriteCloser
+	scanner *bufio.Scanner
+	nextID  int
+}
+
+func newTSStdioClient(t *testing.T, cmd *exec.Cmd) *tsStdioClient {
+	t.Helper()
+
+	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		t.Fatalf("ListTools() over generated Node stdio failed: %v", err)
+		t.Fatalf("stdin pipe: %v", err)
 	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatalf("stdout pipe: %v", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start command: %v", err)
+	}
+
+	t.Cleanup(func() {
+		stdin.Close()
+		cmd.Process.Kill()
+		cmd.Wait()
+	})
+
+	return &tsStdioClient{
+		t:       t,
+		stdin:   stdin,
+		scanner: bufio.NewScanner(stdout),
+		nextID:  1,
+	}
+}
+
+func (c *tsStdioClient) call(method string, params any) tsJsonrpcResponse {
+	c.t.Helper()
+
+	paramsBytes, err := json.Marshal(params)
+	if err != nil {
+		c.t.Fatalf("marshal params: %v", err)
+	}
+
+	id := c.nextID
+	c.nextID++
+	idBytes, _ := json.Marshal(id)
+
+	req := tsJsonrpcRequest{
+		JSONRPC: "2.0",
+		ID:      idBytes,
+		Method:  method,
+		Params:  paramsBytes,
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		c.t.Fatalf("marshal request: %v", err)
+	}
+	data = append(data, '\n')
+	if _, err := c.stdin.Write(data); err != nil {
+		c.t.Fatalf("write request: %v", err)
+	}
+
+	if !c.scanner.Scan() {
+		c.t.Fatalf("no response for %s (scanner error: %v)", method, c.scanner.Err())
+	}
+
+	var resp tsJsonrpcResponse
+	if err := json.Unmarshal(c.scanner.Bytes(), &resp); err != nil {
+		c.t.Fatalf("unmarshal response for %s: %v (raw: %s)", method, err, c.scanner.Bytes())
+	}
+	return resp
+}
+
+func (c *tsStdioClient) notify(method string, params any) {
+	c.t.Helper()
+
+	paramsBytes, err := json.Marshal(params)
+	if err != nil {
+		c.t.Fatalf("marshal params: %v", err)
+	}
+
+	req := tsJsonrpcRequest{
+		JSONRPC: "2.0",
+		Method:  method,
+		Params:  paramsBytes,
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		c.t.Fatalf("marshal notification: %v", err)
+	}
+	data = append(data, '\n')
+	if _, err := c.stdin.Write(data); err != nil {
+		c.t.Fatalf("write notification: %v", err)
+	}
+}
+
+func (c *tsStdioClient) initialize() {
+	c.t.Helper()
+	resp := c.call("initialize", map[string]any{
+		"protocolVersion": "2025-11-25",
+		"capabilities":    map[string]any{},
+		"clientInfo":      map[string]any{"name": "test-client", "version": "v0.0.1"},
+	})
+	if resp.Error != nil {
+		c.t.Fatalf("initialize failed: code=%d msg=%s", resp.Error.Code, resp.Error.Message)
+	}
+	c.notify("notifications/initialized", map[string]any{})
+}
+
+type tsToolsListResult struct {
+	Tools []tsToolInfo `json:"tools"`
+}
+
+type tsToolInfo struct {
+	Name        string `json:"name"`
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	InputSchema any    `json:"inputSchema,omitempty"`
+}
+
+type tsCallToolResult struct {
+	Content           []json.RawMessage `json:"content,omitempty"`
+	StructuredContent json.RawMessage   `json:"structuredContent,omitempty"`
+	IsError           bool              `json:"isError,omitempty"`
+}
+
+type tsTextContent struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+func (c *tsStdioClient) listTools() tsToolsListResult {
+	c.t.Helper()
+	resp := c.call("tools/list", map[string]any{})
+	if resp.Error != nil {
+		c.t.Fatalf("tools/list failed: code=%d msg=%s", resp.Error.Code, resp.Error.Message)
+	}
+	var result tsToolsListResult
+	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		c.t.Fatalf("unmarshal tools/list result: %v", err)
+	}
+	return result
+}
+
+func (c *tsStdioClient) callTool(name string, arguments map[string]any) (tsCallToolResult, *tsJsonrpcError) {
+	c.t.Helper()
+	resp := c.call("tools/call", map[string]any{
+		"name":      name,
+		"arguments": arguments,
+	})
+	if resp.Error != nil {
+		return tsCallToolResult{}, resp.Error
+	}
+	var result tsCallToolResult
+	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		c.t.Fatalf("unmarshal tools/call result: %v", err)
+	}
+	return result, nil
+}
+
+func TestTypeScriptGeneratedNodeServerOverStdio(t *testing.T) {
+	client := connectTypeScriptGeneratedNodeServer(t, "")
+	_ = client // client cleanup handled by t.Cleanup
+
+	tools := client.listTools()
 
 	var toolNames []string
 	for _, tool := range tools.Tools {
@@ -40,12 +217,9 @@ func TestTypeScriptGeneratedNodeServerOverStdio(t *testing.T) {
 	validateTypeScriptToolInputSchema(t, tools.Tools, "Scalar", typeScriptScalarStdioArguments())
 	validateTypeScriptToolInputSchema(t, tools.Tools, "Advanced", typeScriptAdvancedStdioArguments())
 
-	scalarResult, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "Scalar",
-		Arguments: typeScriptScalarStdioArguments(),
-	})
-	if err != nil {
-		t.Fatalf("CallTool(Scalar) over generated Node stdio failed: %v", err)
+	scalarResult, rpcErr := client.callTool("Scalar", typeScriptScalarStdioArguments())
+	if rpcErr != nil {
+		t.Fatalf("CallTool(Scalar) over generated Node stdio failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if scalarResult.IsError {
 		t.Fatalf("Scalar returned tool error over generated Node stdio: %+v", scalarResult)
@@ -62,12 +236,9 @@ func TestTypeScriptGeneratedNodeServerOverStdio(t *testing.T) {
 		t.Fatalf("rawRatio = %v, want NaN", got)
 	}
 
-	advancedResult, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "Advanced",
-		Arguments: typeScriptAdvancedStdioArguments(),
-	})
-	if err != nil {
-		t.Fatalf("CallTool(Advanced) over generated Node stdio failed: %v", err)
+	advancedResult, rpcErr := client.callTool("Advanced", typeScriptAdvancedStdioArguments())
+	if rpcErr != nil {
+		t.Fatalf("CallTool(Advanced) over generated Node stdio failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if advancedResult.IsError {
 		t.Fatalf("Advanced returned tool error over generated Node stdio: %+v", advancedResult)
@@ -100,57 +271,53 @@ func TestTypeScriptGeneratedNodeServerOverStdio(t *testing.T) {
 }
 
 func TestTypeScriptGeneratedNodeServerRejectsInvalidInputOverStdio(t *testing.T) {
-	session := connectTypeScriptGeneratedNodeServer(t, "")
-	defer session.Close()
+	client := connectTypeScriptGeneratedNodeServer(t, "")
 
-	_, err := session.CallTool(context.Background(), &mcp.CallToolParams{
-		Name: "Scalar",
-		Arguments: map[string]any{
-			"textValue": "missing-required-fields",
-		},
+	_, rpcErr := client.callTool("Scalar", map[string]any{
+		"textValue": "missing-required-fields",
 	})
-	if err == nil {
+	if rpcErr == nil {
 		t.Fatal("CallTool(Scalar) unexpectedly succeeded with invalid input")
 	}
-	lower := strings.ToLower(err.Error())
+	lower := strings.ToLower(rpcErr.Message)
 	if !strings.Contains(lower, "invalid") || !strings.Contains(lower, "scalar") {
-		t.Fatalf("CallTool(Scalar) error = %v, want invalid-input failure naming Scalar", err)
+		t.Fatalf("CallTool(Scalar) error = %v, want invalid-input failure naming Scalar", rpcErr.Message)
 	}
 }
 
 func TestTypeScriptGeneratedNodeServerRejectsInvalidOutputOverStdio(t *testing.T) {
-	session := connectTypeScriptGeneratedNodeServer(t, "scalar")
-	defer session.Close()
+	client := connectTypeScriptGeneratedNodeServer(t, "scalar")
 
-	_, err := session.CallTool(context.Background(), &mcp.CallToolParams{
-		Name:      "Scalar",
-		Arguments: typeScriptScalarStdioArguments(),
-	})
-	if err == nil {
+	_, rpcErr := client.callTool("Scalar", typeScriptScalarStdioArguments())
+	if rpcErr == nil {
 		t.Fatal("CallTool(Scalar) unexpectedly succeeded with invalid output")
 	}
-	lower := strings.ToLower(err.Error())
+	lower := strings.ToLower(rpcErr.Message)
 	if !strings.Contains(lower, "validate output") && !strings.Contains(lower, "output") {
-		t.Fatalf("CallTool(Scalar) error = %v, want output validation failure", err)
+		t.Fatalf("CallTool(Scalar) error = %v, want output validation failure", rpcErr.Message)
 	}
 }
 
-func connectTypeScriptGeneratedNodeServer(t *testing.T, invalidOutput string) *mcp.ClientSession {
+func connectTypeScriptGeneratedNodeServer(t *testing.T, invalidOutput string) *tsStdioClient {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	_, cancel := context_WithTimeout(t, 30*time.Second)
 	t.Cleanup(cancel)
 
-	client := mcp.NewClient(&mcp.Implementation{
-		Name:    "protoc-gen-mcp-typescript-stdio-test-client",
-		Version: "v0.0.1",
-	}, nil)
+	cmd := buildTypeScriptGeneratedNodeServerCommand(t, invalidOutput)
+	client := newTSStdioClient(t, cmd)
+	client.initialize()
 
-	session, err := client.Connect(ctx, &mcp.CommandTransport{Command: buildTypeScriptGeneratedNodeServerCommand(t, invalidOutput)}, nil)
-	if err != nil {
-		t.Fatalf("client.Connect() to generated Node server over stdio failed: %v", err)
-	}
-	return session
+	return client
+}
+
+// context_WithTimeout wraps context.WithTimeout but returns a cancel function tied to testing.T.
+func context_WithTimeout(t *testing.T, d time.Duration) (struct{}, func()) {
+	t.Helper()
+	timer := time.AfterFunc(d, func() {
+		t.Errorf("TypeScript stdio test timed out after %v", d)
+	})
+	return struct{}{}, func() { timer.Stop() }
 }
 
 func buildTypeScriptGeneratedNodeServerCommand(t *testing.T, invalidOutput string) *exec.Cmd {
@@ -389,7 +556,7 @@ func typeScriptAdvancedStdioArguments() map[string]any {
 	}
 }
 
-func validateTypeScriptToolInputSchema(t *testing.T, tools []*mcp.Tool, toolName string, arguments map[string]any) {
+func validateTypeScriptToolInputSchema(t *testing.T, tools []tsToolInfo, toolName string, arguments map[string]any) {
 	t.Helper()
 
 	tool := findTypeScriptStdioTool(t, tools, toolName)
@@ -412,20 +579,20 @@ func validateTypeScriptToolInputSchema(t *testing.T, tools []*mcp.Tool, toolName
 	}
 }
 
-func assertTypeScriptTextStructuredContentMatch(t *testing.T, toolName string, result *mcp.CallToolResult) {
+func assertTypeScriptTextStructuredContentMatch(t *testing.T, toolName string, result tsCallToolResult) {
 	t.Helper()
 
 	if len(result.Content) != 1 {
 		t.Fatalf("%s returned %d content items, want 1", toolName, len(result.Content))
 	}
 
-	textContent, ok := result.Content[0].(*mcp.TextContent)
-	if !ok {
-		t.Fatalf("%s content[0] has type %T, want *mcp.TextContent", toolName, result.Content[0])
+	var tc tsTextContent
+	if err := json.Unmarshal(result.Content[0], &tc); err != nil {
+		t.Fatalf("unmarshal text content for %s: %v", toolName, err)
 	}
 
 	var fromText map[string]any
-	if err := json.Unmarshal([]byte(textContent.Text), &fromText); err != nil {
+	if err := json.Unmarshal([]byte(tc.Text), &fromText); err != nil {
 		t.Fatalf("decode text content for %s: %v", toolName, err)
 	}
 
@@ -438,9 +605,18 @@ func assertTypeScriptTextStructuredContentMatch(t *testing.T, toolName string, r
 func decodeTypeScriptStdioMap(t *testing.T, value any) map[string]any {
 	t.Helper()
 
-	raw, err := json.Marshal(value)
-	if err != nil {
-		t.Fatalf("marshal JSON value: %v", err)
+	var raw []byte
+	switch v := value.(type) {
+	case []byte:
+		raw = v
+	case json.RawMessage:
+		raw = []byte(v)
+	default:
+		var err error
+		raw, err = json.Marshal(value)
+		if err != nil {
+			t.Fatalf("marshal JSON value: %v", err)
+		}
 	}
 
 	var decoded map[string]any
@@ -450,14 +626,14 @@ func decodeTypeScriptStdioMap(t *testing.T, value any) map[string]any {
 	return decoded
 }
 
-func findTypeScriptStdioTool(t *testing.T, tools []*mcp.Tool, toolName string) *mcp.Tool {
+func findTypeScriptStdioTool(t *testing.T, tools []tsToolInfo, toolName string) tsToolInfo {
 	t.Helper()
 
 	for _, tool := range tools {
-		if tool != nil && tool.Name == toolName {
+		if tool.Name == toolName {
 			return tool
 		}
 	}
 	t.Fatalf("tool %q not found in tools/list", toolName)
-	return nil
+	return tsToolInfo{}
 }

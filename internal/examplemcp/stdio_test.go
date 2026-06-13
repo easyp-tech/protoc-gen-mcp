@@ -1,8 +1,9 @@
 package examplemcp_test
 
 import (
-	"context"
+	"bufio"
 	"encoding/json"
+	"io"
 	"os/exec"
 	"path/filepath"
 	"reflect"
@@ -14,8 +15,189 @@ import (
 	"github.com/easyp-tech/protoc-gen-mcp/internal/examplemcp"
 	"github.com/easyp-tech/protoc-gen-mcp/internal/pythontest"
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+type jsonrpcRequest struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id,omitempty"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params,omitempty"`
+}
+
+type jsonrpcResponse struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id"`
+	Result  json.RawMessage `json:"result,omitempty"`
+	Error   *jsonrpcError   `json:"error,omitempty"`
+}
+
+type jsonrpcError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+// stdioClient communicates with a subprocess MCP server over stdin/stdout JSON-RPC.
+type stdioClient struct {
+	t       *testing.T
+	stdin   io.WriteCloser
+	scanner *bufio.Scanner
+	nextID  int
+}
+
+func newStdioClient(t *testing.T, cmd *exec.Cmd) *stdioClient {
+	t.Helper()
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatalf("stdin pipe: %v", err)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatalf("stdout pipe: %v", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start command: %v", err)
+	}
+
+	t.Cleanup(func() {
+		stdin.Close()
+		cmd.Process.Kill()
+		cmd.Wait()
+	})
+
+	return &stdioClient{
+		t:       t,
+		stdin:   stdin,
+		scanner: bufio.NewScanner(stdout),
+		nextID:  1,
+	}
+}
+
+func (c *stdioClient) call(method string, params any) jsonrpcResponse {
+	c.t.Helper()
+
+	paramsBytes, err := json.Marshal(params)
+	if err != nil {
+		c.t.Fatalf("marshal params: %v", err)
+	}
+
+	id := c.nextID
+	c.nextID++
+	idBytes, _ := json.Marshal(id)
+
+	req := jsonrpcRequest{
+		JSONRPC: "2.0",
+		ID:      idBytes,
+		Method:  method,
+		Params:  paramsBytes,
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		c.t.Fatalf("marshal request: %v", err)
+	}
+	data = append(data, '\n')
+	if _, err := c.stdin.Write(data); err != nil {
+		c.t.Fatalf("write request: %v", err)
+	}
+
+	if !c.scanner.Scan() {
+		c.t.Fatalf("no response for %s (scanner error: %v)", method, c.scanner.Err())
+	}
+
+	var resp jsonrpcResponse
+	if err := json.Unmarshal(c.scanner.Bytes(), &resp); err != nil {
+		c.t.Fatalf("unmarshal response for %s: %v (raw: %s)", method, err, c.scanner.Bytes())
+	}
+	return resp
+}
+
+func (c *stdioClient) notify(method string, params any) {
+	c.t.Helper()
+
+	paramsBytes, err := json.Marshal(params)
+	if err != nil {
+		c.t.Fatalf("marshal params: %v", err)
+	}
+
+	req := jsonrpcRequest{
+		JSONRPC: "2.0",
+		Method:  method,
+		Params:  paramsBytes,
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		c.t.Fatalf("marshal notification: %v", err)
+	}
+	data = append(data, '\n')
+	if _, err := c.stdin.Write(data); err != nil {
+		c.t.Fatalf("write notification: %v", err)
+	}
+}
+
+func (c *stdioClient) initialize() {
+	c.t.Helper()
+	resp := c.call("initialize", map[string]any{
+		"protocolVersion": "2025-11-25",
+		"capabilities":    map[string]any{},
+		"clientInfo":      map[string]any{"name": "test-client", "version": "v0.0.1"},
+	})
+	if resp.Error != nil {
+		c.t.Fatalf("initialize failed: code=%d msg=%s", resp.Error.Code, resp.Error.Message)
+	}
+	c.notify("notifications/initialized", map[string]any{})
+}
+
+type toolsListResult struct {
+	Tools []toolInfo `json:"tools"`
+}
+
+type toolInfo struct {
+	Name        string `json:"name"`
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	InputSchema any    `json:"inputSchema,omitempty"`
+}
+
+type callToolResult struct {
+	Content           []json.RawMessage `json:"content,omitempty"`
+	StructuredContent json.RawMessage   `json:"structuredContent,omitempty"`
+	IsError           bool              `json:"isError,omitempty"`
+}
+
+type textContent struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+func (c *stdioClient) listTools() toolsListResult {
+	c.t.Helper()
+	resp := c.call("tools/list", map[string]any{})
+	if resp.Error != nil {
+		c.t.Fatalf("tools/list failed: code=%d msg=%s", resp.Error.Code, resp.Error.Message)
+	}
+	var result toolsListResult
+	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		c.t.Fatalf("unmarshal tools/list result: %v", err)
+	}
+	return result
+}
+
+func (c *stdioClient) callTool(name string, arguments map[string]any) (callToolResult, *jsonrpcError) {
+	c.t.Helper()
+	resp := c.call("tools/call", map[string]any{
+		"name":      name,
+		"arguments": arguments,
+	})
+	if resp.Error != nil {
+		return callToolResult{}, resp.Error
+	}
+	var result callToolResult
+	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		c.t.Fatalf("unmarshal tools/call result: %v", err)
+	}
+	return result, nil
+}
 
 func TestServerOverStdio(t *testing.T) {
 	if _, err := exec.LookPath("go"); err != nil {
@@ -38,53 +220,29 @@ func TestPythonServerRejectsInvalidOutputOverStdio(t *testing.T) {
 	cmd := pythonExampleServerCommand(t, root)
 	cmd.Env = append(cmd.Env, "PROTOC_GEN_MCP_PYTHON_INVALID_OUTPUT=create_report")
 
-	ctx := context.Background()
-	client := mcp.NewClient(&mcp.Implementation{
-		Name:    "protoc-gen-mcp-python-invalid-output-test-client",
-		Version: "v0.0.1",
-	}, nil)
+	client := newStdioClient(t, cmd)
+	client.initialize()
 
-	session, err := client.Connect(ctx, &mcp.CommandTransport{Command: cmd}, nil)
-	if err != nil {
-		t.Fatalf("client.Connect() over stdio failed: %v", err)
-	}
-	defer session.Close()
-
-	_, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "example_CreateReport",
-		Arguments: map[string]any{
-			"city":    "Paris",
-			"count":   2,
-			"details": map[string]any{"label": "today"},
-		},
+	_, rpcErr := client.callTool("example_CreateReport", map[string]any{
+		"city":    "Paris",
+		"count":   2,
+		"details": map[string]any{"label": "today"},
 	})
-	if err == nil {
+	if rpcErr == nil {
 		t.Fatal("CallTool(CreateReport) unexpectedly succeeded with invalid output schema")
 	}
-	if !strings.Contains(err.Error(), "mcpruntime: validate output for tool") || !strings.Contains(err.Error(), "example_CreateReport") {
-		t.Fatalf("CallTool(CreateReport) error = %v, want output validation failure", err)
+	if !strings.Contains(rpcErr.Message, "mcpruntime: validate output for tool") || !strings.Contains(rpcErr.Message, "example_CreateReport") {
+		t.Fatalf("CallTool(CreateReport) error = %v, want output validation failure", rpcErr.Message)
 	}
 }
 
 func runServerOverStdioContract(t *testing.T, cmd *exec.Cmd) {
 	t.Helper()
 
-	ctx := context.Background()
-	client := mcp.NewClient(&mcp.Implementation{
-		Name:    "protoc-gen-mcp-stdio-test-client",
-		Version: "v0.0.1",
-	}, nil)
+	client := newStdioClient(t, cmd)
+	client.initialize()
 
-	session, err := client.Connect(ctx, &mcp.CommandTransport{Command: cmd}, nil)
-	if err != nil {
-		t.Fatalf("client.Connect() over stdio failed: %v", err)
-	}
-	defer session.Close()
-
-	tools, err := session.ListTools(ctx, nil)
-	if err != nil {
-		t.Fatalf("ListTools() over stdio failed: %v", err)
-	}
+	tools := client.listTools()
 
 	var toolNames []string
 	for _, tool := range tools.Tools {
@@ -171,16 +329,13 @@ func runServerOverStdioContract(t *testing.T, cmd *exec.Cmd) {
 	validateToolInputSchema(t, tools.Tools, "example_DescribeScalarShapes", scalarShapeArguments())
 	validateToolInputSchema(t, tools.Tools, "example_DescribeScalarShapes", nullableScalarShapeArguments())
 
-	result, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "example_CreateReport",
-		Arguments: map[string]any{
-			"city":    "Paris",
-			"count":   2,
-			"details": map[string]any{"label": "today"},
-		},
+	result, rpcErr := client.callTool("example_CreateReport", map[string]any{
+		"city":    "Paris",
+		"count":   2,
+		"details": map[string]any{"label": "today"},
 	})
-	if err != nil {
-		t.Fatalf("CallTool(CreateReport) over stdio failed: %v", err)
+	if rpcErr != nil {
+		t.Fatalf("CallTool(CreateReport) over stdio failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if result.IsError {
 		t.Fatalf("CreateReport returned tool error over stdio: %+v", result)
@@ -195,36 +350,33 @@ func runServerOverStdioContract(t *testing.T, cmd *exec.Cmd) {
 		t.Fatalf("status = %v, want REPORT_STATUS_OK", got)
 	}
 
-	advancedResult, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "example_DescribeAdvancedShapes",
-		Arguments: map[string]any{
-			"labels":     map[string]any{"env": "prod"},
-			"quantities": map[string]any{"1": "one"},
-			"limits":     map[string]any{"18446744073709551615": "max"},
-			"observedAt": "2026-03-09T10:11:12Z",
-			"ratio":      "NaN",
-			"blob":       "aGVsbG8=",
-			"weight":     1.5,
-			"rawRatio":   "-Infinity",
-			"tree": map[string]any{
-				"name": "root",
-				"child": map[string]any{
-					"name": "leaf",
-				},
+	advancedResult, rpcErr := client.callTool("example_DescribeAdvancedShapes", map[string]any{
+		"labels":     map[string]any{"env": "prod"},
+		"quantities": map[string]any{"1": "one"},
+		"limits":     map[string]any{"18446744073709551615": "max"},
+		"observedAt": "2026-03-09T10:11:12Z",
+		"ratio":      "NaN",
+		"blob":       "aGVsbG8=",
+		"weight":     1.5,
+		"rawRatio":   "-Infinity",
+		"tree": map[string]any{
+			"name": "root",
+			"child": map[string]any{
+				"name": "leaf",
 			},
-			"detailAny": map[string]any{
-				"@type": "type.googleapis.com/internal.testproto.example.v1.ReportDetails",
-				"label": "from-any",
-			},
-			"durationAny": map[string]any{
-				"@type": "type.googleapis.com/google.protobuf.Duration",
-				"value": "3600s",
-			},
-			"cityAlias": "paris-fr",
 		},
+		"detailAny": map[string]any{
+			"@type": "type.googleapis.com/internal.testproto.example.v1.ReportDetails",
+			"label": "from-any",
+		},
+		"durationAny": map[string]any{
+			"@type": "type.googleapis.com/google.protobuf.Duration",
+			"value": "3600s",
+		},
+		"cityAlias": "paris-fr",
 	})
-	if err != nil {
-		t.Fatalf("CallTool(DescribeAdvancedShapes) over stdio failed: %v", err)
+	if rpcErr != nil {
+		t.Fatalf("CallTool(DescribeAdvancedShapes) over stdio failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if advancedResult.IsError {
 		t.Fatalf("DescribeAdvancedShapes returned tool error over stdio: %+v", advancedResult)
@@ -269,12 +421,9 @@ func runServerOverStdioContract(t *testing.T, cmd *exec.Cmd) {
 		t.Fatalf("cityAlias = %v, want paris-fr", got)
 	}
 
-	scalarResult, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "example_DescribeScalarShapes",
-		Arguments: scalarShapeArguments(),
-	})
-	if err != nil {
-		t.Fatalf("CallTool(DescribeScalarShapes) over stdio failed: %v", err)
+	scalarResult, rpcErr := client.callTool("example_DescribeScalarShapes", scalarShapeArguments())
+	if rpcErr != nil {
+		t.Fatalf("CallTool(DescribeScalarShapes) over stdio failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if scalarResult.IsError {
 		t.Fatalf("DescribeScalarShapes returned tool error over stdio: %+v", scalarResult)
@@ -319,9 +468,18 @@ func pythonExampleServerCommand(t *testing.T, root string) *exec.Cmd {
 func decodeMap(t *testing.T, value any) map[string]any {
 	t.Helper()
 
-	raw, err := json.Marshal(value)
-	if err != nil {
-		t.Fatalf("marshal JSON value: %v", err)
+	var raw []byte
+	switch v := value.(type) {
+	case []byte:
+		raw = v
+	case json.RawMessage:
+		raw = []byte(v)
+	default:
+		var err error
+		raw, err = json.Marshal(value)
+		if err != nil {
+			t.Fatalf("marshal JSON value: %v", err)
+		}
 	}
 
 	var decoded map[string]any
@@ -332,7 +490,7 @@ func decodeMap(t *testing.T, value any) map[string]any {
 	return decoded
 }
 
-func validateToolInputSchema(t *testing.T, tools []*mcp.Tool, toolName string, arguments map[string]any) {
+func validateToolInputSchema(t *testing.T, tools []toolInfo, toolName string, arguments map[string]any) {
 	t.Helper()
 
 	tool := findTool(t, tools, toolName)
@@ -361,20 +519,20 @@ func validateToolInputSchema(t *testing.T, tools []*mcp.Tool, toolName string, a
 	}
 }
 
-func assertTextStructuredContentMatch(t *testing.T, toolName string, result *mcp.CallToolResult) {
+func assertTextStructuredContentMatch(t *testing.T, toolName string, result callToolResult) {
 	t.Helper()
 
 	if len(result.Content) != 1 {
 		t.Fatalf("%s returned %d content items, want 1", toolName, len(result.Content))
 	}
 
-	textContent, ok := result.Content[0].(*mcp.TextContent)
-	if !ok {
-		t.Fatalf("%s content[0] has type %T, want *mcp.TextContent", toolName, result.Content[0])
+	var tc textContent
+	if err := json.Unmarshal(result.Content[0], &tc); err != nil {
+		t.Fatalf("unmarshal text content for %s: %v", toolName, err)
 	}
 
 	var fromText map[string]any
-	if err := json.Unmarshal([]byte(textContent.Text), &fromText); err != nil {
+	if err := json.Unmarshal([]byte(tc.Text), &fromText); err != nil {
 		t.Fatalf("decode text content for %s: %v", toolName, err)
 	}
 
@@ -384,17 +542,17 @@ func assertTextStructuredContentMatch(t *testing.T, toolName string, result *mcp
 	}
 }
 
-func findTool(t *testing.T, tools []*mcp.Tool, toolName string) *mcp.Tool {
+func findTool(t *testing.T, tools []toolInfo, toolName string) toolInfo {
 	t.Helper()
 
 	for _, tool := range tools {
-		if tool != nil && tool.Name == toolName {
+		if tool.Name == toolName {
 			return tool
 		}
 	}
 
 	t.Fatalf("tool %q not found in tools/list", toolName)
-	return nil
+	return toolInfo{}
 }
 
 var _ = examplemcp.NewServer

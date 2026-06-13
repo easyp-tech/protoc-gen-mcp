@@ -1,12 +1,9 @@
 package examples_test
 
 import (
-	"context"
 	"os/exec"
 	"path/filepath"
 	"testing"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestStandaloneTypeScriptExampleOverStdio(t *testing.T) {
@@ -14,21 +11,11 @@ func TestStandaloneTypeScriptExampleOverStdio(t *testing.T) {
 	projectDir := filepath.Join(root, "examples/8_typescript_standalone")
 	buildStandaloneNodeExample(t, projectDir)
 
-	ctx := context.Background()
-	client := mcp.NewClient(&mcp.Implementation{
-		Name:    "protoc-gen-mcp-standalone-typescript-example-test-client",
-		Version: "v0.0.1",
-	}, nil)
+	cmd := standaloneNodeExampleCommand(projectDir, "dist/server.js")
+	client := newStdioClient(t, cmd)
+	client.initialize()
 
-	session, err := client.Connect(ctx, &mcp.CommandTransport{
-		Command: standaloneNodeExampleCommand(projectDir, "dist/server.js"),
-	}, nil)
-	if err != nil {
-		t.Fatalf("client.Connect() over stdio failed: %v", err)
-	}
-	defer session.Close()
-
-	runStandaloneNodeNotebookExample(t, session, "Ship TypeScript support", "typescript")
+	runStandaloneNodeNotebookExample(t, client, "Ship TypeScript support", "typescript")
 }
 
 func TestStandaloneJavaScriptExampleOverStdio(t *testing.T) {
@@ -36,21 +23,11 @@ func TestStandaloneJavaScriptExampleOverStdio(t *testing.T) {
 	projectDir := filepath.Join(root, "examples/9_javascript_standalone")
 	buildStandaloneNodeExample(t, projectDir)
 
-	ctx := context.Background()
-	client := mcp.NewClient(&mcp.Implementation{
-		Name:    "protoc-gen-mcp-standalone-javascript-example-test-client",
-		Version: "v0.0.1",
-	}, nil)
+	cmd := standaloneNodeExampleCommand(projectDir, "src/server.js")
+	client := newStdioClient(t, cmd)
+	client.initialize()
 
-	session, err := client.Connect(ctx, &mcp.CommandTransport{
-		Command: standaloneNodeExampleCommand(projectDir, "src/server.js"),
-	}, nil)
-	if err != nil {
-		t.Fatalf("client.Connect() over stdio failed: %v", err)
-	}
-	defer session.Close()
-
-	runStandaloneNodeNotebookExample(t, session, "Ship JavaScript consumption", "javascript")
+	runStandaloneNodeNotebookExample(t, client, "Ship JavaScript consumption", "javascript")
 }
 
 func buildStandaloneNodeExample(t *testing.T, projectDir string) {
@@ -70,29 +47,22 @@ func standaloneNodeExampleCommand(projectDir string, script string) *exec.Cmd {
 	return cmd
 }
 
-func runStandaloneNodeNotebookExample(t *testing.T, session *mcp.ClientSession, title string, tag string) {
+func runStandaloneNodeNotebookExample(t *testing.T, client *stdioClient, title string, tag string) {
 	t.Helper()
 
-	ctx := context.Background()
-	tools, err := session.ListTools(ctx, nil)
-	if err != nil {
-		t.Fatalf("ListTools() failed: %v", err)
-	}
+	tools := client.listTools()
 	findTool(t, tools.Tools, "notebook_CreateNote")
 	findTool(t, tools.Tools, "notebook_SearchNotes")
 	findTool(t, tools.Tools, "notebook_Health")
 
-	createResult, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "notebook_CreateNote",
-		Arguments: map[string]any{
-			"title":   title,
-			"body":    "Verify the generated Node MCP bindings are pleasant to use.",
-			"tags":    []any{tag, "mcp"},
-			"dueDate": "2026-05-30",
-		},
+	createResult, rpcErr := client.callTool("notebook_CreateNote", map[string]any{
+		"title":   title,
+		"body":    "Verify the generated Node MCP bindings are pleasant to use.",
+		"tags":    []any{tag, "mcp"},
+		"dueDate": "2026-05-30",
 	})
-	if err != nil {
-		t.Fatalf("CallTool(CreateNote) failed: %v", err)
+	if rpcErr != nil {
+		t.Fatalf("CallTool(CreateNote) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if createResult.IsError {
 		t.Fatalf("CreateNote returned tool error: %+v", createResult)
@@ -107,16 +77,13 @@ func runStandaloneNodeNotebookExample(t *testing.T, session *mcp.ClientSession, 
 		t.Fatalf("created note.title = %v, want %s", got, title)
 	}
 
-	searchResult, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "notebook_SearchNotes",
-		Arguments: map[string]any{
-			"query": tag,
-			"tags":  []any{"mcp"},
-			"limit": 5,
-		},
+	searchResult, rpcErr := client.callTool("notebook_SearchNotes", map[string]any{
+		"query": tag,
+		"tags":  []any{"mcp"},
+		"limit": 5,
 	})
-	if err != nil {
-		t.Fatalf("CallTool(SearchNotes) failed: %v", err)
+	if rpcErr != nil {
+		t.Fatalf("CallTool(SearchNotes) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if searchResult.IsError {
 		t.Fatalf("SearchNotes returned tool error: %+v", searchResult)
@@ -128,12 +95,9 @@ func runStandaloneNodeNotebookExample(t *testing.T, session *mcp.ClientSession, 
 		t.Fatalf("notes = %T %v, want one matching note", searchStructured["notes"], searchStructured["notes"])
 	}
 
-	healthResult, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "notebook_Health",
-		Arguments: map[string]any{},
-	})
-	if err != nil {
-		t.Fatalf("CallTool(Health) failed: %v", err)
+	healthResult, rpcErr := client.callTool("notebook_Health", map[string]any{})
+	if rpcErr != nil {
+		t.Fatalf("CallTool(Health) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if healthResult.IsError {
 		t.Fatalf("Health returned tool error: %+v", healthResult)

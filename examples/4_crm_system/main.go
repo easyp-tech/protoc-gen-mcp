@@ -8,7 +8,7 @@ import (
 	"time"
 
 	crmv1 "github.com/easyp-tech/protoc-gen-mcp/examples/4_crm_system/proto"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -105,16 +105,13 @@ func (s *crmAPI) UpdateUser(ctx context.Context, req *crmv1.UpdateUserRequest) (
 }
 
 func main() {
-	server := mcp.NewServer(&mcp.Implementation{
-		Name:    "crm-mcp-server",
-		Version: "1.0.0",
-	}, nil)
+	server := mcpruntime.NewServer("crm-mcp-server", "1.0.0")
 
 	if err := crmv1.RegisterUsersAPITools(server, newCRMAPI()); err != nil {
 		log.Fatalf("failed to register tools: %v", err)
 	}
 
-	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
+	if err := mcpruntime.ServeStdio(context.Background(), server); err != nil {
 		log.Fatalf("run server: %v", err)
 	}
 }

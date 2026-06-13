@@ -1,8 +1,9 @@
 package examples_test
 
 import (
-	"context"
+	"bufio"
 	"encoding/json"
+	"io"
 	"os/exec"
 	"path/filepath"
 	"reflect"
@@ -10,15 +11,196 @@ import (
 	"testing"
 
 	"github.com/easyp-tech/protoc-gen-mcp/internal/pythontest"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+type jsonrpcRequest struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id,omitempty"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params,omitempty"`
+}
+
+type jsonrpcResponse struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id"`
+	Result  json.RawMessage `json:"result,omitempty"`
+	Error   *jsonrpcError   `json:"error,omitempty"`
+}
+
+type jsonrpcError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+// stdioClient communicates with a subprocess MCP server over stdin/stdout JSON-RPC.
+type stdioClient struct {
+	t       *testing.T
+	stdin   io.WriteCloser
+	scanner *bufio.Scanner
+	nextID  int
+}
+
+func newStdioClient(t *testing.T, cmd *exec.Cmd) *stdioClient {
+	t.Helper()
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatalf("stdin pipe: %v", err)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatalf("stdout pipe: %v", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start command: %v", err)
+	}
+
+	t.Cleanup(func() {
+		stdin.Close()
+		cmd.Process.Kill()
+		cmd.Wait()
+	})
+
+	return &stdioClient{
+		t:       t,
+		stdin:   stdin,
+		scanner: bufio.NewScanner(stdout),
+		nextID:  1,
+	}
+}
+
+func (c *stdioClient) call(method string, params any) jsonrpcResponse {
+	c.t.Helper()
+
+	paramsBytes, err := json.Marshal(params)
+	if err != nil {
+		c.t.Fatalf("marshal params: %v", err)
+	}
+
+	id := c.nextID
+	c.nextID++
+	idBytes, _ := json.Marshal(id)
+
+	req := jsonrpcRequest{
+		JSONRPC: "2.0",
+		ID:      idBytes,
+		Method:  method,
+		Params:  paramsBytes,
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		c.t.Fatalf("marshal request: %v", err)
+	}
+	data = append(data, '\n')
+	if _, err := c.stdin.Write(data); err != nil {
+		c.t.Fatalf("write request: %v", err)
+	}
+
+	if !c.scanner.Scan() {
+		c.t.Fatalf("no response for %s (scanner error: %v)", method, c.scanner.Err())
+	}
+
+	var resp jsonrpcResponse
+	if err := json.Unmarshal(c.scanner.Bytes(), &resp); err != nil {
+		c.t.Fatalf("unmarshal response for %s: %v (raw: %s)", method, err, c.scanner.Bytes())
+	}
+	return resp
+}
+
+func (c *stdioClient) notify(method string, params any) {
+	c.t.Helper()
+
+	paramsBytes, err := json.Marshal(params)
+	if err != nil {
+		c.t.Fatalf("marshal params: %v", err)
+	}
+
+	req := jsonrpcRequest{
+		JSONRPC: "2.0",
+		Method:  method,
+		Params:  paramsBytes,
+	}
+	data, err := json.Marshal(req)
+	if err != nil {
+		c.t.Fatalf("marshal notification: %v", err)
+	}
+	data = append(data, '\n')
+	if _, err := c.stdin.Write(data); err != nil {
+		c.t.Fatalf("write notification: %v", err)
+	}
+}
+
+func (c *stdioClient) initialize() {
+	c.t.Helper()
+	resp := c.call("initialize", map[string]any{
+		"protocolVersion": "2025-11-25",
+		"capabilities":    map[string]any{},
+		"clientInfo":      map[string]any{"name": "test-client", "version": "v0.0.1"},
+	})
+	if resp.Error != nil {
+		c.t.Fatalf("initialize failed: code=%d msg=%s", resp.Error.Code, resp.Error.Message)
+	}
+	c.notify("notifications/initialized", map[string]any{})
+}
+
+type toolsListResult struct {
+	Tools []toolInfo `json:"tools"`
+}
+
+type toolInfo struct {
+	Name        string `json:"name"`
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	InputSchema any    `json:"inputSchema,omitempty"`
+}
+
+type callToolResult struct {
+	Content           []json.RawMessage `json:"content,omitempty"`
+	StructuredContent json.RawMessage   `json:"structuredContent,omitempty"`
+	IsError           bool              `json:"isError,omitempty"`
+}
+
+type textContent struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+func (c *stdioClient) listTools() toolsListResult {
+	c.t.Helper()
+	resp := c.call("tools/list", map[string]any{})
+	if resp.Error != nil {
+		c.t.Fatalf("tools/list failed: code=%d msg=%s", resp.Error.Code, resp.Error.Message)
+	}
+	var result toolsListResult
+	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		c.t.Fatalf("unmarshal tools/list result: %v", err)
+	}
+	return result
+}
+
+func (c *stdioClient) callTool(name string, arguments map[string]any) (callToolResult, *jsonrpcError) {
+	c.t.Helper()
+	resp := c.call("tools/call", map[string]any{
+		"name":      name,
+		"arguments": arguments,
+	})
+	if resp.Error != nil {
+		return callToolResult{}, resp.Error
+	}
+	var result callToolResult
+	if err := json.Unmarshal(resp.Result, &result); err != nil {
+		c.t.Fatalf("unmarshal tools/call result: %v", err)
+	}
+	return result, nil
+}
 
 func TestPythonExamplesOverStdio(t *testing.T) {
 	root := repoRoot(t)
 	examples := []struct {
 		name string
 		path string
-		run  func(t *testing.T, session *mcp.ClientSession)
+		run  func(t *testing.T, client *stdioClient)
 	}{
 		{
 			name: "helloworld",
@@ -44,21 +226,11 @@ func TestPythonExamplesOverStdio(t *testing.T) {
 
 	for _, tc := range examples {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-			client := mcp.NewClient(&mcp.Implementation{
-				Name:    "protoc-gen-mcp-python-examples-test-client",
-				Version: "v0.0.1",
-			}, nil)
+			cmd := pythonExampleCommand(t, root, tc.path)
+			client := newStdioClient(t, cmd)
+			client.initialize()
 
-			session, err := client.Connect(ctx, &mcp.CommandTransport{
-				Command: pythonExampleCommand(t, root, tc.path),
-			}, nil)
-			if err != nil {
-				t.Fatalf("client.Connect() over stdio failed: %v", err)
-			}
-			defer session.Close()
-
-			tc.run(t, session)
+			tc.run(t, client)
 		})
 	}
 }
@@ -66,61 +238,36 @@ func TestPythonExamplesOverStdio(t *testing.T) {
 func TestStandalonePythonExampleOverStdio(t *testing.T) {
 	root := repoRoot(t)
 	projectDir := filepath.Join(root, "examples/5_python_standalone")
-	ctx := context.Background()
-	client := mcp.NewClient(&mcp.Implementation{
-		Name:    "protoc-gen-mcp-standalone-python-example-test-client",
-		Version: "v0.0.1",
-	}, nil)
 
-	session, err := client.Connect(ctx, &mcp.CommandTransport{
-		Command: standalonePythonExampleCommand(t, projectDir),
-	}, nil)
-	if err != nil {
-		t.Fatalf("client.Connect() over stdio failed: %v", err)
-	}
-	defer session.Close()
+	cmd := standalonePythonExampleCommand(t, projectDir)
+	client := newStdioClient(t, cmd)
+	client.initialize()
 
-	runStandaloneNotebookExample(t, session)
+	runStandaloneNotebookExample(t, client)
 }
 
 func TestStandalonePythonProtobufExampleOverStdio(t *testing.T) {
 	root := repoRoot(t)
 	projectDir := filepath.Join(root, "examples/10_python_protobuf_standalone")
-	ctx := context.Background()
-	client := mcp.NewClient(&mcp.Implementation{
-		Name:    "protoc-gen-mcp-standalone-python-protobuf-example-test-client",
-		Version: "v0.0.1",
-	}, nil)
 
-	session, err := client.Connect(ctx, &mcp.CommandTransport{
-		Command: standalonePythonExampleCommand(t, projectDir),
-	}, nil)
-	if err != nil {
-		t.Fatalf("client.Connect() over stdio failed: %v", err)
-	}
-	defer session.Close()
+	cmd := standalonePythonExampleCommand(t, projectDir)
+	client := newStdioClient(t, cmd)
+	client.initialize()
 
-	runStandaloneTaskProtobufExample(t, session)
+	runStandaloneTaskProtobufExample(t, client)
 }
 
-func runHelloWorldExample(t *testing.T, session *mcp.ClientSession) {
+func runHelloWorldExample(t *testing.T, client *stdioClient) {
 	t.Helper()
 
-	ctx := context.Background()
-	tools, err := session.ListTools(ctx, nil)
-	if err != nil {
-		t.Fatalf("ListTools() failed: %v", err)
-	}
+	tools := client.listTools()
 	findTool(t, tools.Tools, "greeter_SayHello")
 
-	result, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "greeter_SayHello",
-		Arguments: map[string]any{
-			"name": "Alice",
-		},
+	result, rpcErr := client.callTool("greeter_SayHello", map[string]any{
+		"name": "Alice",
 	})
-	if err != nil {
-		t.Fatalf("CallTool(SayHello) failed: %v", err)
+	if rpcErr != nil {
+		t.Fatalf("CallTool(SayHello) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if result.IsError {
 		t.Fatalf("SayHello returned tool error: %+v", result)
@@ -132,24 +279,17 @@ func runHelloWorldExample(t *testing.T, session *mcp.ClientSession) {
 	}
 }
 
-func runWeatherExample(t *testing.T, session *mcp.ClientSession) {
+func runWeatherExample(t *testing.T, client *stdioClient) {
 	t.Helper()
 
-	ctx := context.Background()
-	tools, err := session.ListTools(ctx, nil)
-	if err != nil {
-		t.Fatalf("ListTools() failed: %v", err)
-	}
+	tools := client.listTools()
 	findTool(t, tools.Tools, "weather_GetCurrentWeather")
 
-	result, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "weather_GetCurrentWeather",
-		Arguments: map[string]any{
-			"city": "London",
-		},
+	result, rpcErr := client.callTool("weather_GetCurrentWeather", map[string]any{
+		"city": "London",
 	})
-	if err != nil {
-		t.Fatalf("CallTool(GetCurrentWeather) failed: %v", err)
+	if rpcErr != nil {
+		t.Fatalf("CallTool(GetCurrentWeather) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if result.IsError {
 		t.Fatalf("GetCurrentWeather returned tool error: %+v", result)
@@ -164,25 +304,18 @@ func runWeatherExample(t *testing.T, session *mcp.ClientSession) {
 	}
 }
 
-func runFileManagerExample(t *testing.T, session *mcp.ClientSession) {
+func runFileManagerExample(t *testing.T, client *stdioClient) {
 	t.Helper()
 
-	ctx := context.Background()
-	tools, err := session.ListTools(ctx, nil)
-	if err != nil {
-		t.Fatalf("ListTools() failed: %v", err)
-	}
+	tools := client.listTools()
 	findTool(t, tools.Tools, "files_ReadFile")
 	findTool(t, tools.Tools, "files_DeleteFile")
 
-	readResult, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "files_ReadFile",
-		Arguments: map[string]any{
-			"filename": "example.txt",
-		},
+	readResult, rpcErr := client.callTool("files_ReadFile", map[string]any{
+		"filename": "example.txt",
 	})
-	if err != nil {
-		t.Fatalf("CallTool(ReadFile) failed: %v", err)
+	if rpcErr != nil {
+		t.Fatalf("CallTool(ReadFile) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if readResult.IsError {
 		t.Fatalf("ReadFile returned tool error: %+v", readResult)
@@ -193,14 +326,11 @@ func runFileManagerExample(t *testing.T, session *mcp.ClientSession) {
 		t.Fatalf("content = %v, want seeded example file content", got)
 	}
 
-	deleteResult, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "files_DeleteFile",
-		Arguments: map[string]any{
-			"filename": "example.txt",
-		},
+	deleteResult, rpcErr := client.callTool("files_DeleteFile", map[string]any{
+		"filename": "example.txt",
 	})
-	if err != nil {
-		t.Fatalf("CallTool(DeleteFile) failed: %v", err)
+	if rpcErr != nil {
+		t.Fatalf("CallTool(DeleteFile) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if deleteResult.IsError {
 		t.Fatalf("DeleteFile returned tool error: %+v", deleteResult)
@@ -212,26 +342,19 @@ func runFileManagerExample(t *testing.T, session *mcp.ClientSession) {
 	}
 }
 
-func runCRMExample(t *testing.T, session *mcp.ClientSession) {
+func runCRMExample(t *testing.T, client *stdioClient) {
 	t.Helper()
 
-	ctx := context.Background()
-	tools, err := session.ListTools(ctx, nil)
-	if err != nil {
-		t.Fatalf("ListTools() failed: %v", err)
-	}
+	tools := client.listTools()
 	findTool(t, tools.Tools, "crm_ListUsers")
 	findTool(t, tools.Tools, "crm_UpdateUser")
 
-	listResult, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "crm_ListUsers",
-		Arguments: map[string]any{
-			"limit":        2,
-			"requiredTags": []any{"premium"},
-		},
+	listResult, rpcErr := client.callTool("crm_ListUsers", map[string]any{
+		"limit":        2,
+		"requiredTags": []any{"premium"},
 	})
-	if err != nil {
-		t.Fatalf("CallTool(ListUsers) failed: %v", err)
+	if rpcErr != nil {
+		t.Fatalf("CallTool(ListUsers) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if listResult.IsError {
 		t.Fatalf("ListUsers returned tool error: %+v", listResult)
@@ -247,20 +370,17 @@ func runCRMExample(t *testing.T, session *mcp.ClientSession) {
 		t.Fatalf("user[0] has type %T, want map[string]any", users[0])
 	}
 
-	updateResult, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "crm_UpdateUser",
-		Arguments: map[string]any{
-			"user": map[string]any{
-				"id":           user["id"],
-				"name":         "Alice Updated",
-				"registeredAt": user["registeredAt"],
-				"tags":         []any{"premium", "updated"},
-			},
-			"updateMask": "name,tags",
+	updateResult, rpcErr := client.callTool("crm_UpdateUser", map[string]any{
+		"user": map[string]any{
+			"id":           user["id"],
+			"name":         "Alice Updated",
+			"registeredAt": user["registeredAt"],
+			"tags":         []any{"premium", "updated"},
 		},
+		"updateMask": "name,tags",
 	})
-	if err != nil {
-		t.Fatalf("CallTool(UpdateUser) failed: %v", err)
+	if rpcErr != nil {
+		t.Fatalf("CallTool(UpdateUser) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if updateResult.IsError {
 		t.Fatalf("UpdateUser returned tool error: %+v", updateResult)
@@ -276,28 +396,21 @@ func runCRMExample(t *testing.T, session *mcp.ClientSession) {
 	}
 }
 
-func runStandaloneNotebookExample(t *testing.T, session *mcp.ClientSession) {
+func runStandaloneNotebookExample(t *testing.T, client *stdioClient) {
 	t.Helper()
 
-	ctx := context.Background()
-	tools, err := session.ListTools(ctx, nil)
-	if err != nil {
-		t.Fatalf("ListTools() failed: %v", err)
-	}
+	tools := client.listTools()
 	findTool(t, tools.Tools, "notebook_CreateNote")
 	findTool(t, tools.Tools, "notebook_SearchNotes")
 
-	createResult, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "notebook_CreateNote",
-		Arguments: map[string]any{
-			"title":   "Ship Python support",
-			"body":    "Verify the generated Python MCP bindings are pleasant to use.",
-			"tags":    []any{"python", "mcp"},
-			"dueDate": "2026-04-30",
-		},
+	createResult, rpcErr := client.callTool("notebook_CreateNote", map[string]any{
+		"title":   "Ship Python support",
+		"body":    "Verify the generated Python MCP bindings are pleasant to use.",
+		"tags":    []any{"python", "mcp"},
+		"dueDate": "2026-04-30",
 	})
-	if err != nil {
-		t.Fatalf("CallTool(CreateNote) failed: %v", err)
+	if rpcErr != nil {
+		t.Fatalf("CallTool(CreateNote) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if createResult.IsError {
 		t.Fatalf("CreateNote returned tool error: %+v", createResult)
@@ -312,16 +425,13 @@ func runStandaloneNotebookExample(t *testing.T, session *mcp.ClientSession) {
 		t.Fatalf("created note.title = %v, want Ship Python support", got)
 	}
 
-	searchResult, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "notebook_SearchNotes",
-		Arguments: map[string]any{
-			"query": "python",
-			"tags":  []any{"mcp"},
-			"limit": 5,
-		},
+	searchResult, rpcErr := client.callTool("notebook_SearchNotes", map[string]any{
+		"query": "python",
+		"tags":  []any{"mcp"},
+		"limit": 5,
 	})
-	if err != nil {
-		t.Fatalf("CallTool(SearchNotes) failed: %v", err)
+	if rpcErr != nil {
+		t.Fatalf("CallTool(SearchNotes) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if searchResult.IsError {
 		t.Fatalf("SearchNotes returned tool error: %+v", searchResult)
@@ -334,27 +444,20 @@ func runStandaloneNotebookExample(t *testing.T, session *mcp.ClientSession) {
 	}
 }
 
-func runStandaloneTaskProtobufExample(t *testing.T, session *mcp.ClientSession) {
+func runStandaloneTaskProtobufExample(t *testing.T, client *stdioClient) {
 	t.Helper()
 
-	ctx := context.Background()
-	tools, err := session.ListTools(ctx, nil)
-	if err != nil {
-		t.Fatalf("ListTools() failed: %v", err)
-	}
+	tools := client.listTools()
 	findTool(t, tools.Tools, "tasks_CreateTask")
 	findTool(t, tools.Tools, "tasks_ListTasks")
 	findTool(t, tools.Tools, "tasks_Health")
 
-	createResult, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "tasks_CreateTask",
-		Arguments: map[string]any{
-			"title": "Ship protobuf handler docs",
-			"tags":  []any{"python", "protobuf"},
-		},
+	createResult, rpcErr := client.callTool("tasks_CreateTask", map[string]any{
+		"title": "Ship protobuf handler docs",
+		"tags":  []any{"python", "protobuf"},
 	})
-	if err != nil {
-		t.Fatalf("CallTool(CreateTask) failed: %v", err)
+	if rpcErr != nil {
+		t.Fatalf("CallTool(CreateTask) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if createResult.IsError {
 		t.Fatalf("CreateTask returned tool error: %+v", createResult)
@@ -372,15 +475,12 @@ func runStandaloneTaskProtobufExample(t *testing.T, session *mcp.ClientSession) 
 		t.Fatalf("created task.tags = %v, want [python protobuf]", got)
 	}
 
-	listResult, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "tasks_ListTasks",
-		Arguments: map[string]any{
-			"tags":  []any{"protobuf"},
-			"limit": 5,
-		},
+	listResult, rpcErr := client.callTool("tasks_ListTasks", map[string]any{
+		"tags":  []any{"protobuf"},
+		"limit": 5,
 	})
-	if err != nil {
-		t.Fatalf("CallTool(ListTasks) failed: %v", err)
+	if rpcErr != nil {
+		t.Fatalf("CallTool(ListTasks) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if listResult.IsError {
 		t.Fatalf("ListTasks returned tool error: %+v", listResult)
@@ -399,12 +499,9 @@ func runStandaloneTaskProtobufExample(t *testing.T, session *mcp.ClientSession) 
 		t.Fatalf("listed task.title = %v, want Ship protobuf handler docs", got)
 	}
 
-	healthResult, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "tasks_Health",
-		Arguments: map[string]any{},
-	})
-	if err != nil {
-		t.Fatalf("CallTool(Health) failed: %v", err)
+	healthResult, rpcErr := client.callTool("tasks_Health", map[string]any{})
+	if rpcErr != nil {
+		t.Fatalf("CallTool(Health) failed: code=%d msg=%s", rpcErr.Code, rpcErr.Message)
 	}
 	if healthResult.IsError {
 		t.Fatalf("Health returned tool error: %+v", healthResult)
@@ -457,9 +554,18 @@ func standalonePythonExampleCommand(t *testing.T, projectDir string) *exec.Cmd {
 func decodeMap(t *testing.T, value any) map[string]any {
 	t.Helper()
 
-	raw, err := json.Marshal(value)
-	if err != nil {
-		t.Fatalf("marshal JSON value: %v", err)
+	var raw []byte
+	switch v := value.(type) {
+	case []byte:
+		raw = v
+	case json.RawMessage:
+		raw = []byte(v)
+	default:
+		var err error
+		raw, err = json.Marshal(value)
+		if err != nil {
+			t.Fatalf("marshal JSON value: %v", err)
+		}
 	}
 
 	var decoded map[string]any
@@ -470,20 +576,20 @@ func decodeMap(t *testing.T, value any) map[string]any {
 	return decoded
 }
 
-func assertTextStructuredContentMatch(t *testing.T, toolName string, result *mcp.CallToolResult) {
+func assertTextStructuredContentMatch(t *testing.T, toolName string, result callToolResult) {
 	t.Helper()
 
 	if len(result.Content) != 1 {
 		t.Fatalf("%s returned %d content items, want 1", toolName, len(result.Content))
 	}
 
-	textContent, ok := result.Content[0].(*mcp.TextContent)
-	if !ok {
-		t.Fatalf("%s content[0] has type %T, want *mcp.TextContent", toolName, result.Content[0])
+	var tc textContent
+	if err := json.Unmarshal(result.Content[0], &tc); err != nil {
+		t.Fatalf("unmarshal text content for %s: %v", toolName, err)
 	}
 
 	var fromText map[string]any
-	if err := json.Unmarshal([]byte(textContent.Text), &fromText); err != nil {
+	if err := json.Unmarshal([]byte(tc.Text), &fromText); err != nil {
 		t.Fatalf("decode text content for %s: %v", toolName, err)
 	}
 
@@ -493,15 +599,15 @@ func assertTextStructuredContentMatch(t *testing.T, toolName string, result *mcp
 	}
 }
 
-func findTool(t *testing.T, tools []*mcp.Tool, toolName string) *mcp.Tool {
+func findTool(t *testing.T, tools []toolInfo, toolName string) toolInfo {
 	t.Helper()
 
 	for _, tool := range tools {
-		if tool != nil && tool.Name == toolName {
+		if tool.Name == toolName {
 			return tool
 		}
 	}
 
 	t.Fatalf("tool %q not found in tools/list", toolName)
-	return nil
+	return toolInfo{}
 }

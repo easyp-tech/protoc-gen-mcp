@@ -7,7 +7,6 @@ import (
 	context "context"
 	errors "errors"
 	mcpruntime "github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
-	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // GreeterAPIToolHandler defines the business logic required by generated MCP tools.
@@ -16,7 +15,7 @@ type GreeterAPIToolHandler interface {
 }
 
 // RegisterGreeterAPITools registers generated MCP tools for GreeterAPI.
-func RegisterGreeterAPITools(server *mcp.Server, impl GreeterAPIToolHandler, opts ...mcpruntime.RegisterOption) error {
+func RegisterGreeterAPITools(server *mcpruntime.Server, impl GreeterAPIToolHandler, opts ...mcpruntime.RegisterOption) error {
 	if impl == nil {
 		return errors.New("RegisterGreeterAPITools: impl is nil")
 	}

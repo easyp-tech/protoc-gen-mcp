@@ -7,7 +7,6 @@ import (
 	context "context"
 	errors "errors"
 	mcpruntime "github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
-	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	proto "google.golang.org/protobuf/proto"
 )
 
@@ -17,7 +16,7 @@ type WeatherAPIToolHandler interface {
 }
 
 // RegisterWeatherAPITools registers generated MCP tools for WeatherAPI.
-func RegisterWeatherAPITools(server *mcp.Server, impl WeatherAPIToolHandler, opts ...mcpruntime.RegisterOption) error {
+func RegisterWeatherAPITools(server *mcpruntime.Server, impl WeatherAPIToolHandler, opts ...mcpruntime.RegisterOption) error {
 	if impl == nil {
 		return errors.New("RegisterWeatherAPITools: impl is nil")
 	}
@@ -28,7 +27,7 @@ func RegisterWeatherAPITools(server *mcp.Server, impl WeatherAPIToolHandler, opt
 		Namespace:        "weather",
 		InputSchemaJSON:  WeatherAPI_GetCurrentWeather_ToolSpecInputSchemaJSON,
 		OutputSchemaJSON: WeatherAPI_GetCurrentWeather_ToolSpecOutputSchemaJSON,
-		Annotations:      &mcp.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: proto.Bool(true)},
+		Annotations:      &mcpruntime.ToolAnnotations{ReadOnlyHint: proto.Bool(true), OpenWorldHint: proto.Bool(true)},
 		Icons:            nil,
 		NewRequest:       func() *GetCurrentWeatherRequest { return &GetCurrentWeatherRequest{} },
 		NewResponse:      func() *GetCurrentWeatherResponse { return &GetCurrentWeatherResponse{} },

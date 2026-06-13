@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/easyp-tech/protoc-gen-mcp/internal/examplemcp"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
 )
 
 func main() {
@@ -14,7 +14,7 @@ func main() {
 		log.Fatalf("create server: %v", err)
 	}
 
-	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
+	if err := mcpruntime.ServeStdio(context.Background(), server); err != nil {
 		log.Fatalf("run server: %v", err)
 	}
 }

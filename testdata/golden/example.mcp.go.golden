@@ -7,7 +7,6 @@ import (
 	context "context"
 	errors "errors"
 	mcpruntime "github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
-	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // ExampleAPIToolHandler defines the business logic required by generated MCP tools.
@@ -20,7 +19,7 @@ type ExampleAPIToolHandler interface {
 }
 
 // RegisterExampleAPITools registers generated MCP tools for ExampleAPI.
-func RegisterExampleAPITools(server *mcp.Server, impl ExampleAPIToolHandler, opts ...mcpruntime.RegisterOption) error {
+func RegisterExampleAPITools(server *mcpruntime.Server, impl ExampleAPIToolHandler, opts ...mcpruntime.RegisterOption) error {
 	if impl == nil {
 		return errors.New("RegisterExampleAPITools: impl is nil")
 	}

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	filemanagerv1 "github.com/easyp-tech/protoc-gen-mcp/examples/3_file_manager/proto"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
 )
 
 type fileManagerAPI struct {
@@ -40,17 +40,14 @@ func (s *fileManagerAPI) DeleteFile(ctx context.Context, req *filemanagerv1.Dele
 func main() {
 	tmpDir := os.TempDir()
 
-	server := mcp.NewServer(&mcp.Implementation{
-		Name:    "filemanager-mcp-server",
-		Version: "1.0.0",
-	}, nil)
+	server := mcpruntime.NewServer("filemanager-mcp-server", "1.0.0")
 
 	impl := &fileManagerAPI{basePath: tmpDir}
 	if err := filemanagerv1.RegisterFileManagerAPITools(server, impl); err != nil {
 		log.Fatalf("failed to register tools: %v", err)
 	}
 
-	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
+	if err := mcpruntime.ServeStdio(context.Background(), server); err != nil {
 		log.Fatalf("run server: %v", err)
 	}
 }

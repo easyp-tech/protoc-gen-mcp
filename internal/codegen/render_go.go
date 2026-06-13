@@ -25,7 +25,7 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 
 	contextIdent := generated.QualifiedGoIdent(protogen.GoImportPath("context").Ident("Context"))
 	errorsIdent := generated.QualifiedGoIdent(protogen.GoImportPath("errors").Ident("New"))
-	mcpServerIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("Server"))
+	mcpServerIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime").Ident("Server"))
 	mcpruntimeImport := protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime")
 	registerOptionIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("RegisterOption"))
 	registerToolIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("RegisterProtoTool"))
@@ -110,11 +110,11 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 		}
 	}
 	if len(model.Prompts) > 0 {
-		mcpPromptIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("Prompt"))
-		mcpPromptArgIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("PromptArgument"))
-		mcpPromptMsgIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("PromptMessage"))
-		mcpGetPromptReqIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("GetPromptRequest"))
-		mcpGetPromptResIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("GetPromptResult"))
+		mcpPromptIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime").Ident("Prompt"))
+		mcpPromptArgIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime").Ident("PromptArgument"))
+		mcpPromptMsgIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime").Ident("PromptMessage"))
+		mcpGetPromptReqIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime").Ident("GetPromptRequest"))
+		mcpGetPromptResIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime").Ident("GetPromptResult"))
 		parsePromptArgsIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("ParsePromptArguments"))
 
 		// Use file base name for interface naming.
@@ -128,7 +128,7 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 			if err != nil {
 				return err
 			}
-			generated.P(prompt.ProtoName, "(ctx ", contextIdent, ", req *", inputType, ") ([]*", mcpPromptMsgIdent, ", error)")
+			generated.P(prompt.ProtoName, "(ctx ", contextIdent, ", req *", inputType, ") ([]", mcpPromptMsgIdent, ", error)")
 		}
 		generated.P("}")
 		generated.P()
@@ -163,14 +163,14 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 			if len(prompt.Icons) > 0 {
 				generated.P("Icons: ", stringifyIcons(generated, prompt.Icons), ",")
 			}
-			generated.P("Arguments: []*", mcpPromptArgIdent, "{")
+			generated.P("Arguments: []", mcpPromptArgIdent, "{")
 			for _, arg := range prompt.Arguments {
 				generated.P("{Name: ", quote(arg.Name), ", Description: ", quote(arg.Description), ", Required: ", fmt.Sprintf("%t", arg.Required), "},")
 			}
 			generated.P("},")
 			generated.P("}, func(ctx ", contextIdent, ", req *", mcpGetPromptReqIdent, ") (*", mcpGetPromptResIdent, ", error) {")
 			generated.P("msg := &", inputType, "{}")
-			generated.P("if err := ", parsePromptArgsIdent, "(req.Params.Arguments, msg, []string{")
+			generated.P("if err := ", parsePromptArgsIdent, "(req.Arguments, msg, []string{")
 			for _, name := range requiredNames {
 				generated.P(quote(name), ",")
 			}
@@ -190,13 +190,13 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 	}
 
 	if len(model.Resources) > 0 {
-		mcpResourceIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("Resource"))
-		mcpResourceTemplateIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("ResourceTemplate"))
-		mcpReadResourceReqIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("ReadResourceRequest"))
-		mcpReadResourceResIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("ReadResourceResult"))
-		mcpResourceContentsIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("ResourceContents"))
-		mcpAnnotationsIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("Annotations"))
-		mcpRoleIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("Role"))
+		mcpResourceIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime").Ident("Resource"))
+		mcpResourceTemplateIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime").Ident("ResourceTemplate"))
+		mcpReadResourceReqIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime").Ident("ReadResourceRequest"))
+		mcpReadResourceResIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime").Ident("ReadResourceResult"))
+		mcpResourceContentsIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime").Ident("ResourceContents"))
+		mcpAnnotationsIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime").Ident("Annotations"))
+		mcpRoleIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime").Ident("Role"))
 		extractURIParamsIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("ExtractURIParams"))
 		marshalResourceContentIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("MarshalResourceContent"))
 		fmtErrorfIdent := generated.QualifiedGoIdent(protogen.GoImportPath("fmt").Ident("Errorf"))
@@ -276,7 +276,7 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 
 				// Register each instance with a read handler.
 				generated.P("readHandler := func(ctx ", contextIdent, ", req *", mcpReadResourceReqIdent, ") (*", mcpReadResourceResIdent, ", error) {")
-				generated.P("params, err := ", extractURIParamsIdent, "(req.Params.URI, ", quote(resource.URITemplate), ")")
+				generated.P("params, err := ", extractURIParamsIdent, "(req.URI, ", quote(resource.URITemplate), ")")
 				generated.P("if err != nil {")
 				generated.P("return nil, err")
 				generated.P("}")
@@ -293,7 +293,7 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 				generated.P("if err != nil {")
 				generated.P("return nil, err")
 				generated.P("}")
-				generated.P("contents, err := ", marshalResourceContentIdent, "(req.Params.URI, ", quote(resource.MIMEType), ", result)")
+				generated.P("contents, err := ", marshalResourceContentIdent, "(req.URI, ", quote(resource.MIMEType), ", result)")
 				generated.P("if err != nil {")
 				generated.P("return nil, err")
 				generated.P("}")
@@ -428,7 +428,7 @@ func stringifyAnnotations(generated *protogen.GeneratedFile, ann *mcpoptionsv1.T
 	if ann == nil {
 		return "nil"
 	}
-	mcpAnnIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("ToolAnnotations"))
+	mcpAnnIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime").Ident("ToolAnnotations"))
 
 	var fields []string
 	if ann.ReadOnlyHint {
@@ -460,20 +460,12 @@ func stringifyIcons(generated *protogen.GeneratedFile, icons []*mcpoptionsv1.Ico
 	if len(icons) == 0 {
 		return "nil"
 	}
-	mcpIconIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("Icon"))
+	mcpIconIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime").Ident("Icon"))
 
 	var items []string
 	for _, icon := range icons {
-		sizesStr := "nil"
-		if len(icon.GetSizes()) > 0 {
-			var quotedSizes []string
-			for _, s := range icon.GetSizes() {
-				quotedSizes = append(quotedSizes, fmt.Sprintf("%q", s))
-			}
-			sizesStr = "[]string{" + strings.Join(quotedSizes, ", ") + "}"
-		}
-		items = append(items, fmt.Sprintf("%s{Source: %q, MIMEType: %q, Sizes: %s, Theme: %q},",
-			mcpIconIdent, icon.GetSrc(), icon.GetMimeType(), sizesStr, icon.GetTheme()))
+		items = append(items, fmt.Sprintf("%s{URL: %q, MIMEType: %q},",
+			mcpIconIdent, icon.GetSrc(), icon.GetMimeType()))
 	}
 	return "[]" + mcpIconIdent + "{" + strings.Join(items, " ") + "}"
 }

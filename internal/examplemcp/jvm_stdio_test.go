@@ -1,7 +1,6 @@
 package examplemcp_test
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,8 +8,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 var (
@@ -107,33 +104,22 @@ func runJVMInvalidInputTest(t *testing.T, target string) {
 	root := repoRoot(t)
 	ensureJVMExamplesInstalled(t, root)
 
-	ctx := context.Background()
-	client := mcp.NewClient(&mcp.Implementation{
-		Name:    "protoc-gen-mcp-jvm-invalid-input-test-client",
-		Version: "v0.0.1",
-	}, nil)
+	cmd := installedJVMServerCommand(root, target)
+	client := newStdioClient(t, cmd)
+	client.initialize()
 
-	session, err := client.Connect(ctx, &mcp.CommandTransport{Command: installedJVMServerCommand(root, target)}, nil)
-	if err != nil {
-		t.Fatalf("client.Connect() over stdio failed: %v", err)
-	}
-	defer session.Close()
-
-	_, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name:      "example_CreateReport",
-		Arguments: map[string]any{"count": 0},
-	})
-	if err == nil {
+	_, rpcErr := client.callTool("example_CreateReport", map[string]any{"count": 0})
+	if rpcErr == nil {
 		t.Fatal("CallTool(CreateReport) unexpectedly succeeded with invalid input")
 	}
 
-	lower := strings.ToLower(err.Error())
+	lower := strings.ToLower(rpcErr.Message)
 	if !strings.Contains(lower, "invalid") {
-		t.Fatalf("CallTool(CreateReport) error = %v, want invalid-input failure", err)
+		t.Fatalf("CallTool(CreateReport) error = %v, want invalid-input failure", rpcErr.Message)
 	}
 	normalized := strings.ReplaceAll(lower, "_", "")
 	if !strings.Contains(normalized, "examplecreatereport") {
-		t.Fatalf("CallTool(CreateReport) error = %v, want tool name in failure", err)
+		t.Fatalf("CallTool(CreateReport) error = %v, want tool name in failure", rpcErr.Message)
 	}
 }
 
@@ -146,33 +132,21 @@ func runJVMInvalidOutputTest(t *testing.T, target string) {
 	cmd := installedJVMServerCommand(root, target)
 	cmd.Env = append(os.Environ(), "PROTOC_GEN_MCP_JVM_INVALID_OUTPUT=create_report")
 
-	ctx := context.Background()
-	client := mcp.NewClient(&mcp.Implementation{
-		Name:    "protoc-gen-mcp-jvm-invalid-output-test-client",
-		Version: "v0.0.1",
-	}, nil)
+	client := newStdioClient(t, cmd)
+	client.initialize()
 
-	session, err := client.Connect(ctx, &mcp.CommandTransport{Command: cmd}, nil)
-	if err != nil {
-		t.Fatalf("client.Connect() over stdio failed: %v", err)
-	}
-	defer session.Close()
-
-	_, err = session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "example_CreateReport",
-		Arguments: map[string]any{
-			"city":    "Paris",
-			"count":   2,
-			"details": map[string]any{"label": "today"},
-		},
+	_, rpcErr := client.callTool("example_CreateReport", map[string]any{
+		"city":    "Paris",
+		"count":   2,
+		"details": map[string]any{"label": "today"},
 	})
-	if err == nil {
+	if rpcErr == nil {
 		t.Fatal("CallTool(CreateReport) unexpectedly succeeded with invalid output schema")
 	}
 
-	lower := strings.ToLower(err.Error())
+	lower := strings.ToLower(rpcErr.Message)
 	if !strings.Contains(lower, "validate output") && !strings.Contains(lower, "output") {
-		t.Fatalf("CallTool(CreateReport) error = %v, want output validation failure", err)
+		t.Fatalf("CallTool(CreateReport) error = %v, want output validation failure", rpcErr.Message)
 	}
 }
 

@@ -3,18 +3,15 @@ package examplemcp
 import (
 	"context"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 
 	examplev1 "github.com/easyp-tech/protoc-gen-mcp/internal/testproto/example/v1"
 )
 
 // NewServer returns a ready-to-run MCP server backed by generated protobuf tools.
-func NewServer() (*mcp.Server, error) {
-	server := mcp.NewServer(&mcp.Implementation{
-		Name:    "protoc-gen-mcp-example-server",
-		Version: "v0.0.1",
-	}, nil)
+func NewServer() (*mcpruntime.Server, error) {
+	server := mcpruntime.NewServer("protoc-gen-mcp-example-server", "v0.0.1")
 
 	if err := examplev1.RegisterExampleAPITools(server, Handler{}); err != nil {
 		return nil, err

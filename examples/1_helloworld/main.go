@@ -6,7 +6,7 @@ import (
 	"log"
 
 	helloworldv1 "github.com/easyp-tech/protoc-gen-mcp/examples/1_helloworld/proto"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
 )
 
 type greeter struct{}
@@ -17,16 +17,13 @@ func (s *greeter) SayHello(ctx context.Context, req *helloworldv1.SayHelloReques
 }
 
 func main() {
-	server := mcp.NewServer(&mcp.Implementation{
-		Name:    "helloworld-mcp-server",
-		Version: "1.0.0",
-	}, nil)
+	server := mcpruntime.NewServer("helloworld-mcp-server", "1.0.0")
 
 	if err := helloworldv1.RegisterGreeterAPITools(server, &greeter{}); err != nil {
 		log.Fatalf("failed to register tools: %v", err)
 	}
 
-	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
+	if err := mcpruntime.ServeStdio(context.Background(), server); err != nil {
 		log.Fatalf("run server: %v", err)
 	}
 }

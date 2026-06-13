@@ -6,7 +6,7 @@ import (
 	"log"
 
 	weatherv1 "github.com/easyp-tech/protoc-gen-mcp/examples/2_weather_api/proto"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
 )
 
 type weatherAPI struct{}
@@ -37,16 +37,13 @@ func (s *weatherAPI) GetCurrentWeather(ctx context.Context, req *weatherv1.GetCu
 }
 
 func main() {
-	server := mcp.NewServer(&mcp.Implementation{
-		Name:    "weather-mcp-server",
-		Version: "1.0.0",
-	}, nil)
+	server := mcpruntime.NewServer("weather-mcp-server", "1.0.0")
 
 	if err := weatherv1.RegisterWeatherAPITools(server, &weatherAPI{}); err != nil {
 		log.Fatalf("failed to register tools: %v", err)
 	}
 
-	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
+	if err := mcpruntime.ServeStdio(context.Background(), server); err != nil {
 		log.Fatalf("run server: %v", err)
 	}
 }

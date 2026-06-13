@@ -7,7 +7,7 @@ import (
 	context "context"
 	errors "errors"
 	mcpruntime "github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
-	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
+	proto "google.golang.org/protobuf/proto"
 )
 
 // UsersAPIToolHandler defines the business logic required by generated MCP tools.
@@ -17,7 +17,7 @@ type UsersAPIToolHandler interface {
 }
 
 // RegisterUsersAPITools registers generated MCP tools for UsersAPI.
-func RegisterUsersAPITools(server *mcp.Server, impl UsersAPIToolHandler, opts ...mcpruntime.RegisterOption) error {
+func RegisterUsersAPITools(server *mcpruntime.Server, impl UsersAPIToolHandler, opts ...mcpruntime.RegisterOption) error {
 	if impl == nil {
 		return errors.New("RegisterUsersAPITools: impl is nil")
 	}
@@ -28,8 +28,8 @@ func RegisterUsersAPITools(server *mcp.Server, impl UsersAPIToolHandler, opts ..
 		Namespace:        "crm",
 		InputSchemaJSON:  UsersAPI_ListUsers_ToolSpecInputSchemaJSON,
 		OutputSchemaJSON: UsersAPI_ListUsers_ToolSpecOutputSchemaJSON,
-		Annotations:      &mcp.ToolAnnotations{ReadOnlyHint: true},
-		Icons:            []mcp.Icon{mcp.Icon{Source: "https://example.com/crm-icon.png", MIMEType: "image/png", Sizes: nil, Theme: ""}},
+		Annotations:      &mcpruntime.ToolAnnotations{ReadOnlyHint: proto.Bool(true)},
+		Icons:            []mcpruntime.Icon{{URL: "https://example.com/crm-icon.png", MIMEType: "image/png"}},
 		NewRequest:       func() *ListUsersRequest { return &ListUsersRequest{} },
 		NewResponse:      func() *ListUsersResponse { return &ListUsersResponse{} },
 		Handler:          impl.ListUsers,
@@ -44,7 +44,7 @@ func RegisterUsersAPITools(server *mcp.Server, impl UsersAPIToolHandler, opts ..
 		InputSchemaJSON:  UsersAPI_UpdateUser_ToolSpecInputSchemaJSON,
 		OutputSchemaJSON: UsersAPI_UpdateUser_ToolSpecOutputSchemaJSON,
 		Annotations:      nil,
-		Icons:            []mcp.Icon{mcp.Icon{Source: "https://example.com/edit-icon.svg", MIMEType: "image/svg+xml", Sizes: nil, Theme: ""}},
+		Icons:            []mcpruntime.Icon{{URL: "https://example.com/edit-icon.svg", MIMEType: "image/svg+xml"}},
 		NewRequest:       func() *UpdateUserRequest { return &UpdateUserRequest{} },
 		NewResponse:      func() *UpdateUserResponse { return &UpdateUserResponse{} },
 		Handler:          impl.UpdateUser,

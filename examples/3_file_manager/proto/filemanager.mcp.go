@@ -7,7 +7,6 @@ import (
 	context "context"
 	errors "errors"
 	mcpruntime "github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
-	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	proto "google.golang.org/protobuf/proto"
 )
 
@@ -18,7 +17,7 @@ type FileManagerAPIToolHandler interface {
 }
 
 // RegisterFileManagerAPITools registers generated MCP tools for FileManagerAPI.
-func RegisterFileManagerAPITools(server *mcp.Server, impl FileManagerAPIToolHandler, opts ...mcpruntime.RegisterOption) error {
+func RegisterFileManagerAPITools(server *mcpruntime.Server, impl FileManagerAPIToolHandler, opts ...mcpruntime.RegisterOption) error {
 	if impl == nil {
 		return errors.New("RegisterFileManagerAPITools: impl is nil")
 	}
@@ -29,7 +28,7 @@ func RegisterFileManagerAPITools(server *mcp.Server, impl FileManagerAPIToolHand
 		Namespace:        "files",
 		InputSchemaJSON:  FileManagerAPI_ReadFile_ToolSpecInputSchemaJSON,
 		OutputSchemaJSON: FileManagerAPI_ReadFile_ToolSpecOutputSchemaJSON,
-		Annotations:      &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true},
+		Annotations:      &mcpruntime.ToolAnnotations{ReadOnlyHint: proto.Bool(true), IdempotentHint: proto.Bool(true)},
 		Icons:            nil,
 		NewRequest:       func() *ReadFileRequest { return &ReadFileRequest{} },
 		NewResponse:      func() *ReadFileResponse { return &ReadFileResponse{} },
@@ -44,7 +43,7 @@ func RegisterFileManagerAPITools(server *mcp.Server, impl FileManagerAPIToolHand
 		Namespace:        "files",
 		InputSchemaJSON:  FileManagerAPI_DeleteFile_ToolSpecInputSchemaJSON,
 		OutputSchemaJSON: FileManagerAPI_DeleteFile_ToolSpecOutputSchemaJSON,
-		Annotations:      &mcp.ToolAnnotations{DestructiveHint: proto.Bool(true)},
+		Annotations:      &mcpruntime.ToolAnnotations{DestructiveHint: proto.Bool(true)},
 		Icons:            nil,
 		NewRequest:       func() *DeleteFileRequest { return &DeleteFileRequest{} },
 		NewResponse:      func() *DeleteFileResponse { return &DeleteFileResponse{} },
