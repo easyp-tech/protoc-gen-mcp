@@ -623,9 +623,11 @@ func TestGenerate_GoEmitsReadOnlyHintAnnotation(t *testing.T) {
 	}
 
 	generated := string(generatedFileContent(t, plugin, "test/v1/annotations.mcp.go"))
+	// ToolAnnotations fields are all *bool in mcpruntime, so every hint must be
+	// wrapped with proto.Bool — emitting a bare bool would not compile.
 	for _, snippet := range []string{
-		"ReadOnlyHint: true,",
-		"IdempotentHint: true,",
+		"ReadOnlyHint: proto.Bool(true)",
+		"IdempotentHint: proto.Bool(true)",
 		"OpenWorldHint: proto.Bool(true)",
 	} {
 		if !strings.Contains(generated, snippet) {
@@ -1921,6 +1923,42 @@ func TestWriteResourcesGoldenFiles(t *testing.T) {
 		plugin := newResourcesProtogenPlugin(t)
 		if err := Generate(plugin, Options{Language: tc.lang}); err != nil {
 			t.Fatalf("Generate(%s): %v", tc.lang, err)
+		}
+		got := generatedFileContent(t, plugin, tc.outPath)
+		target := filepath.Join(goldenDir, tc.filename)
+		if err := os.WriteFile(target, got, 0o644); err != nil {
+			t.Fatalf("write golden %q: %v", target, err)
+		}
+		t.Logf("wrote %s (%d bytes)", target, len(got))
+	}
+}
+
+// TestWriteExampleGoldenFiles regenerates golden files for the example fixture.
+// Run with: WRITE_GOLDEN=1 go test -run TestWriteExampleGoldenFiles -v
+func TestWriteExampleGoldenFiles(t *testing.T) {
+	if os.Getenv("WRITE_GOLDEN") != "1" {
+		t.Skip("set WRITE_GOLDEN=1 to regenerate example golden files")
+	}
+
+	root := repoRoot(t)
+	goldenDir := filepath.Join(root, "testdata/golden")
+
+	cases := []struct {
+		opts     Options
+		outPath  string
+		filename string
+	}{
+		{Options{Language: LanguageGo}, "internal/testproto/example/v1/example.mcp.go", "example.mcp.go.golden"},
+		{Options{Language: LanguagePython, PythonRuntime: PythonRuntimeGoogleProtobuf}, "internal/testproto/example/v1/example_mcp.py", "example_mcp.py.golden"},
+		{Options{Language: LanguageKotlin}, "internal/testproto/example/v1/example_mcp.kt", "example_mcp.kt.golden"},
+		{Options{Language: LanguageJava}, exampleJavaOutputPath(), "example_mcp.java.golden"},
+		{Options{Language: LanguageTypeScript}, "internal/testproto/example/v1/example_mcp.ts", "example_mcp.ts.golden"},
+	}
+
+	for _, tc := range cases {
+		plugin := newExampleProtogenPlugin(t)
+		if err := Generate(plugin, tc.opts); err != nil {
+			t.Fatalf("Generate(%v): %v", tc.opts.Language, err)
 		}
 		got := generatedFileContent(t, plugin, tc.outPath)
 		target := filepath.Join(goldenDir, tc.filename)

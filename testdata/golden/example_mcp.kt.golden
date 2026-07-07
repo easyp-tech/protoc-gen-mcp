@@ -302,7 +302,7 @@ fun registerExampleAPITools(server: Server, impl: ExampleAPIToolHandler, namespa
             outputSchemaJson = EXAMPLE_API_PING_OUTPUT_SCHEMA_JSON,
             requestBuilder = { Example.PingRequest.newBuilder() },
             handler = { ctx, request -> impl.ping(ctx, request as Example.PingRequest) as Message },
-            annotations = null,
+            annotations = ToolAnnotations(readOnlyHint = true, idempotentHint = true),
             icons = emptyList(),
             execution = toolExecutionOrNull("none"),
         ),

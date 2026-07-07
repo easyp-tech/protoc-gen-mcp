@@ -133,7 +133,10 @@ func (s *Server) HandleRaw(ctx context.Context, raw []byte) []byte {
 // requireReady wraps a handler to reject requests before the server is initialized.
 func (s *Server) requireReady(handler methodHandler) methodHandler {
 	return func(ctx context.Context, params json.RawMessage) (any, error) {
-		if s.state != stateReady {
+		s.mu.RLock()
+		ready := s.state == stateReady
+		s.mu.RUnlock()
+		if !ready {
 			return nil, &JSONRPCError{
 				Code:    CodeInvalidRequest,
 				Message: "Server not initialized",
@@ -162,11 +165,37 @@ func (s *Server) capabilities() *ServerCapabilities {
 }
 
 func (s *Server) handleInitialize(_ context.Context, params json.RawMessage) (any, error) {
-	// Parse but don't require specific fields from client.
+	var req InitializeRequest
+	if len(params) > 0 {
+		if err := json.Unmarshal(params, &req); err != nil {
+			return nil, &JSONRPCError{
+				Code:    CodeInvalidParams,
+				Message: fmt.Sprintf("invalid initialize params: %v", err),
+			}
+		}
+	}
+
+	// Reject a second initialize on an already-initialized session.
+	s.mu.Lock()
+	if s.state == stateReady {
+		s.mu.Unlock()
+		return nil, &JSONRPCError{
+			Code:    CodeInvalidRequest,
+			Message: "Server already initialized",
+		}
+	}
 	s.state = stateReady
+	s.mu.Unlock()
+
+	// Negotiate the protocol version: echo the client's requested version when
+	// it provides one (maximising interoperability), otherwise advertise ours.
+	negotiated := protocolVersion
+	if req.ProtocolVersion != "" {
+		negotiated = req.ProtocolVersion
+	}
 
 	return &InitializeResult{
-		ProtocolVersion: protocolVersion,
+		ProtocolVersion: negotiated,
 		Capabilities:    s.capabilities(),
 		ServerInfo: &Implementation{
 			Name:    s.impl.Name,
@@ -273,27 +302,39 @@ func (s *Server) handleResourcesRead(ctx context.Context, params json.RawMessage
 		}
 	}
 
+	// Resolve the matching handler under the read lock, then release it before
+	// invoking the handler. Holding the lock during the handler call would
+	// deadlock if the handler registers another primitive (AddResource/AddTool/
+	// AddPrompt all take the write lock). This mirrors handleToolsCall and
+	// handlePromptsGet.
 	s.mu.RLock()
-	defer s.mu.RUnlock()
-
+	var handler ResourceHandler
 	// Try static resources first.
 	for _, r := range s.resources {
 		if r.resource.URI == req.URI {
-			return r.handler(ctx, &req)
+			handler = r.handler
+			break
 		}
 	}
-
 	// Try resource templates.
-	for _, rt := range s.resourceTemplates {
-		if _, err := ExtractURIParams(req.URI, rt.template.URITemplate); err == nil {
-			return rt.handler(ctx, &req)
+	if handler == nil {
+		for _, rt := range s.resourceTemplates {
+			if _, err := ExtractURIParams(req.URI, rt.template.URITemplate); err == nil {
+				handler = rt.handler
+				break
+			}
+		}
+	}
+	s.mu.RUnlock()
+
+	if handler == nil {
+		return nil, &JSONRPCError{
+			Code:    CodeInvalidParams,
+			Message: fmt.Sprintf("unknown resource: %q", req.URI),
 		}
 	}
 
-	return nil, &JSONRPCError{
-		Code:    CodeInvalidParams,
-		Message: fmt.Sprintf("unknown resource: %q", req.URI),
-	}
+	return handler(ctx, &req)
 }
 
 func (s *Server) handlePromptsList(_ context.Context, _ json.RawMessage) (any, error) {

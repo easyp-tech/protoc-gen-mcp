@@ -29,6 +29,7 @@ truth for supported features, layout, commands, and working rules.
 | Path | Role |
 |---|---|
 | `cmd/protoc-gen-mcp` | `--mcp_out` protoc plugin entrypoint and option dispatch |
+| `mcpruntime` | Self-contained Go MCP runtime (JSON-RPC server, tool/resource/prompt registration, stdio). No `modelcontextprotocol/go-sdk` dependency. |
 | `internal/codegen` | Shared semantic model and language renderers |
 | `internal/codegen/render_python.go` | Python dataclass/protobuf/dual handler generation |
 | `internal/codegen/jvm_*.go` | SDK-neutral JVM model, naming, and collection |
@@ -52,7 +53,7 @@ truth for supported features, layout, commands, and working rules.
 
 | Target | Plugin Options | Generated Public API |
 |---|---|---|
-| Go | `lang=go` | `<Service>ToolHandler`, `Register<Service>Tools(server, impl, opts...) error` |
+| Go | `lang=go` | Tools: `<Service>ToolHandler`, `Register<Service>Tools(server, impl, opts...) error`. Prompts: `<File>PromptHandler`, `Register<File>Prompts(server, impl, opts...) error`. Resources: `<File>ResourceHandler`, `Register<File>Resources(ctx, server, impl, opts...) error`. `server` is `*mcpruntime.Server`. |
 | Python dataclass | `lang=python,python_runtime=google.protobuf` or `python_handler=dataclass` | `*_mcp.py`, dataclasses, `UNSET`, oneof wrappers, mapper helpers, `register_<service>_tools(...)` |
 | Python protobuf | `lang=python,python_handler=protobuf` | `*_mcp.py` with raw `*_pb2` handler protocol and identity converters |
 | Python dual | `lang=python,python_handler=dataclass+protobuf` | dataclass sidecar in `*_mcp.py` plus raw protobuf sidecar in `*_mcp_pb.py` |
@@ -60,6 +61,43 @@ truth for supported features, layout, commands, and working rules.
 | Java | `lang=java` | top-level `<ProtoFile>Mcp` class, nested `<Service>ToolHandler`, `register<Service>Tools(...)` |
 | TypeScript | `lang=typescript` | `*_mcp.ts`, typed `<Service>ToolHandler`, `register<Service>Tools(server, impl, namespace?)` |
 | JavaScript | no direct `lang=javascript` in v1.1 | consume compiled TypeScript `.js` plus `.d.ts` output |
+
+## Resources and Prompts (message-level)
+
+Unlike tools (RPC-method-level, on a `service`), MCP **prompts** and **resources**
+are declared on a **message** via `option (mcp.options.v1.prompt)` /
+`option (mcp.options.v1.resource)` (extensions 91008 / 91009 in
+`mcp/options/v1/options.proto`). Because they are file-scoped, their generated
+Go registration functions are named after the proto **file**, not a service.
+
+- **Prompt**: each field of the annotated message becomes a prompt argument
+  (scalar/enum only; `optional` ⇒ not required). Handler returns
+  `[]mcpruntime.PromptMessage`. Arguments are parsed from `map[string]string`
+  via `mcpruntime.ParsePromptArguments`.
+- **Resource**: set exactly one of `uri` (static) or `uri_template` (templated,
+  RFC-6570 simple `{param}`). Message fields are the output schema, serialized
+  with ProtoJSON via `mcpruntime.MarshalResourceContent`. Templated resources
+  generate a `List<Msg>s(ctx) ([]mcpruntime.Resource, error)` (advertised
+  instances) plus `Read<Msg>(ctx, <param>...) (*<Msg>, error)`; URI params are
+  extracted with `mcpruntime.ExtractURIParams`. `Register<File>Resources` takes
+  `ctx` first because it calls `List*` eagerly at registration time.
+- `annotations.priority` maps to `*float64` — generated code must wrap it with
+  `mcpruntime.Ptr(...)`. Tool annotation hints (`ToolAnnotations.*Hint`) are all
+  `*bool` and must be wrapped with `proto.Bool(...)`; emitting bare values does
+  not compile.
+
+## Go runtime (`mcpruntime`)
+
+The Go target does not use `modelcontextprotocol/go-sdk`; it uses the in-repo
+`mcpruntime`. Wire a server with `mcpruntime.NewServer(name, version)`, register
+generated tools/prompts/resources, then serve with
+`mcpruntime.ServeStdio(ctx, server)` (or `ServeIO`). Python, JVM, and TypeScript
+targets still generate against their respective native MCP SDKs.
+
+Because generated resource/prompt code was historically only checked as text
+goldens, keep it **compiled**: `internal/examplemcp` registers the generated
+resource/prompt handlers so `go build ./...` and the round-trip test
+(`TestResourcesPromptsRoundTrip`) exercise them.
 
 ## Core Invariants
 
@@ -219,13 +257,18 @@ go test ./internal/examplemcp -run 'TestKotlin.*OverStdio' -count=1
 
 ## Golden Snapshot Notes
 
-- Go golden: `testdata/golden/example.mcp.go.golden`.
+- Go goldens: `testdata/golden/example.mcp.go.golden` (tools),
+  `prompts.mcp.go.golden`, `resources.mcp.go.golden`.
 - Python goldens include dataclass/protobuf/dual handler outputs.
 - Java golden: `testdata/golden/example_mcp.java.golden`.
 - Kotlin golden: `testdata/golden/example_mcp.kt.golden`.
 - TypeScript golden: `testdata/golden/example_mcp.ts.golden`.
 - Regenerate fixtures through `easyp.test.yaml`; do not manually patch generated
   output unless diagnosing a renderer bug.
+- Regenerate goldens with the writer tests:
+  `WRITE_GOLDEN=1 go test ./internal/codegen -run 'TestWrite(Example|Prompts|Resources)GoldenFiles'`.
+  Goldens are text snapshots — they do not compile the output, so pair renderer
+  changes with a compiled consumer (`internal/examplemcp`) to catch type errors.
 
 ## Common Mistakes to Avoid
 

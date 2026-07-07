@@ -7,8 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-08
+
 ### Added
 
+- MCP **Prompts** generation from message-level `option (mcp.options.v1.prompt)`.
+  Go emits `<File>PromptHandler` and
+  `Register<File>Prompts(server, impl, opts...) error`, with one prompt argument
+  per message field (scalar/enum; `optional` ⇒ not required).
+- MCP **Resources** generation from message-level
+  `option (mcp.options.v1.resource)` with either `uri` (static) or `uri_template`
+  (templated, RFC-6570 `{param}`). Go emits `<File>ResourceHandler` and
+  `Register<File>Resources(ctx, server, impl, opts...) error`; resource output is
+  serialized as ProtoJSON. Full Go support; Python/Kotlin/Java/TypeScript emit
+  interfaces with stub registration.
+- `mcpruntime.Ptr[T]` helper for populating optional pointer fields from values
+  in generated code.
 - TypeScript MCP sidecar generation through `lang=typescript`, targeting
   `@modelcontextprotocol/sdk`, Protobuf-ES `_pb.ts` output, NodeNext `.js`
   imports, and Ajv-backed raw JSON Schema validation.
@@ -25,12 +39,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking (Go):** the Go target no longer depends on
+  `github.com/modelcontextprotocol/go-sdk`. Generated Go code and `mcpruntime`
+  now use the in-repo, self-contained runtime: `RegisterProtoTool`/`ToolSpec`
+  take `*mcpruntime.Server` (not `*mcp.Server`), annotation/icon types are
+  `mcpruntime.*`, and servers run over stdio via `mcpruntime.ServeStdio`.
+  Python, JVM, and TypeScript targets are unaffected and keep their native SDKs.
+- The `initialize` handler now parses the request, negotiates the client's
+  `protocolVersion`, and rejects a second `initialize` on an already-initialized
+  session.
 - Documentation now explains that direct `lang=javascript` generation is
   deferred; JavaScript users consume compiled TypeScript target output.
 - Release messaging now states that tagged releases publish the
   `protoc-gen-mcp` binary, while downstream Node projects compile generated
   TypeScript against npm dependencies rather than using repository-published
   Node runtime artifacts.
+
+### Fixed
+
+- Resource generation emitted `Priority: <float>` into the `*float64`
+  `Annotations.Priority` field, which did not compile; the value is now wrapped
+  with `mcpruntime.Ptr`.
+- Tool-annotation generation emitted bare `read_only_hint` / `idempotent_hint`
+  bools into `*bool` fields, which did not compile; both are now wrapped with
+  `proto.Bool` (matching `destructive_hint` / `open_world_hint`).
+- `resources/read` held the server read lock while invoking the resource
+  handler, deadlocking when a handler registered another primitive; the lock is
+  now released before the handler runs.
 
 ## [0.3.0] - 2026-03-29
 

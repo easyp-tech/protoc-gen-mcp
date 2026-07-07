@@ -24,6 +24,7 @@ func RegisterFile_internal_testproto_prompts_v1_prompts_protoPrompts(server *mcp
 	server.AddPrompt(&mcpruntime.Prompt{
 		Name:        "code_review",
 		Description: "Analyze code quality and suggest improvements",
+		Icons:       []mcpruntime.Icon{mcpruntime.Icon{URL: "https://example.com/review.svg", MIMEType: ""}},
 		Arguments: []mcpruntime.PromptArgument{
 			{Name: "code", Description: "Source code to review", Required: true},
 			{Name: "language", Description: "Programming language (go, python, java, etc)", Required: true},
@@ -45,6 +46,7 @@ func RegisterFile_internal_testproto_prompts_v1_prompts_protoPrompts(server *mcp
 	})
 	server.AddPrompt(&mcpruntime.Prompt{
 		Name:        "summarize",
+		Title:       "Document Summarizer",
 		Description: "Summarize a document or text",
 		Arguments: []mcpruntime.PromptArgument{
 			{Name: "content", Description: "Text content to summarize", Required: true},

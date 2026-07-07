@@ -235,7 +235,6 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 		generated.P("return ", errorsIdent, "(\"", registerName, ": impl is nil\")")
 		generated.P("}")
 		generated.P("resolvedOpts := ", generated.QualifiedGoIdent(mcpruntimeImport.Ident("ResolveOptions")), "(\"\", opts)")
-		generated.P("_ = resolvedOpts") // avoid unused if no resources have namespace
 
 		for _, resource := range model.Resources {
 			// Build name with namespace.
@@ -261,10 +260,10 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 					generated.P("},")
 				}
 				if resource.Annotations.Priority != nil {
-					generated.P("Priority: ", fmt.Sprintf("%g", resource.Annotations.GetPriority()), ",")
+					ptrIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("Ptr"))
+					generated.P("Priority: ", ptrIdent, "(", fmt.Sprintf("%g", resource.Annotations.GetPriority()), "),")
 				}
 				generated.P("}")
-				generated.P("_ = annotations")
 			}
 
 			if resource.IsTemplate {
@@ -301,8 +300,8 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 				generated.P("}")
 
 				// Register instances.
-				generated.P("for _, instance := range instances {")
-				generated.P("server.AddResource(&instance, readHandler)")
+				generated.P("for i := range instances {")
+				generated.P("server.AddResource(&instances[i], readHandler)")
 				generated.P("}")
 
 				// Register template.
@@ -432,14 +431,16 @@ func stringifyAnnotations(generated *protogen.GeneratedFile, ann *mcpoptionsv1.T
 
 	var fields []string
 	if ann.ReadOnlyHint {
-		fields = append(fields, fmt.Sprintf("ReadOnlyHint: %t,", ann.ReadOnlyHint))
+		protoBoolIdent := generated.QualifiedGoIdent(protogen.GoImportPath("google.golang.org/protobuf/proto").Ident("Bool"))
+		fields = append(fields, fmt.Sprintf("ReadOnlyHint: %s(%t),", protoBoolIdent, ann.ReadOnlyHint))
 	}
 	if ann.DestructiveHint != nil {
 		protoBoolIdent := generated.QualifiedGoIdent(protogen.GoImportPath("google.golang.org/protobuf/proto").Ident("Bool"))
 		fields = append(fields, fmt.Sprintf("DestructiveHint: %s(%t),", protoBoolIdent, *ann.DestructiveHint))
 	}
 	if ann.IdempotentHint != false {
-		fields = append(fields, fmt.Sprintf("IdempotentHint: %t,", ann.IdempotentHint))
+		protoBoolIdent := generated.QualifiedGoIdent(protogen.GoImportPath("google.golang.org/protobuf/proto").Ident("Bool"))
+		fields = append(fields, fmt.Sprintf("IdempotentHint: %s(%t),", protoBoolIdent, ann.IdempotentHint))
 	}
 	if ann.OpenWorldHint != nil {
 		protoBoolIdent := generated.QualifiedGoIdent(protogen.GoImportPath("google.golang.org/protobuf/proto").Ident("Bool"))

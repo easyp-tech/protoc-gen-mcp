@@ -82,7 +82,7 @@ public final class ExampleMcp {
             () -> Example.PingRequest.newBuilder(),
             () -> Example.PingResponse.newBuilder(),
             (ctx, request) -> impl.ping(ctx, (Example.PingRequest) request),
-            null,
+            toolAnnotationsMapOrNull(null, Boolean.TRUE, null, Boolean.TRUE, null),
             List.of(),
             toolExecutionMapOrNull(null))
     );

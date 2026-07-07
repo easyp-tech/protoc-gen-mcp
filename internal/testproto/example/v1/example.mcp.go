@@ -7,6 +7,7 @@ import (
 	context "context"
 	errors "errors"
 	mcpruntime "github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
+	proto "google.golang.org/protobuf/proto"
 )
 
 // ExampleAPIToolHandler defines the business logic required by generated MCP tools.
@@ -45,7 +46,7 @@ func RegisterExampleAPITools(server *mcpruntime.Server, impl ExampleAPIToolHandl
 		Namespace:        "example",
 		InputSchemaJSON:  ExampleAPI_Ping_ToolSpecInputSchemaJSON,
 		OutputSchemaJSON: ExampleAPI_Ping_ToolSpecOutputSchemaJSON,
-		Annotations:      nil,
+		Annotations:      &mcpruntime.ToolAnnotations{ReadOnlyHint: proto.Bool(true), IdempotentHint: proto.Bool(true)},
 		Icons:            nil,
 		NewRequest:       func() *PingRequest { return &PingRequest{} },
 		NewResponse:      func() *PingResponse { return &PingResponse{} },

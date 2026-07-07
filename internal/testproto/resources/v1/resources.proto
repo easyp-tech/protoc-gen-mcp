@@ -21,7 +21,9 @@ message ServerStatus {
   };
 
   // Whether the server is healthy.
-  bool healthy = 1;
+  bool healthy = 1 [(mcp.options.v1.field) = {
+    description: "Whether the server is healthy."
+  }];
   // Server uptime in seconds.
   int64 uptime_seconds = 2;
   // Server version string.
@@ -68,6 +70,8 @@ message Document {
 
 // PlainData is NOT a resource — used to test that non-resource messages are ignored.
 message PlainData {
+  // Arbitrary key.
   string key = 1;
+  // Arbitrary value.
   string value = 2;
 }

@@ -765,8 +765,11 @@ message PromptOptions {
 //   }
 // ResourceAudience identifies the intended consumer of an MCP resource.
 enum ResourceAudience {
-  RESOURCE_AUDIENCE_UNSPECIFIED = 0;
+  // No explicit audience hint for the resource.
+  RESOURCE_AUDIENCE_NONE = 0;
+  // The resource is intended primarily for the human user.
   RESOURCE_AUDIENCE_USER = 1;
+  // The resource is intended primarily for the assistant/model.
   RESOURCE_AUDIENCE_ASSISTANT = 2;
 }
 

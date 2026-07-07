@@ -1108,7 +1108,7 @@ def register_example_api_tools(server: mcp.server.lowlevel.Server, impl: Example
         from_pb=_from_pb_ping_request,
         to_pb=_to_pb_ping_response,
         handler=impl.ping,
-        annotations=None,
+        annotations={"readOnlyHint": True, "idempotentHint": True},
         icons=None,
         execution=None,
     ))

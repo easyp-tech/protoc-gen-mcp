@@ -145,7 +145,10 @@ export function registerExampleAPITools(
       registry: buildProtoRegistry(file_internal_testproto_example_v1_example, file_internal_testproto_example_v1_example, file_internal_testproto_example_v1_example),
       validateInput: compileSchema(EXAMPLE_API_PING_INPUT_SCHEMA_JSON),
       validateOutput: compileSchema(EXAMPLE_API_PING_OUTPUT_SCHEMA_JSON),
-      annotations: undefined,
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+      },
       icons: [
       ],
       execution: undefined,

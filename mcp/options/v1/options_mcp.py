@@ -184,7 +184,7 @@ class PromptOptions:
     icons: list[Icon] = field(default_factory=list)
 
 class ResourceAudience(enum.IntEnum):
-    RESOURCE_AUDIENCE_UNSPECIFIED = 0
+    RESOURCE_AUDIENCE_NONE = 0
     RESOURCE_AUDIENCE_USER = 1
     RESOURCE_AUDIENCE_ASSISTANT = 2
 

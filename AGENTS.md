@@ -18,7 +18,8 @@ architecture unless explicitly revised.
 - `easyp v0.15.2-rc1` for repository linting and code generation workflows
 - `google.golang.org/protobuf` for code generation, reflection, and ProtoJSON
 - `google.protobuf` for Python generated modules and ProtoJSON conversion
-- `github.com/modelcontextprotocol/go-sdk/mcp` as the MCP runtime
+- `mcpruntime` (in-repo, self-contained) as the Go MCP runtime; the Go target no
+  longer depends on `github.com/modelcontextprotocol/go-sdk`
 - `mcp>=1.27,<2` as the official Python MCP SDK target
 - `io.modelcontextprotocol.sdk:mcp` as the official Java MCP SDK target
 - `io.modelcontextprotocol:kotlin-sdk-server` as the official Kotlin MCP SDK
@@ -173,6 +174,16 @@ architecture unless explicitly revised.
 
 - Generated code exposes `<Service>ToolHandler`
 - Generated code exposes `Register<Service>Tools(server, impl, opts...) error`
+- MCP prompts and resources are declared on a message (not a service) via
+  `option (mcp.options.v1.prompt)` / `option (mcp.options.v1.resource)`, so their
+  Go registration is file-scoped: `Register<File>Prompts(server, impl, opts...) error`
+  (handler `<File>PromptHandler`, one prompt argument per message field) and
+  `Register<File>Resources(ctx, server, impl, opts...) error` (handler
+  `<File>ResourceHandler`; static `uri` ⇒ `Read<Msg>(ctx)`, templated
+  `uri_template` ⇒ `List<Msg>s(ctx)` + `Read<Msg>(ctx, <param>...)`; ctx-first
+  because `List*` runs at registration time). Resource output is ProtoJSON.
+  Full Go support; Python/Kotlin/Java/TypeScript emit interfaces with stub
+  registration (`NotImplementedError`)
 - Generated Python modules expose `<Service>ToolHandler`
 - Generated Python modules expose `register_<service_name>_tools(server, impl, *, namespace=None)`
 - Generated Python modules default to `python_handler=dataclass`, exposing

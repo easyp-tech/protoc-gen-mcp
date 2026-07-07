@@ -34,6 +34,10 @@ service ExampleAPI {
     option (mcp.options.v1.method) = {
       name: "Health"
       title: "Health check"
+      annotations: {
+        read_only_hint: true
+        idempotent_hint: true
+      }
     };
   }
 
