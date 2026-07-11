@@ -19,7 +19,9 @@ architecture unless explicitly revised.
 - `google.golang.org/protobuf` for code generation, reflection, and ProtoJSON
 - `google.protobuf` for Python generated modules and ProtoJSON conversion
 - `mcpruntime` (in-repo, self-contained) as the Go MCP runtime; the Go target no
-  longer depends on `github.com/modelcontextprotocol/go-sdk`
+  longer depends on `github.com/modelcontextprotocol/go-sdk`. Transports:
+  stdio (`ServeStdio` / `ServeIO`) and Streamable HTTP
+  (`NewStreamableHTTPHandler` / `ServeStreamableHTTP`, MCP spec 2025-11-25)
 - `mcp>=1.27,<2` as the official Python MCP SDK target
 - `io.modelcontextprotocol.sdk:mcp` as the official Java MCP SDK target
 - `io.modelcontextprotocol:kotlin-sdk-server` as the official Kotlin MCP SDK
@@ -38,9 +40,11 @@ architecture unless explicitly revised.
 ## Layout
 
 - `cmd/protoc-gen-mcp`: protoc plugin entrypoint for `--mcp_out`
-- `cmd/example-mcp-server`: runnable stdio MCP server for manual agent/client checks
+- `cmd/example-mcp-server`: runnable MCP server for manual agent/client checks
+  (`-transport=stdio|http`)
 - `cmd/example-python-mcp-server`: runnable stdio MCP server for Python SDK parity checks
-- `mcpruntime`: public runtime helpers used by generated code
+- `mcpruntime`: public runtime helpers used by generated code (stdio + Streamable
+  HTTP transports, sessions, schema validation, tool/prompt/resource registration)
 - `.github/workflows`: GitHub Actions CI and release workflows
 - `.goreleaser.yaml`: release packaging for the plugin binary
 - `examples`: standalone Go/Python/JVM integration projects; example
@@ -210,6 +214,10 @@ architecture unless explicitly revised.
 - Generated TypeScript files expose
   `register<Service>Tools(server, impl, namespace?)`
 - Runtime exposes only the minimal registration options used by generated code
+- Go runtime transports: `ServeStdio` / `ServeIO` (newline-delimited JSON-RPC)
+  and Streamable HTTP via `NewStreamableHTTPHandler` /
+  `ServeStreamableHTTP` (sessions, Origin checks, optional SSE, Last-Event-ID
+  resumability). Legacy HTTP+SSE (2024-11-05) is not implemented
 - Generated MCP tool names must not contain dots; namespace prefixes and method
   names are joined with underscores, and any dots in configured segments are
   normalized to underscores
@@ -220,6 +228,8 @@ architecture unless explicitly revised.
 ## Current Status
 
 - Implemented:
+- Go `mcpruntime` Streamable HTTP transport (POST/GET/DELETE, multi-session,
+  Origin validation, optional SSE, Last-Event-ID resumability) alongside stdio
 - `cmd/protoc-gen-mcp` plugin scaffold and generated `*.mcp.go` bindings
   - typed plugin option parsing for `lang=go|python|kotlin|java|typescript` and
     `python_runtime=google.protobuf|betterproto|grpclib`, plus Python-only
@@ -525,7 +535,9 @@ architecture unless explicitly revised.
 - Validate GoReleaser config: `goreleaser check`
 - Build example MCP server binary:
   - `go build -o example-mcp-server ./cmd/example-mcp-server/main.go`
-- Run example MCP server: `go -C /abs/path/to/protoc-gen-mcp run ./cmd/example-mcp-server`
+- Run example MCP server (stdio): `go run ./cmd/example-mcp-server`
+- Run example MCP server (Streamable HTTP):
+  `go run ./cmd/example-mcp-server -transport=http -addr=127.0.0.1:8080`
 - Run Python example MCP server:
   - `python /abs/path/to/protoc-gen-mcp/cmd/example-python-mcp-server/main.py`
 - Run built example MCP server binary: `./example-mcp-server`

@@ -18,13 +18,6 @@ type ResourceHandler func(ctx context.Context, req *ReadResourceRequest) (*ReadR
 // PromptHandler processes a prompts/get request.
 type PromptHandler func(ctx context.Context, req *GetPromptRequest) (*GetPromptResult, error)
 
-type serverState int
-
-const (
-	stateInit serverState = iota
-	stateReady
-)
-
 type registeredTool struct {
 	tool    *Tool
 	handler ToolHandler
@@ -46,10 +39,11 @@ type registeredPrompt struct {
 }
 
 // Server is an MCP server that manages tools, resources, and prompts.
+// Protocol lifecycle (initialize / ready) is per-session, not process-global,
+// so multiple Streamable HTTP clients can share one Server instance.
 type Server struct {
 	impl       Implementation
 	dispatcher *dispatcher
-	state      serverState
 
 	mu                sync.RWMutex
 	tools             map[string]*registeredTool
@@ -58,6 +52,12 @@ type Server struct {
 	resourceTemplates []registeredResourceTemplate
 	prompts           map[string]*registeredPrompt
 	promptOrder       []string
+
+	// defaultSession is used when HandleRaw is called without a session in
+	// context (unit tests and direct in-process callers). stdio and HTTP
+	// always inject an explicit session.
+	defaultSessionMu sync.Mutex
+	defaultSession   *Session
 }
 
 // NewServer creates a new MCP server with the given name and version.
@@ -68,7 +68,6 @@ func NewServer(name, version string) *Server {
 			Version: version,
 		},
 		dispatcher: newDispatcher(),
-		state:      stateInit,
 		tools:      make(map[string]*registeredTool),
 		prompts:    make(map[string]*registeredPrompt),
 	}
@@ -126,17 +125,33 @@ func (s *Server) AddPrompt(prompt *Prompt, handler PromptHandler) {
 }
 
 // HandleRaw processes a raw JSON-RPC message and returns the serialized response.
+// A Session must be present on ctx (via WithSession). When missing, a lazy
+// per-Server default session is used so in-process unit tests keep working.
 func (s *Server) HandleRaw(ctx context.Context, raw []byte) []byte {
+	if SessionFromContext(ctx) == nil {
+		ctx = WithSession(ctx, s.getOrCreateDefaultSession())
+	}
+	if sess := SessionFromContext(ctx); sess != nil {
+		sess.touch()
+	}
 	return s.dispatcher.dispatch(ctx, raw)
 }
 
-// requireReady wraps a handler to reject requests before the server is initialized.
+// getOrCreateDefaultSession returns the lazy single-client default session.
+func (s *Server) getOrCreateDefaultSession() *Session {
+	s.defaultSessionMu.Lock()
+	defer s.defaultSessionMu.Unlock()
+	if s.defaultSession == nil {
+		s.defaultSession = NewSessionWithID("default")
+	}
+	return s.defaultSession
+}
+
+// requireReady wraps a handler to reject requests before the session is initialized.
 func (s *Server) requireReady(handler methodHandler) methodHandler {
 	return func(ctx context.Context, params json.RawMessage) (any, error) {
-		s.mu.RLock()
-		ready := s.state == stateReady
-		s.mu.RUnlock()
-		if !ready {
+		sess := SessionFromContext(ctx)
+		if sess == nil || !sess.IsReady() {
 			return nil, &JSONRPCError{
 				Code:    CodeInvalidRequest,
 				Message: "Server not initialized",
@@ -164,7 +179,7 @@ func (s *Server) capabilities() *ServerCapabilities {
 	return caps
 }
 
-func (s *Server) handleInitialize(_ context.Context, params json.RawMessage) (any, error) {
+func (s *Server) handleInitialize(ctx context.Context, params json.RawMessage) (any, error) {
 	var req InitializeRequest
 	if len(params) > 0 {
 		if err := json.Unmarshal(params, &req); err != nil {
@@ -175,23 +190,27 @@ func (s *Server) handleInitialize(_ context.Context, params json.RawMessage) (an
 		}
 	}
 
-	// Reject a second initialize on an already-initialized session.
-	s.mu.Lock()
-	if s.state == stateReady {
-		s.mu.Unlock()
+	sess := SessionFromContext(ctx)
+	if sess == nil {
 		return nil, &JSONRPCError{
-			Code:    CodeInvalidRequest,
-			Message: "Server already initialized",
+			Code:    CodeInternalError,
+			Message: "missing session",
 		}
 	}
-	s.state = stateReady
-	s.mu.Unlock()
 
 	// Negotiate the protocol version: echo the client's requested version when
 	// it provides one (maximising interoperability), otherwise advertise ours.
 	negotiated := protocolVersion
 	if req.ProtocolVersion != "" {
 		negotiated = req.ProtocolVersion
+	}
+
+	// Reject a second initialize on an already-initialized session.
+	if !sess.markReady(negotiated) {
+		return nil, &JSONRPCError{
+			Code:    CodeInvalidRequest,
+			Message: "Server already initialized",
+		}
 	}
 
 	return &InitializeResult{

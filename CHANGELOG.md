@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-11
+
+### Added
+
+- Go `mcpruntime` **Streamable HTTP** transport (MCP spec 2025-11-25): single
+  endpoint with `POST` / `GET` / `DELETE`, `MCP-Session-Id` multi-client
+  sessions, Origin validation, `MCP-Protocol-Version` handling, optional SSE
+  response streams (`PreferSSE`), GET listen streams, `Last-Event-ID`
+  resumability, and `Session.SendNotification` for server push.
+- Public APIs: `NewStreamableHTTPHandler`, `ServeStreamableHTTP`,
+  `StreamableHTTPOptions`, `Session` / `WithSession` / `SessionFromContext`.
+- `cmd/example-mcp-server` flags `-transport=stdio|http`, `-addr`, `-path`,
+  `-allow-all-origins` for manual Streamable HTTP checks.
+
+### Changed
+
+- Protocol lifecycle (`initialize` / ready) is **per-session**, not
+  process-global, so one `*Server` can serve multiple concurrent HTTP clients.
+  `ServeStdio` / `ServeIO` create one implicit session per connection. Direct
+  `HandleRaw` without a context session still uses a lazy default session
+  (unit-test compatibility).
+
 ## [0.6.0] - 2026-07-08
 
 ### Added
@@ -120,7 +142,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial commit.
 
-[Unreleased]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.3.0...v0.6.0
 [0.3.0]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.1.0...v0.1.1

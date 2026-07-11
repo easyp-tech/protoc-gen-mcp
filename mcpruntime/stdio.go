@@ -17,7 +17,12 @@ func ServeStdio(ctx context.Context, server *Server) error {
 
 // ServeIO runs the MCP server over the provided reader/writer using newline-delimited JSON-RPC.
 // Useful for testing without real stdin/stdout.
+// A single protocol session is created for the lifetime of the connection.
 func ServeIO(ctx context.Context, server *Server, in io.Reader, out io.Writer) error {
+	session := NewSessionWithID("stdio")
+	ctx = WithSession(ctx, session)
+	defer session.Close()
+
 	scanner := bufio.NewScanner(in)
 	scanner.Buffer(make([]byte, 0, maxScannerBuf), maxScannerBuf)
 

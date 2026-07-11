@@ -821,7 +821,9 @@ Middleware, не codegen. Runtime: token validation, CIMD support.
 
 ### Не входит (v1+)
 
-- SSE/Streamable HTTP transport (stdio first)
+- ~~SSE/Streamable HTTP transport (stdio first)~~ → Streamable HTTP done in Go
+  `mcpruntime` (POST/GET/DELETE, sessions, SSE, Last-Event-ID). Legacy HTTP+SSE
+  still out of scope.
 - Client SDK (only server)
 - OAuth/auth middleware
 
@@ -882,7 +884,7 @@ Middleware, не codegen. Runtime: token validation, CIMD support.
 > v0.12.0 не финал. Дальнейшие направления:
 
 - **v1.0.0** — стабилизация API, semver guarantees, migration guide
-- **Multi-transport** — SSE, Streamable HTTP, WebSocket
+- **Multi-transport** — ~~Streamable HTTP (Go)~~; WebSocket; other languages
 - **Client SDK generation** — генерация типизированных MCP клиентов из proto
 - **Plugin ecosystem** — custom code generators через proto options
 - **IDE integration** — Language Server Protocol bridge, MCP inspector
