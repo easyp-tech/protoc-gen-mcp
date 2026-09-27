@@ -48,12 +48,12 @@ type toolsListResult struct {
 }
 
 type toolInfo struct {
-	Name        string     `json:"name"`
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	InputSchema any        `json:"inputSchema,omitempty"`
-	Annotations any        `json:"annotations,omitempty"`
-	Icons       any        `json:"icons,omitempty"`
+	Name        string `json:"name"`
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	InputSchema any    `json:"inputSchema,omitempty"`
+	Annotations any    `json:"annotations,omitempty"`
+	Icons       any    `json:"icons,omitempty"`
 }
 
 type callToolResult struct {

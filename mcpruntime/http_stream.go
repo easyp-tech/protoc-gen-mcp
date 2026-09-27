@@ -24,7 +24,7 @@ type messageStream struct {
 	buffer []sseEvent
 	maxBuf int
 	// live subscribers receive events as they are published.
-	subs map[chan sseEvent]struct{}
+	subs   map[chan sseEvent]struct{}
 	closed bool
 }
 

@@ -57,8 +57,8 @@ type StreamableHTTPOptions struct {
 
 // streamableHandler implements Streamable HTTP for an MCP Server.
 type streamableHandler struct {
-	server  *Server
-	opts    StreamableHTTPOptions
+	server   *Server
+	opts     StreamableHTTPOptions
 	sessions *sessionManager
 }
 
