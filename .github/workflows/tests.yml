@@ -113,6 +113,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Install easyp
+        run: go install github.com/easyp-tech/easyp/cmd/easyp@v0.15.2-rc1
+
       - name: Install Node
         uses: actions/setup-node@v4
         with:
