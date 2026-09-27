@@ -9,11 +9,16 @@ import (
 
 // JSON-RPC 2.0 error codes per specification.
 const (
-	CodeParseError     = -32700
+	// CodeParseError indicates invalid JSON.
+	CodeParseError = -32700
+	// CodeInvalidRequest indicates an invalid JSON-RPC request object.
 	CodeInvalidRequest = -32600
+	// CodeMethodNotFound indicates that the requested method is not registered.
 	CodeMethodNotFound = -32601
-	CodeInvalidParams  = -32602
-	CodeInternalError  = -32603
+	// CodeInvalidParams indicates invalid method parameters.
+	CodeInvalidParams = -32602
+	// CodeInternalError indicates an internal server error.
+	CodeInternalError = -32603
 )
 
 // JSONRPCError represents a JSON-RPC 2.0 error object.
@@ -120,7 +125,9 @@ func (t *TextContent) MarshalJSON() ([]byte, error) {
 type Role string
 
 const (
-	RoleUser      Role = "user"
+	// RoleUser identifies user-authored prompt content.
+	RoleUser Role = "user"
+	// RoleAssistant identifies assistant-authored prompt content.
 	RoleAssistant Role = "assistant"
 )
 

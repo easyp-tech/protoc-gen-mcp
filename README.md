@@ -1,5 +1,15 @@
 # protoc-gen-mcp
 
+<p align="center">
+  <a href="https://github.com/easyp-tech/protoc-gen-mcp/actions/workflows/tests.yml"><img alt="CI" src="https://github.com/easyp-tech/protoc-gen-mcp/actions/workflows/tests.yml/badge.svg"></a>
+  <a href="https://coveralls.io/github/easyp-tech/protoc-gen-mcp?branch=master"><img alt="Coverage Status" src="https://coveralls.io/repos/github/easyp-tech/protoc-gen-mcp/badge.svg?branch=master"></a>
+  <a href="https://pkg.go.dev/github.com/easyp-tech/protoc-gen-mcp"><img alt="Go Reference" src="https://pkg.go.dev/badge/github.com/easyp-tech/protoc-gen-mcp.svg"></a>
+  <a href="https://github.com/easyp-tech/protoc-gen-mcp/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/easyp-tech/protoc-gen-mcp?sort=semver"></a>
+  <a href="https://github.com/easyp-tech/protoc-gen-mcp/blob/master/LICENSE"><img alt="License" src="https://img.shields.io/github/license/easyp-tech/protoc-gen-mcp"></a>
+  <a href="https://github.com/easyp-tech/protoc-gen-mcp/blob/master/go.mod"><img alt="Go version" src="https://img.shields.io/github/go-mod/go-version/easyp-tech/protoc-gen-mcp?logo=go&logoColor=white"></a>
+</p>
+
+
 `protoc-gen-mcp` generates Go, Python, Kotlin, Java, and TypeScript MCP
 bindings from protobuf definitions — covering **tools**, **prompts**, and
 **resources**. JavaScript users consume the compiled TypeScript output and
@@ -947,3 +957,7 @@ This repository implements three MCP server primitives:
 - unsupported and required to fail fast:
   non-unary protobuf RPC methods and unsupported `google.protobuf` message
   types
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
