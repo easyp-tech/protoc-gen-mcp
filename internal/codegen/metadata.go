@@ -161,7 +161,7 @@ func loadFieldMetadata(field *protogen.Field) (fieldMetadata, error) {
 	metadata.MinItems = options.MinItems
 	metadata.MaxItems = options.MaxItems
 	metadata.UniqueItems = options.GetUniqueItems()
-	
+
 	// ReadOnly constraints
 	metadata.ReadOnly = options.GetReadOnly()
 

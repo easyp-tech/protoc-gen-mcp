@@ -89,4 +89,3 @@ type ResourceModel struct {
 type ResourceParamModel struct {
 	Name string
 }
-

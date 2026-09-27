@@ -209,7 +209,6 @@ func TestCollectFileModel_Resources(t *testing.T) {
 	}
 }
 
-
 func TestCollectFileModel_ProtoSyntaxGate(t *testing.T) {
 	t.Run("accepts proto3", func(t *testing.T) {
 		plugin := newTempProtogenPlugin(t, map[string]string{

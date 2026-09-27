@@ -407,7 +407,7 @@ func (builder *schemaBuilder) generateOneofConstraints(message *protogen.Message
 		}
 
 		branches := make([]*jsonschema.Schema, 0, len(fields)+1)
-		
+
 		if !oneofMeta.Required {
 			branches = append(branches, &jsonschema.Schema{
 				Not: &jsonschema.Schema{

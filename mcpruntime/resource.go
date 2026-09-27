@@ -74,4 +74,3 @@ func MarshalResourceContent(uri, mimeType string, msg proto.Message) ([]*Resourc
 
 	return []*ResourceContents{contents}, nil
 }
-
