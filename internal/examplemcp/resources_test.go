@@ -41,6 +41,14 @@ func TestResourcesPromptsRoundTrip(t *testing.T) {
 	session := newResourcesClient(t)
 	ctx := context.Background()
 
+	initialized := session.InitializeResult()
+	if initialized == nil || initialized.Capabilities == nil {
+		t.Fatal("server did not advertise capabilities")
+	}
+	if _, ok := initialized.Capabilities.Extensions["io.modelcontextprotocol/ui"]; !ok {
+		t.Fatalf("protobuf-configured server omitted MCP Apps extension: %+v", initialized.Capabilities)
+	}
+
 	resources, err := session.ListResources(ctx, nil)
 	if err != nil {
 		t.Fatalf("resources/list: %v", err)
@@ -122,6 +130,28 @@ func TestResourcesPromptsRoundTrip(t *testing.T) {
 		!strings.HasPrefix(html.Contents[0].Text, "<!doctype html>") {
 		t.Fatalf("MCP Apps HTML resource was not served as HTML: %+v", html.Contents)
 	}
+	if !strings.Contains(html.Contents[0].Text, "Example MCP App") {
+		t.Fatalf("embedded frontend asset missing from generated resource: %s", html.Contents[0].Text)
+	}
+	appMeta, ok := html.Contents[0].Meta["ui"].(map[string]any)
+	if !ok { t.Fatalf("missing content _meta.ui: %+v", html.Contents[0].Meta) }
+	csp, ok := appMeta["csp"].(map[string]any)
+	if !ok { t.Fatalf("missing CSP metadata: %+v", appMeta) }
+	connect, ok := csp["connectDomains"].([]string)
+	if !ok || len(connect) != 1 || connect[0] != "https://api.example.com" {
+		t.Fatalf("CSP connectDomains mismatch: %+v", csp)
+	}
+	permissions, ok := appMeta["permissions"].(map[string]any)
+	if !ok || permissions["clipboardWrite"] == nil || appMeta["prefersBorder"] != true {
+		t.Fatalf("permissions/border mismatch: %+v", appMeta)
+	}
+	listed := false
+	for _, resource := range resources.Resources {
+		if resource.URI == "ui://example/report" {
+			_, listed = resource.Meta["ui"]
+		}
+	}
+	if !listed { t.Fatal("UI resource metadata missing from resources/list") }
 
 	prompts, err := session.ListPrompts(ctx, nil)
 	if err != nil {
