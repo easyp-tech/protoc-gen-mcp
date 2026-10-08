@@ -2,145 +2,119 @@ package examplemcp_test
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/easyp-tech/protoc-gen-mcp/internal/examplemcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// call sends a single JSON-RPC request through the server and returns the parsed
-// response. It fails the test on transport-level errors.
-func call(t *testing.T, srv interface {
-	HandleRaw(context.Context, []byte) []byte
-}, method string, params any,
-) jsonrpcResponse {
+func newResourcesClient(t *testing.T) *mcp.ClientSession {
 	t.Helper()
-
-	req := map[string]any{"jsonrpc": "2.0", "id": 1, "method": method}
-	if params != nil {
-		req["params"] = params
-	}
-	raw, err := json.Marshal(req)
+	server, err := examplemcp.NewResourcesServer(context.Background())
 	if err != nil {
-		t.Fatalf("marshal request: %v", err)
+		t.Fatalf("NewResourcesServer: %v", err)
 	}
-
-	out := srv.HandleRaw(context.Background(), raw)
-	var resp jsonrpcResponse
-	if err := json.Unmarshal(out, &resp); err != nil {
-		t.Fatalf("unmarshal response for %s: %v (raw: %s)", method, err, out)
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	if err != nil {
+		t.Fatalf("server connect: %v", err)
 	}
-	return resp
-}
-
-// readResourceText extracts the first resource content's text from a
-// resources/read result.
-func readResourceText(t *testing.T, result json.RawMessage) string {
-	t.Helper()
-	var res struct {
-		Contents []struct {
-			Text string `json:"text"`
-		} `json:"contents"`
+	t.Cleanup(func() { _ = serverSession.Close() })
+	client := mcp.NewClient(&mcp.Implementation{Name: "resource-test", Version: "v0.0.1"}, nil)
+	clientSession, err := client.Connect(context.Background(), clientTransport, nil)
+	if err != nil {
+		t.Fatalf("client connect: %v", err)
 	}
-	if err := json.Unmarshal(result, &res); err != nil {
-		t.Fatalf("unmarshal resources/read result: %v (raw: %s)", err, result)
-	}
-	if len(res.Contents) == 0 {
-		t.Fatalf("resources/read returned no contents: %s", result)
-	}
-	return res.Contents[0].Text
+	t.Cleanup(func() { _ = clientSession.Close() })
+	return clientSession
 }
 
 func TestResourcesPromptsRoundTrip(t *testing.T) {
-	srv, err := examplemcp.NewResourcesServer(context.Background())
+	session := newResourcesClient(t)
+	ctx := context.Background()
+
+	resources, err := session.ListResources(ctx, nil)
 	if err != nil {
-		t.Fatalf("NewResourcesServer: %v", err)
+		t.Fatalf("resources/list: %v", err)
+	}
+	if len(resources.Resources) == 0 {
+		t.Fatal("resources/list returned no resources")
+	}
+	var foundStatic bool
+	for _, resource := range resources.Resources {
+		foundStatic = foundStatic || resource.URI == "server://status"
+	}
+	if !foundStatic {
+		t.Fatalf("resources/list missing server://status: %+v", resources.Resources)
 	}
 
-	// Handshake.
-	if resp := call(t, srv, "initialize", map[string]any{"protocolVersion": "2025-11-25"}); resp.Error != nil {
-		t.Fatalf("initialize error: %+v", resp.Error)
+	templates, err := session.ListResourceTemplates(ctx, nil)
+	if err != nil {
+		t.Fatalf("resources/templates/list: %v", err)
 	}
-
-	// resources/list → static server_status resource.
-	resp := call(t, srv, "resources/list", nil)
-	if resp.Error != nil {
-		t.Fatalf("resources/list error: %+v", resp.Error)
-	}
-	if !strings.Contains(string(resp.Result), "server://status") {
-		t.Fatalf("resources/list missing static resource: %s", resp.Result)
-	}
-
-	// resources/templates/list → both templates.
-	resp = call(t, srv, "resources/templates/list", nil)
-	if resp.Error != nil {
-		t.Fatalf("resources/templates/list error: %+v", resp.Error)
-	}
-	for _, want := range []string{"users://{user_id}/profile", "projects://{project_id}/documents/{document_id}"} {
-		if !strings.Contains(string(resp.Result), want) {
-			t.Fatalf("templates/list missing %q: %s", want, resp.Result)
+	for _, expected := range []string{"users://{user_id}/profile", "projects://{project_id}/documents/{document_id}"} {
+		var found bool
+		for _, template := range templates.ResourceTemplates {
+			found = found || template.URITemplate == expected
+		}
+		if !found {
+			t.Errorf("templates/list missing %q", expected)
 		}
 	}
 
-	// resources/read static → ProtoJSON body of ServerStatus.
-	resp = call(t, srv, "resources/read", map[string]any{"uri": "server://status"})
-	if resp.Error != nil {
-		t.Fatalf("resources/read static error: %+v", resp.Error)
+	static, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: "server://status"})
+	if err != nil {
+		t.Fatalf("static resources/read: %v", err)
 	}
-	if text := readResourceText(t, resp.Result); !strings.Contains(text, `"healthy":true`) {
-		t.Fatalf("resources/read static missing ProtoJSON body: %s", text)
-	}
-
-	// resources/read template → URI param routed into the handler.
-	resp = call(t, srv, "resources/read", map[string]any{"uri": "users://ada/profile"})
-	if resp.Error != nil {
-		t.Fatalf("resources/read template error: %+v", resp.Error)
-	}
-	if text := readResourceText(t, resp.Result); !strings.Contains(text, `"userId":"ada"`) {
-		t.Fatalf("resources/read template did not route uri param: %s", text)
+	if len(static.Contents) != 1 || !strings.Contains(static.Contents[0].Text, `"healthy":true`) {
+		t.Fatalf("unexpected static resource: %+v", static.Contents)
 	}
 
-	// prompts/list → all three prompts.
-	resp = call(t, srv, "prompts/list", nil)
-	if resp.Error != nil {
-		t.Fatalf("prompts/list error: %+v", resp.Error)
+	profile, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: "users://ada/profile"})
+	if err != nil {
+		t.Fatalf("templated resources/read: %v", err)
 	}
-	for _, want := range []string{"code_review", "summarize", "explain_error"} {
-		if !strings.Contains(string(resp.Result), want) {
-			t.Fatalf("prompts/list missing %q: %s", want, resp.Result)
+	if len(profile.Contents) != 1 || !strings.Contains(profile.Contents[0].Text, `"userId":"ada"`) {
+		t.Fatalf("unexpected templated resource: %+v", profile.Contents)
+	}
+
+	prompts, err := session.ListPrompts(ctx, nil)
+	if err != nil {
+		t.Fatalf("prompts/list: %v", err)
+	}
+	for _, expected := range []string{"code_review", "summarize", "explain_error"} {
+		var found bool
+		for _, prompt := range prompts.Prompts {
+			found = found || prompt.Name == expected
+		}
+		if !found {
+			t.Errorf("prompts/list missing %q", expected)
 		}
 	}
-
-	// prompts/get → arguments parsed into the proto message and rendered.
-	resp = call(t, srv, "prompts/get", map[string]any{
-		"name":      "code_review",
-		"arguments": map[string]string{"code": "print(1)", "language": "python"},
+	result, err := session.GetPrompt(ctx, &mcp.GetPromptParams{
+		Name: "code_review",
+		Arguments: map[string]string{"code": "print(1)", "language": "python"},
 	})
-	if resp.Error != nil {
-		t.Fatalf("prompts/get error: %+v", resp.Error)
+	if err != nil {
+		t.Fatalf("prompts/get: %v", err)
 	}
-	if !strings.Contains(string(resp.Result), "Review this python code: print(1)") {
-		t.Fatalf("prompts/get did not render arguments: %s", resp.Result)
+	if len(result.Messages) != 1 {
+		t.Fatalf("prompts/get messages = %d, want 1", len(result.Messages))
+	}
+	txt, ok := result.Messages[0].Content.(*mcp.TextContent)
+	if !ok || !strings.Contains(txt.Text, "Review this python code: print(1)") {
+		t.Fatalf("unexpected prompt content: %+v", result.Messages[0].Content)
 	}
 }
 
-// TestPromptsGetMissingRequiredArg verifies required-argument enforcement in the
-// generated prompt handler wiring.
 func TestPromptsGetMissingRequiredArg(t *testing.T) {
-	srv, err := examplemcp.NewResourcesServer(context.Background())
-	if err != nil {
-		t.Fatalf("NewResourcesServer: %v", err)
-	}
-	if resp := call(t, srv, "initialize", map[string]any{"protocolVersion": "2025-11-25"}); resp.Error != nil {
-		t.Fatalf("initialize error: %+v", resp.Error)
-	}
-
-	resp := call(t, srv, "prompts/get", map[string]any{
-		"name":      "code_review",
-		"arguments": map[string]string{"code": "print(1)"}, // missing required "language"
+	session := newResourcesClient(t)
+	_, err := session.GetPrompt(context.Background(), &mcp.GetPromptParams{
+		Name: "code_review",
+		Arguments: map[string]string{"code": "print(1)"},
 	})
-	if resp.Error == nil {
-		t.Fatalf("expected error for missing required argument, got result: %s", resp.Result)
+	if err == nil {
+		t.Fatal("expected missing required argument to fail")
 	}
 }
