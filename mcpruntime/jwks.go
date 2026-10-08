@@ -29,6 +29,7 @@ type cachedJWKS struct {
 	mu      sync.Mutex
 	keys    map[string]*rsa.PublicKey
 	expires time.Time
+	lastUnknownKeyRefresh time.Time
 	client  *http.Client
 	config  JWKSVerifierConfig
 }
@@ -120,7 +121,10 @@ func (c *cachedJWKS) key(ctx context.Context, kid string) (*rsa.PublicKey, error
 	}
 	// Refresh keys for provider rotation, but only after the cache's minimum
 	// refresh interval; unknown kid must not trigger unlimited network calls.
-	if c.expires.Sub(now) < 4*time.Minute {
+	if c.expires.Sub(now) < 4*time.Minute && now.Sub(c.lastUnknownKeyRefresh) >= time.Minute {
+		// Rate-limit refresh requests triggered by attacker-controlled kid
+		// values, including unsuccessful JWKS refresh attempts.
+		c.lastUnknownKeyRefresh = now
 		if err := c.load(ctx); err != nil {
 			return nil, err
 		}
