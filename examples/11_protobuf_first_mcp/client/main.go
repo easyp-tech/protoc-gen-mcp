@@ -37,12 +37,14 @@ func main() {
 	client := mcp.NewClient(&mcp.Implementation{Name: "showcase-smoke-client", Version: "v1"}, nil)
 	session, err := client.Connect(ctx, &mcp.StreamableClientTransport{
 		Endpoint: *endpoint,
-		HTTPClient: &http.Client{Timeout: 12*time.Second, Transport: bearerTransport{
+		HTTPClient: &http.Client{Timeout: 12 * time.Second, Transport: bearerTransport{
 			token: *token, base: http.DefaultTransport,
 		}},
 		DisableStandaloneSSE: true,
 	}, nil)
-	if err != nil { log.Fatalf("connect MCP: %v", err) }
+	if err != nil {
+		log.Fatalf("connect MCP: %v", err)
+	}
 	defer session.Close()
 
 	init := session.InitializeResult()
@@ -51,36 +53,56 @@ func main() {
 	}
 
 	tools, err := session.ListTools(ctx, nil)
-	if err != nil { log.Fatal(err) }
+	if err != nil {
+		log.Fatal(err)
+	}
 	for _, tool := range tools.Tools {
 		fmt.Printf("Tool: %s", tool.Name)
-		if tool.Meta != nil { fmt.Printf(" _meta=%v", tool.Meta) }
+		if tool.Meta != nil {
+			fmt.Printf(" _meta=%v", tool.Meta)
+		}
 		fmt.Println()
 	}
 
 	view, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "showcase_get_overview",
+		Name:      "showcase_get_overview",
 		Arguments: map[string]any{"topic": "MCP Apps"},
 	})
-	if err != nil { log.Fatal(err) }
+	if err != nil {
+		log.Fatal(err)
+	}
 	fmt.Printf("Overview: %s\n", contentText(view.Content))
 
 	prompts, err := session.ListPrompts(ctx, nil)
-	if err != nil { log.Fatal(err) }
-	for _, prompt := range prompts.Prompts { fmt.Printf("Prompt: %s\n", prompt.Name) }
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, prompt := range prompts.Prompts {
+		fmt.Printf("Prompt: %s\n", prompt.Name)
+	}
 	guide, err := session.GetPrompt(ctx, &mcp.GetPromptParams{
-		Name: "showcase_guide", Arguments: map[string]string{"topic":"generated contracts"},
+		Name: "showcase_guide", Arguments: map[string]string{"topic": "generated contracts"},
 	})
-	if err != nil { log.Fatal(err) }
+	if err != nil {
+		log.Fatal(err)
+	}
 	fmt.Printf("Guide prompt messages: %d\n", len(guide.Messages))
 
 	resources, err := session.ListResources(ctx, nil)
-	if err != nil { log.Fatal(err) }
-	for _, resource := range resources.Resources { fmt.Printf("Resource: %s [%s]\n", resource.URI, resource.MIMEType) }
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, resource := range resources.Resources {
+		fmt.Printf("Resource: %s [%s]\n", resource.URI, resource.MIMEType)
+	}
 
 	templates, err := session.ListResourceTemplates(ctx, nil)
-	if err != nil { log.Fatal(err) }
-	for _, tmpl := range templates.ResourceTemplates { fmt.Printf("Resource template: %s\n", tmpl.URITemplate) }
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, tmpl := range templates.ResourceTemplates {
+		fmt.Printf("Resource template: %s\n", tmpl.URITemplate)
+	}
 
 	for _, uri := range []string{
 		"showcase://status",
@@ -90,23 +112,31 @@ func main() {
 		"showcase://attachment",
 	} {
 		result, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: uri})
-		if err != nil { log.Fatalf("read %s: %v", uri, err) }
-		if len(result.Contents) == 0 { log.Fatalf("read %s: no contents", uri) }
+		if err != nil {
+			log.Fatalf("read %s: %v", uri, err)
+		}
+		if len(result.Contents) == 0 {
+			log.Fatalf("read %s: no contents", uri)
+		}
 		content := result.Contents[0]
 		if len(content.Blob) > 0 {
 			fmt.Printf("Read %-30s [%s] %d binary bytes\n", uri, content.MIMEType, len(content.Blob))
 		} else {
 			text := strings.ReplaceAll(content.Text, "\n", " ")
-			if len(text) > 100 { text = text[:100]+"…" }
-			fmt.Printf("Read %-30s [%s] %s\n",uri, content.MIMEType, text)
+			if len(text) > 100 {
+				text = text[:100] + "…"
+			}
+			fmt.Printf("Read %-30s [%s] %s\n", uri, content.MIMEType, text)
 		}
 	}
 
 	publish, err := session.CallTool(ctx, &mcp.CallToolParams{
-		Name: "showcase_publish_report",
-		Arguments: map[string]any{"title":"From SDK client", "body":"Demo report"},
+		Name:      "showcase_publish_report",
+		Arguments: map[string]any{"title": "From SDK client", "body": "Demo report"},
 	})
-	if err != nil { log.Fatal(err) }
+	if err != nil {
+		log.Fatal(err)
+	}
 	if publish.IsError {
 		fmt.Printf("Publish denied (expected for demo-read): %s\n", contentText(publish.Content))
 	} else {
@@ -117,7 +147,9 @@ func main() {
 func contentText(items []mcp.Content) string {
 	var parts []string
 	for _, item := range items {
-		if text, ok := item.(*mcp.TextContent); ok { parts = append(parts, text.Text) }
+		if text, ok := item.(*mcp.TextContent); ok {
+			parts = append(parts, text.Text)
+		}
 	}
 	return strings.Join(parts, "\n")
 }

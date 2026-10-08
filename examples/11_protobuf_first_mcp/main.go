@@ -23,7 +23,9 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	server, err := newShowcaseServer(ctx)
-	if err != nil { log.Fatalf("build MCP server: %v", err) }
+	if err != nil {
+		log.Fatalf("build MCP server: %v", err)
+	}
 
 	switch *transport {
 	case "stdio":
@@ -38,8 +40,10 @@ func main() {
 			log.Fatal("-demo-auth is permitted only on a loopback bind address (127.0.0.1, ::1, or localhost)")
 		}
 		handler, err := newShowcaseHTTPHandler(server, demoVerifier)
-		if err != nil { log.Fatalf("configure OAuth HTTP handler: %v", err) }
-		srv := &http.Server{Addr: *address, Handler: handler, ReadHeaderTimeout: 5*time.Second}
+		if err != nil {
+			log.Fatalf("configure OAuth HTTP handler: %v", err)
+		}
+		srv := &http.Server{Addr: *address, Handler: handler, ReadHeaderTimeout: 5 * time.Second}
 		go func() {
 			<-ctx.Done()
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -49,10 +53,10 @@ func main() {
 		log.Printf("DEVELOPMENT ONLY: HTTP MCP endpoint listening at http://%s/mcp", *address)
 		log.Print("Demo tokens: demo-read (showcase:read), demo-write (showcase:read + showcase:write)")
 		log.Print("The advertised OAuth issuer/JWKS in the .proto file are placeholders, NOT a running IdP.")
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err,http.ErrServerClosed) {
-			log.Fatalf("serve MCP HTTP: %v",err)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("serve MCP HTTP: %v", err)
 		}
 	default:
-		log.Fatalf("unsupported -transport=%q; expected stdio or http",*transport)
+		log.Fatalf("unsupported -transport=%q; expected stdio or http", *transport)
 	}
 }

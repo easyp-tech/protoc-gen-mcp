@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 
@@ -23,8 +23,8 @@ func (s *showcase) GetOverview(_ context.Context, req *showcasev1.GetOverviewReq
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return &showcasev1.GetOverviewResponse{
-		Topic: req.GetTopic(),
-		Summary: "Reports exist only in memory; MCP Apps is declared in protobuf.",
+		Topic:       req.GetTopic(),
+		Summary:     "Reports exist only in memory; MCP Apps is declared in protobuf.",
 		ReportCount: s.reports,
 	}, nil
 }
@@ -38,13 +38,13 @@ func (s *showcase) PublishReport(_ context.Context, req *showcasev1.PublishRepor
 	s.reports++
 	return &showcasev1.PublishReportResponse{
 		ReportId: fmt.Sprintf("report-%d", s.reports),
-		Status: "published",
+		Status:   "published",
 	}, nil
 }
 
 func (s *showcase) GuidancePrompt(_ context.Context, req *showcasev1.GuidancePrompt) ([]*mcp.PromptMessage, error) {
 	return []*mcp.PromptMessage{{
-		Role: mcp.Role("user"),
+		Role:    mcp.Role("user"),
 		Content: &mcp.TextContent{Text: "Show me the tools, prompts, JSON status, Markdown skill, and MCP Apps UI for: " + req.GetTopic()},
 	}}, nil
 }
@@ -115,9 +115,12 @@ func newShowcaseHTTPHandler(server *mcp.Server, verifier auth.TokenVerifier) (ht
 func demoHTTPAddressIsLoopback(address string) bool {
 	// net.SplitHostPort rejects missing or ambiguous host/port boundaries.
 	host, _, err := net.SplitHostPort(address)
-	if err != nil { return false }
-	if host == "localhost" { return true }
+	if err != nil {
+		return false
+	}
+	if host == "localhost" {
+		return true
+	}
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
 }
-
