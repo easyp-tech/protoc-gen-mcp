@@ -162,7 +162,7 @@ The repository also includes a runnable MCP server for manual client checks:
 # stdio (default)
 go run ./cmd/example-mcp-server
 
-# Streamable HTTP (MCP spec 2025-11-25), localhost only by default
+# Streamable HTTP with official SDK, localhost only by default
 go run ./cmd/example-mcp-server -transport=http -addr=127.0.0.1:8080 -path=/mcp
 
 python ./cmd/example-python-mcp-server/main.py
@@ -177,36 +177,28 @@ The example server currently exposes:
 - `example_DescribeAdvancedShapes`
 - `example_DescribeScalarShapes`
 
-### Go Streamable HTTP (`mcpruntime`)
+### Go Streamable HTTP (official Go SDK)
 
-Go servers can expose the same generated tools over **Streamable HTTP** instead
-of (or in addition to) stdio:
+Generated Go registration accepts `*mcp.Server` from
+`github.com/modelcontextprotocol/go-sdk/mcp`. The SDK owns transport,
+session semantics, protocol negotiation and notifications; `mcpruntime`
+retains protobuf/JSON Schema conversion and generated adapters.
 
 ```go
+server := mcp.NewServer(&mcp.Implementation{Name: "my-mcp", Version: "v1"}, nil)
+handler := mcp.NewStreamableHTTPHandler(
+    func(*http.Request) *mcp.Server { return server },
+    &mcp.StreamableHTTPOptions{Stateless: true},
+)
 mux := http.NewServeMux()
-mux.Handle("/mcp", mcpruntime.NewStreamableHTTPHandler(server, mcpruntime.StreamableHTTPOptions{
-    AllowedOrigins: []string{"http://localhost:3000"},
-}))
-// Prefer binding to 127.0.0.1 for local deployments (DNS-rebinding mitigation).
-http.ListenAndServe("127.0.0.1:8080", mux)
+mux.Handle("/mcp", http.NewCrossOriginProtection().Handler(handler))
+_ = http.ListenAndServe("127.0.0.1:8080", mux)
 ```
 
-Or:
-
-```go
-mcpruntime.ServeStreamableHTTP(ctx, "127.0.0.1:8080", server, mcpruntime.StreamableHTTPOptions{
-    Path: "/mcp",
-})
-```
-
-Behavior highlights:
-
-- Single MCP endpoint: `POST` (JSON-RPC), `GET` (SSE listen), `DELETE` (session end)
-- Multi-client sessions via `MCP-Session-Id` on `initialize`
-- Origin validation (localhost Origins allowed by default when the allowlist is empty)
-- Optional SSE POST responses with `PreferSSE: true`
-- `Last-Event-ID` replay for GET streams (in-memory buffer)
-- Legacy HTTP+SSE (2024-11-05) is **not** implemented
+Stateless HTTP negotiates the newest supported protocol, including
+MCP 2026-07-28, while retaining SDK-managed compatibility with older clients.
+For remote deployment use HTTPS and the SDK's OAuth resource-server middleware.
+See [MCP Apps and OAuth](docs/mcp-apps-oauth.md).
 
 ## Testing With MCP Inspector
 
