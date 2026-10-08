@@ -86,6 +86,17 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 			generated.P("OutputSchemaJSON: ", specName, "OutputSchemaJSON,")
 			generated.P("Annotations: ", stringifyAnnotations(generated, method.Annotations), ",")
 			generated.P("Icons: ", stringifyIcons(generated, method.Icons), ",")
+			if method.AppUI != nil {
+				appUIIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("AppUI"))
+				generated.P("AppUI: &", appUIIdent, "{")
+				generated.P("ResourceURI: ", quote(method.AppUI.GetResourceUri()), ",")
+				generated.P("Visibility: []string{")
+				for _, visibility := range method.AppUI.GetVisibility() {
+					generated.P(quote(visibility), ",")
+				}
+				generated.P("},")
+				generated.P("},")
+			}
 			generated.P("NewRequest: func() *", inputType, " { return &", inputType, "{} },")
 			generated.P("NewResponse: func() *", outputType, " { return &", outputType, "{} },")
 			generated.P("Handler: impl.", methodGoName, ",")
