@@ -106,7 +106,7 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 
 		switch opts.Language {
 		case LanguageGo:
-			if len(model.Services) == 0 && len(model.Prompts) == 0 && len(model.Resources) == 0 {
+			if len(model.Services) == 0 && len(model.Prompts) == 0 && len(model.Resources) == 0 && model.ServerConfig == nil {
 				continue
 			}
 			if err := renderGoFile(plugin, model); err != nil {

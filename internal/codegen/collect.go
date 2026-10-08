@@ -17,7 +17,10 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 		return FileModel{}, fmt.Errorf("only proto3 files are supported in MVP: %s", file.Desc.Path())
 	}
 
+	serverConfig, err := getServerConfig(file)
+	if err != nil { return FileModel{}, err }
 	model := FileModel{
+		ServerConfig: serverConfig,
 		ProtoPath:               file.Desc.Path(),
 		GeneratedFilenamePrefix: file.GeneratedFilenamePrefix,
 		Options:                 opts,
@@ -94,6 +97,7 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 				Icons:            methodMetadata.Icons,
 				TaskSupport:      methodMetadata.TaskSupport,
 				AppUI:            methodMetadata.AppUI,
+				RequiredScopes:   methodMetadata.RequiredScopes,
 			}
 			if len(methodModel.Icons) == 0 {
 				methodModel.Icons = serviceModel.Icons
@@ -132,7 +136,9 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 		return FileModel{}, err
 	}
 	model.Resources = resources
-
+	if opts.Language == LanguageGo {
+		if err := validateServerModel(model); err != nil { return FileModel{}, err }
+	}
 	return model, nil
 }
 

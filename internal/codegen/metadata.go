@@ -31,6 +31,7 @@ type methodMetadata struct {
 	Icons       []*mcpoptionsv1.Icon
 	TaskSupport mcpoptionsv1.TaskSupport
 	AppUI       *mcpoptionsv1.AppUIOptions
+	RequiredScopes []string
 }
 
 type fieldMetadata struct {
@@ -87,6 +88,7 @@ func loadMethodMetadata(method *protogen.Method) (methodMetadata, error) {
 	metadata.Annotations = options.GetAnnotations()
 	metadata.Icons = options.GetIcons()
 	metadata.AppUI = options.GetAppUi()
+	metadata.RequiredScopes = options.GetRequiredScopes()
 	if exec := options.GetExecution(); exec != nil {
 		metadata.TaskSupport = exec.GetTaskSupport()
 	}
@@ -482,4 +484,16 @@ func materializeExampleArray(arr *mcpoptionsv1.ExampleArray) []any {
 		}
 	}
 	return result
+}
+
+func getServerConfig(file *protogen.File) (*mcpoptionsv1.ServerConfig, error) {
+	v, err := getExtension(file.Desc.Options(), mcpoptionsv1.E_Server)
+	if err != nil || v == nil {
+		return nil, err
+	}
+	config, ok := v.(*mcpoptionsv1.ServerConfig)
+	if !ok {
+		return nil, fmt.Errorf("file %s returned unexpected server options type %T", file.Desc.Path(), v)
+	}
+	return config, nil
 }

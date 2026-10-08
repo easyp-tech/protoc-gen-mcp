@@ -149,6 +149,9 @@ message MethodOptions {
   // app_ui links the generated tool to a standard MCP Apps ui:// resource.
   // Hosts without the UI extension continue using the normal tool output.
   AppUIOptions app_ui = 13;
+
+  // required_scopes are verified by the generated MCP tool handler.
+  repeated string required_scopes = 14;
 }
 
 // AppUIOptions carries the MCP Apps Tool._meta.ui metadata.
@@ -862,6 +865,15 @@ message ResourceOptions {
   // text/html;profile=mcp-app and application/octet-stream.
   // Use the protobuf field name (for example "markdown"), not its JSON name.
   string content_field = 8;
+
+  // source_file embeds a compiled static file from the generated Go package.
+  // The path is relative to the directory containing the generated *.mcp.go,
+  // and must not contain parent traversal. Static resources only.
+  // Mutually exclusive with content_field; no handler method is required.
+  string source_file = 9;
+
+  // app_ui emits MCP Apps resource metadata (CSP, sandbox permissions).
+  AppResourceOptions app_ui = 10;
 }
 
 extend google.protobuf.MessageOptions {
@@ -874,4 +886,58 @@ extend google.protobuf.MessageOptions {
   // Exactly one of uri or uri_template must be set in the options.
   // The generator scans all messages for this option.
   ResourceOptions resource = 91009;
+}
+
+// ServerConfig is attached to a protobuf file and controls the generated
+// Go server constructor and Streamable HTTP resource-server configuration.
+message ServerConfig {
+  string name = 1;
+  string version = 2;
+  AppsConfig apps = 3;
+  OAuthConfig oauth = 4;
+}
+
+// AppsConfig configures the standard MCP Apps capability.
+// If omitted, the generator enables Apps when a tool's app_ui or a
+// text/html;profile=mcp-app resource exists in the file.
+message AppsConfig {
+  optional bool enabled = 1;
+}
+
+// OAuthConfig is public server policy, not user credentials. An external
+// identity provider issues tokens; the generated handler verifies bearer
+// tokens through JWKS or an application-provided TokenVerifier.
+message OAuthConfig {
+  string resource_url = 1;
+  repeated string authorization_servers = 2;
+  repeated string scopes = 3;
+  string issuer = 4;
+  string jwks_uri = 5;
+  string audience = 6;
+  string mcp_path = 7;
+}
+
+message AppResourceCSP {
+  repeated string connect_domains = 1;
+  repeated string resource_domains = 2;
+  repeated string frame_domains = 3;
+  repeated string base_uri_domains = 4;
+}
+
+message AppResourcePermissions {
+  bool camera = 1;
+  bool microphone = 2;
+  bool geolocation = 3;
+  bool clipboard_write = 4;
+}
+
+message AppResourceOptions {
+  AppResourceCSP csp = 1;
+  AppResourcePermissions permissions = 2;
+  string domain = 3;
+  optional bool prefers_border = 4;
+}
+
+extend google.protobuf.FileOptions {
+  ServerConfig server = 91010;
 }

@@ -3,6 +3,8 @@ package codegen
 import (
 	"fmt"
 	"mime"
+	"io/fs"
+	"path"
 	"regexp"
 	"strings"
 
@@ -70,12 +72,24 @@ func collectResources(file *protogen.File) ([]ResourceModel, error) {
 			return nil, fmt.Errorf("resource %s: invalid mime_type %q: %w", message.Desc.FullName(), mimeType, err)
 		}
 
+		sourceFile := strings.TrimSpace(opts.GetSourceFile())
+		if sourceFile != "" {
+			if uri == "" || uriTemplate != "" {
+				return nil, fmt.Errorf("resource %s: source_file requires a static uri", message.Desc.FullName())
+			}
+			if opts.GetContentField() != "" {
+				return nil, fmt.Errorf("resource %s: source_file and content_field are mutually exclusive", message.Desc.FullName())
+			}
+			if err := validateEmbedFile(sourceFile); err != nil {
+				return nil, fmt.Errorf("resource %s: %w", message.Desc.FullName(), err)
+			}
+		}
 		contentField := strings.TrimSpace(opts.GetContentField())
-		if contentField == "" {
+		if contentField == "" && sourceFile == "" {
 			if baseMIME != "application/json" && !strings.HasSuffix(baseMIME, "+json") {
 				return nil, fmt.Errorf("resource %s: non-JSON mime_type %q requires content_field to avoid serving ProtoJSON as another format", message.Desc.FullName(), mimeType)
 			}
-		} else {
+		} else if contentField != "" {
 			field := message.Desc.Fields().ByName(protoreflect.Name(contentField))
 			if field == nil {
 				return nil, fmt.Errorf("resource %s: content_field %q is not a declared protobuf field", message.Desc.FullName(), contentField)
@@ -100,6 +114,8 @@ func collectResources(file *protogen.File) ([]ResourceModel, error) {
 			URITemplate:   uriTemplate,
 			MIMEType:      mimeType,
 			ContentField:  contentField,
+			SourceFile:    sourceFile,
+			AppUI:         opts.GetAppUi(),
 			IsTemplate:    isTemplate,
 			Params:        params,
 			Annotations:   opts.GetAnnotations(),
@@ -138,4 +154,16 @@ func extractTemplateParams(msgFullName, uriTemplate string) ([]ResourceParamMode
 	}
 
 	return params, nil
+}
+
+func validateEmbedFile(name string) error {
+	if !fs.ValidPath(name) || path.Clean(name) != name || strings.ContainsAny(name, "*?[\\]") {
+		return fmt.Errorf("source_file %q is not a valid relative Go embed path", name)
+	}
+	for _, segment := range strings.Split(name, "/") {
+		if segment == "" || strings.HasPrefix(segment, ".") || strings.HasPrefix(segment, "_") {
+			return fmt.Errorf("source_file %q uses an unsupported Go embed path segment", name)
+		}
+	}
+	return nil
 }
