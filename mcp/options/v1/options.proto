@@ -145,6 +145,20 @@ message MethodOptions {
   //     execution: { task_support: TASK_SUPPORT_OPTIONAL }
   //   };
   ExecutionOptions execution = 12;
+
+  // app_ui links the generated tool to a standard MCP Apps ui:// resource.
+  // Hosts without the UI extension continue using the normal tool output.
+  AppUIOptions app_ui = 13;
+}
+
+// AppUIOptions carries the MCP Apps Tool._meta.ui metadata.
+message AppUIOptions {
+  // The URI must use the ui:// scheme and be registered as an HTML app
+  // resource by the server (see mcpruntime.RegisterAppResource).
+  string resource_uri = 1;
+
+  // Client surface visibility. Values: "model", "app"; empty means default.
+  repeated string visibility = 2;
 }
 
 // FieldOptions defines MCP metadata attached to a protobuf field via
