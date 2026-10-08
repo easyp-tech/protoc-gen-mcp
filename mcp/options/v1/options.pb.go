@@ -1974,11 +1974,15 @@ func (x *ResourceOptions) GetAppUi() *AppResourceOptions {
 // ServerConfig is attached to a protobuf file and controls the generated
 // Go server constructor and Streamable HTTP resource-server configuration.
 type ServerConfig struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
-	Apps          *AppsConfig            `protobuf:"bytes,3,opt,name=apps,proto3" json:"apps,omitempty"`
-	Oauth         *OAuthConfig           `protobuf:"bytes,4,opt,name=oauth,proto3" json:"oauth,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Server implementation name used during MCP initialization.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Server software version used during MCP initialization.
+	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	// MCP Apps extension configuration, including an explicit opt-out.
+	Apps *AppsConfig `protobuf:"bytes,3,opt,name=apps,proto3" json:"apps,omitempty"`
+	// OAuth protected-resource and token-verification configuration.
+	Oauth         *OAuthConfig `protobuf:"bytes,4,opt,name=oauth,proto3" json:"oauth,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2045,8 +2049,9 @@ func (x *ServerConfig) GetOauth() *OAuthConfig {
 // If omitted, the generator enables Apps when a tool's app_ui or a
 // text/html;profile=mcp-app resource exists in the file.
 type AppsConfig struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Enabled       *bool                  `protobuf:"varint,1,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Enables or disables MCP Apps; unset automatically follows tool/resource usage.
+	Enabled       *bool `protobuf:"varint,1,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2092,16 +2097,23 @@ func (x *AppsConfig) GetEnabled() bool {
 // identity provider issues tokens; the generated handler verifies bearer
 // tokens through JWKS or an application-provided TokenVerifier.
 type OAuthConfig struct {
-	state                protoimpl.MessageState `protogen:"open.v1"`
-	ResourceUrl          string                 `protobuf:"bytes,1,opt,name=resource_url,json=resourceUrl,proto3" json:"resource_url,omitempty"`
-	AuthorizationServers []string               `protobuf:"bytes,2,rep,name=authorization_servers,json=authorizationServers,proto3" json:"authorization_servers,omitempty"`
-	Scopes               []string               `protobuf:"bytes,3,rep,name=scopes,proto3" json:"scopes,omitempty"`
-	Issuer               string                 `protobuf:"bytes,4,opt,name=issuer,proto3" json:"issuer,omitempty"`
-	JwksUri              string                 `protobuf:"bytes,5,opt,name=jwks_uri,json=jwksUri,proto3" json:"jwks_uri,omitempty"`
-	Audience             string                 `protobuf:"bytes,6,opt,name=audience,proto3" json:"audience,omitempty"`
-	McpPath              string                 `protobuf:"bytes,7,opt,name=mcp_path,json=mcpPath,proto3" json:"mcp_path,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Public HTTPS identifier of this protected MCP resource.
+	ResourceUrl string `protobuf:"bytes,1,opt,name=resource_url,json=resourceUrl,proto3" json:"resource_url,omitempty"`
+	// HTTPS authorization servers that can issue acceptable tokens.
+	AuthorizationServers []string `protobuf:"bytes,2,rep,name=authorization_servers,json=authorizationServers,proto3" json:"authorization_servers,omitempty"`
+	// Scopes required for any authenticated request to the MCP HTTP endpoint.
+	Scopes []string `protobuf:"bytes,3,rep,name=scopes,proto3" json:"scopes,omitempty"`
+	// Expected issuer claim when validating signed access JWTs.
+	Issuer string `protobuf:"bytes,4,opt,name=issuer,proto3" json:"issuer,omitempty"`
+	// HTTPS JWKS endpoint containing public RSA verification keys.
+	JwksUri string `protobuf:"bytes,5,opt,name=jwks_uri,json=jwksUri,proto3" json:"jwks_uri,omitempty"`
+	// Expected resource audience claim in JWT access tokens.
+	Audience string `protobuf:"bytes,6,opt,name=audience,proto3" json:"audience,omitempty"`
+	// Route under which the MCP Streamable HTTP endpoint is exposed.
+	McpPath       string `protobuf:"bytes,7,opt,name=mcp_path,json=mcpPath,proto3" json:"mcp_path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *OAuthConfig) Reset() {
@@ -2183,14 +2195,19 @@ func (x *OAuthConfig) GetMcpPath() string {
 	return ""
 }
 
+// AppResourceCSP declares the origins allowed by the MCP Apps sandbox.
 type AppResourceCSP struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	ConnectDomains  []string               `protobuf:"bytes,1,rep,name=connect_domains,json=connectDomains,proto3" json:"connect_domains,omitempty"`
-	ResourceDomains []string               `protobuf:"bytes,2,rep,name=resource_domains,json=resourceDomains,proto3" json:"resource_domains,omitempty"`
-	FrameDomains    []string               `protobuf:"bytes,3,rep,name=frame_domains,json=frameDomains,proto3" json:"frame_domains,omitempty"`
-	BaseUriDomains  []string               `protobuf:"bytes,4,rep,name=base_uri_domains,json=baseUriDomains,proto3" json:"base_uri_domains,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Origins permitted for fetch, WebSocket and other network calls.
+	ConnectDomains []string `protobuf:"bytes,1,rep,name=connect_domains,json=connectDomains,proto3" json:"connect_domains,omitempty"`
+	// Origins permitted for external scripts, styles, images and fonts.
+	ResourceDomains []string `protobuf:"bytes,2,rep,name=resource_domains,json=resourceDomains,proto3" json:"resource_domains,omitempty"`
+	// Origins permitted for nested frames embedded inside the app.
+	FrameDomains []string `protobuf:"bytes,3,rep,name=frame_domains,json=frameDomains,proto3" json:"frame_domains,omitempty"`
+	// Origins permitted in the embedded document base URI.
+	BaseUriDomains []string `protobuf:"bytes,4,rep,name=base_uri_domains,json=baseUriDomains,proto3" json:"base_uri_domains,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *AppResourceCSP) Reset() {
@@ -2251,12 +2268,17 @@ func (x *AppResourceCSP) GetBaseUriDomains() []string {
 	return nil
 }
 
+// AppResourcePermissions declares optional browser capabilities for a UI resource.
 type AppResourcePermissions struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Camera         bool                   `protobuf:"varint,1,opt,name=camera,proto3" json:"camera,omitempty"`
-	Microphone     bool                   `protobuf:"varint,2,opt,name=microphone,proto3" json:"microphone,omitempty"`
-	Geolocation    bool                   `protobuf:"varint,3,opt,name=geolocation,proto3" json:"geolocation,omitempty"`
-	ClipboardWrite bool                   `protobuf:"varint,4,opt,name=clipboard_write,json=clipboardWrite,proto3" json:"clipboard_write,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Requests browser camera access from supporting MCP Apps hosts.
+	Camera bool `protobuf:"varint,1,opt,name=camera,proto3" json:"camera,omitempty"`
+	// Requests browser microphone access from supporting MCP Apps hosts.
+	Microphone bool `protobuf:"varint,2,opt,name=microphone,proto3" json:"microphone,omitempty"`
+	// Requests geolocation access from supporting MCP Apps hosts.
+	Geolocation bool `protobuf:"varint,3,opt,name=geolocation,proto3" json:"geolocation,omitempty"`
+	// Requests clipboard write access from supporting MCP Apps hosts.
+	ClipboardWrite bool `protobuf:"varint,4,opt,name=clipboard_write,json=clipboardWrite,proto3" json:"clipboard_write,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -2319,12 +2341,17 @@ func (x *AppResourcePermissions) GetClipboardWrite() bool {
 	return false
 }
 
+// AppResourceOptions is the MCP Apps resource-level _meta.ui configuration.
 type AppResourceOptions struct {
-	state         protoimpl.MessageState  `protogen:"open.v1"`
-	Csp           *AppResourceCSP         `protobuf:"bytes,1,opt,name=csp,proto3" json:"csp,omitempty"`
-	Permissions   *AppResourcePermissions `protobuf:"bytes,2,opt,name=permissions,proto3" json:"permissions,omitempty"`
-	Domain        string                  `protobuf:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`
-	PrefersBorder *bool                   `protobuf:"varint,4,opt,name=prefers_border,json=prefersBorder,proto3,oneof" json:"prefers_border,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Content Security Policy allowlists for the app sandbox.
+	Csp *AppResourceCSP `protobuf:"bytes,1,opt,name=csp,proto3" json:"csp,omitempty"`
+	// Optional browser permissions the app would like to use.
+	Permissions *AppResourcePermissions `protobuf:"bytes,2,opt,name=permissions,proto3" json:"permissions,omitempty"`
+	// Optional host-specific stable origin for the app sandbox.
+	Domain string `protobuf:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`
+	// Whether this app prefers a visible host-rendered border.
+	PrefersBorder *bool `protobuf:"varint,4,opt,name=prefers_border,json=prefersBorder,proto3,oneof" json:"prefers_border,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
