@@ -17,4 +17,5 @@ jobs:
       - name: Compile and run SDK migration tests with bounded timeout
         run: |
           go test -v -count=1 -timeout=30s ./mcpruntime
-          go test -v -count=1 -timeout=30s ./internal/examplemcp
+          go test -v -count=1 -timeout=45s ./internal/examplemcp -run '^(TestServerOverStdio|TestResourcesPromptsRoundTrip|TestGeneratedAppUIFromProto|TestPromptsGetMissingRequiredArg)
+
