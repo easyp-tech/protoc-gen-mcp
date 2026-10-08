@@ -240,6 +240,7 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 		generated.P("// ", interfaceName, " defines handlers for MCP resources in ", model.ProtoPath, ".")
 		generated.P("type ", interfaceName, " interface {")
 		for _, resource := range model.Resources {
+			if resource.SourceFile != "" { continue }
 			outputType, err := qualifyTypeRef(generated, goInfo, resource.Output)
 			if err != nil {
 				return err
@@ -263,9 +264,11 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 		registerName := "Register" + fileGoName + "Resources"
 		generated.P("// ", registerName, " registers generated MCP resources for ", fileGoName, ".")
 		generated.P("func ", registerName, "(ctx ", contextIdent, ", server *", mcpServerIdent, ", impl ", interfaceName, ", opts ...", registerOptionIdent, ") error {")
-		generated.P("if impl == nil {")
-		generated.P("return ", errorsIdent, "(\"", registerName, ": impl is nil\")")
-		generated.P("}")
+		if resourcesNeedImpl(model.Resources) {
+			generated.P("if impl == nil {")
+			generated.P("return ", errorsIdent, "(\"", registerName, ": impl is nil\")")
+			generated.P("}")
+		}
 		generated.P("resolvedOpts := ", generated.QualifiedGoIdent(mcpruntimeImport.Ident("ResolveOptions")), "(\"\", opts)")
 
 		for _, resource := range model.Resources {
