@@ -40,12 +40,21 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 	}
 
 	contextIdent := generated.QualifiedGoIdent(protogen.GoImportPath("context").Ident("Context"))
-	errorsIdent := generated.QualifiedGoIdent(protogen.GoImportPath("errors").Ident("New"))
+	var errorsIdent string
+	if len(model.Services) > 0 || len(model.Prompts) > 0 || resourcesNeedImpl(model.Resources) {
+		errorsIdent = generated.QualifiedGoIdent(protogen.GoImportPath("errors").Ident("New"))
+	}
 	mcpServerIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("Server"))
 	mcpruntimeImport := protogen.GoImportPath("github.com/easyp-tech/protoc-gen-mcp/mcpruntime")
-	registerOptionIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("RegisterOption"))
-	registerToolIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("RegisterSDKProtoTool"))
-	toolSpecIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("ToolSpec"))
+	var registerOptionIdent string
+	if len(model.Services) > 0 || len(model.Prompts) > 0 || len(model.Resources) > 0 {
+		registerOptionIdent = generated.QualifiedGoIdent(mcpruntimeImport.Ident("RegisterOption"))
+	}
+	var registerToolIdent, toolSpecIdent string
+	if len(model.Services) > 0 {
+		registerToolIdent = generated.QualifiedGoIdent(mcpruntimeImport.Ident("RegisterSDKProtoTool"))
+		toolSpecIdent = generated.QualifiedGoIdent(mcpruntimeImport.Ident("ToolSpec"))
+	}
 
 	for _, service := range model.Services {
 		serviceGoName, err := goInfo.serviceGoName(service)
