@@ -79,7 +79,7 @@ func RegisterSDKProtoTool[Req proto.Message, Resp proto.Message](
 
 	server.AddTool(tool, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		if len(spec.RequiredScopes) > 0 {
-			if req == nil || req.Extra.TokenInfo == nil {
+			if req == nil || req.Extra == nil || req.Extra.TokenInfo == nil {
 				return sdkToolError(errors.New("permission denied: an authenticated token is required")), nil
 			}
 			for _, required := range spec.RequiredScopes {
