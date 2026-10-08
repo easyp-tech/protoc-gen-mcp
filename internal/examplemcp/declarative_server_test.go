@@ -51,8 +51,10 @@ func TestGeneratedMCPServerAndOAuthHTTPFactory(t *testing.T) {
 
 	handler, err := configv1.NewFile_internal_testproto_config_v1_server_config_protoMCPHTTPHandler(server,
 		func(_ context.Context, token string, _ *http.Request) (*auth.TokenInfo, error) {
-			if token != "valid-token" { return nil, auth.ErrInvalidToken }
-			return &auth.TokenInfo{UserID: "test", Scopes: []string{"reports:read"}, Expiration: time.Now().Add(time.Hour)}, nil
+			if token != "valid-token" && token != "read-only" { return nil, auth.ErrInvalidToken }
+			scopes := []string{"reports:read"}
+			if token == "valid-token" { scopes = append(scopes, "reports:write") }
+			return &auth.TokenInfo{UserID: "test", Scopes: scopes, Expiration: time.Now().Add(time.Hour)}, nil
 		})
 	if err != nil { t.Fatalf("configured OAuth HTTP handler: %v", err) }
 	meta := httptest.NewRecorder()
@@ -76,7 +78,42 @@ func TestGeneratedMCPServerAndOAuthHTTPFactory(t *testing.T) {
 		t.Fatalf("valid scoped token rejected: %d: %s", ok.Code, ok.Body.String())
 	}
 	if _, err := configv1.NewFile_internal_testproto_config_v1_server_config_protoMCPHTTPHandler(server, nil); err != nil {
-		// JWKS configuration is valid and does not fetch until a token arrives.
 		t.Fatalf("generated JWKS verifier setup: %v", err)
 	}
+	endpoint := httptest.NewServer(handler)
+	defer endpoint.Close()
+	for _, tc := range []struct { token string; allowed bool }{
+		{"read-only", false},
+		{"valid-token", true},
+	} {
+		t.Run(tc.token, func(t *testing.T) {
+			c := mcp.NewClient(&mcp.Implementation{Name:"scoped-http-test", Version:"v0.0.1"}, nil)
+			transport := &mcp.StreamableClientTransport{
+				Endpoint: endpoint.URL+"/mcp",
+				HTTPClient: &http.Client{Timeout: 5*time.Second, Transport: bearerTransport{token: tc.token, base: http.DefaultTransport}},
+				DisableStandaloneSSE: true,
+			}
+			session, err := c.Connect(ctx, transport, nil)
+			if err != nil { t.Fatalf("HTTP MCP initialize: %v", err) }
+			defer session.Close()
+			response, err := session.CallTool(ctx, &mcp.CallToolParams{
+				Name: "secure_check_access", Arguments: map[string]any{"label": "ok"},
+			})
+			if err != nil { t.Fatalf("HTTP tool call: %v", err) }
+			if response.IsError == tc.allowed {
+				t.Fatalf("tool result isError=%t, expected allowed=%t", response.IsError, tc.allowed)
+			}
+		})
+	}
+}
+
+type bearerTransport struct {
+	token string
+	base http.RoundTripper
+}
+
+func (t bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	copied := req.Clone(req.Context())
+	copied.Header.Set("Authorization", "Bearer "+t.token)
+	return t.base.RoundTrip(copied)
 }
