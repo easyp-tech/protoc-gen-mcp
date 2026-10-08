@@ -78,7 +78,7 @@ type PromptsHandler struct{}
 // CodeReview renders a code-review prompt from its arguments.
 func (PromptsHandler) CodeReview(_ context.Context, req *promptsv1.CodeReview) ([]*mcp.PromptMessage, error) {
 	return []*mcp.PromptMessage{{
-		Role:    mcp.RoleUser,
+		Role:    mcp.Role("user"),
 		Content: &mcp.TextContent{Text: fmt.Sprintf("Review this %s code: %s", req.GetLanguage(), req.GetCode())},
 	}}, nil
 }
@@ -86,7 +86,7 @@ func (PromptsHandler) CodeReview(_ context.Context, req *promptsv1.CodeReview) (
 // Summarize renders a summarization prompt from its arguments.
 func (PromptsHandler) Summarize(_ context.Context, req *promptsv1.Summarize) ([]*mcp.PromptMessage, error) {
 	return []*mcp.PromptMessage{{
-		Role:    mcp.RoleUser,
+		Role:    mcp.Role("user"),
 		Content: &mcp.TextContent{Text: "Summarize: " + req.GetContent()},
 	}}, nil
 }
@@ -94,7 +94,7 @@ func (PromptsHandler) Summarize(_ context.Context, req *promptsv1.Summarize) ([]
 // ExplainError renders an error-explanation prompt from its arguments.
 func (PromptsHandler) ExplainError(_ context.Context, req *promptsv1.ExplainError) ([]*mcp.PromptMessage, error) {
 	return []*mcp.PromptMessage{{
-		Role:    mcp.RoleUser,
+		Role:    mcp.Role("user"),
 		Content: &mcp.TextContent{Text: "Explain: " + req.GetErrorMessage()},
 	}}, nil
 }
