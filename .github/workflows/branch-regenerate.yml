@@ -3,12 +3,15 @@ name: regenerate declarative MCP artifacts
 on:
   push:
     branches: [feat/go-sdk-mcp-apps-modernization]
+  pull_request:
+    branches: [master]
 
 permissions:
   contents: write
 
 jobs:
   regenerate:
+    if: github.ref_name == 'feat/go-sdk-mcp-apps-modernization' || github.head_ref == 'feat/go-sdk-mcp-apps-modernization'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
