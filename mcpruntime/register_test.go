@@ -170,11 +170,58 @@ func (c *testClient) callTool(name string, arguments map[string]any) (callToolRe
 	return result, nil
 }
 
+
+// registerLegacyFixtureTools exercises the historical wire runtime while its
+// old protocol tests are retired. Production code uses RegisterSDKProtoTool.
+func registerLegacyFixtureTools(server *mcpruntime.Server, impl exampleHandler, opts ...mcpruntime.RegisterOption) error {
+	if err := mcpruntime.RegisterProtoTool(server, mcpruntime.ToolSpec[*examplev1.CreateReportRequest, *examplev1.CreateReportResponse]{
+		Name: "CreateReport", Namespace: "example",
+		InputSchemaJSON: examplev1.ExampleAPI_CreateReport_ToolSpecInputSchemaJSON,
+		OutputSchemaJSON: examplev1.ExampleAPI_CreateReport_ToolSpecOutputSchemaJSON,
+		NewRequest: func() *examplev1.CreateReportRequest { return &examplev1.CreateReportRequest{} },
+		NewResponse: func() *examplev1.CreateReportResponse { return &examplev1.CreateReportResponse{} },
+		Handler: impl.CreateReport,
+	}, opts...); err != nil { return err }
+	if err := mcpruntime.RegisterProtoTool(server, mcpruntime.ToolSpec[*examplev1.PingRequest, *examplev1.PingResponse]{
+		Name: "Health", Namespace: "example",
+		InputSchemaJSON: examplev1.ExampleAPI_Ping_ToolSpecInputSchemaJSON,
+		OutputSchemaJSON: examplev1.ExampleAPI_Ping_ToolSpecOutputSchemaJSON,
+		NewRequest: func() *examplev1.PingRequest { return &examplev1.PingRequest{} },
+		NewResponse: func() *examplev1.PingResponse { return &examplev1.PingResponse{} },
+		Handler: impl.Ping,
+	}, opts...); err != nil { return err }
+	if err := mcpruntime.RegisterProtoTool(server, mcpruntime.ToolSpec[*examplev1.DescribeAdvancedShapesRequest, *examplev1.DescribeAdvancedShapesResponse]{
+		Name: "DescribeAdvancedShapes", Namespace: "example",
+		InputSchemaJSON: examplev1.ExampleAPI_DescribeAdvancedShapes_ToolSpecInputSchemaJSON,
+		OutputSchemaJSON: examplev1.ExampleAPI_DescribeAdvancedShapes_ToolSpecOutputSchemaJSON,
+		NewRequest: func() *examplev1.DescribeAdvancedShapesRequest { return &examplev1.DescribeAdvancedShapesRequest{} },
+		NewResponse: func() *examplev1.DescribeAdvancedShapesResponse { return &examplev1.DescribeAdvancedShapesResponse{} },
+		Handler: impl.DescribeAdvancedShapes,
+	}, opts...); err != nil { return err }
+	if err := mcpruntime.RegisterProtoTool(server, mcpruntime.ToolSpec[*examplev1.DescribeScalarShapesRequest, *examplev1.DescribeScalarShapesResponse]{
+		Name: "DescribeScalarShapes", Namespace: "example",
+		InputSchemaJSON: examplev1.ExampleAPI_DescribeScalarShapes_ToolSpecInputSchemaJSON,
+		OutputSchemaJSON: examplev1.ExampleAPI_DescribeScalarShapes_ToolSpecOutputSchemaJSON,
+		NewRequest: func() *examplev1.DescribeScalarShapesRequest { return &examplev1.DescribeScalarShapesRequest{} },
+		NewResponse: func() *examplev1.DescribeScalarShapesResponse { return &examplev1.DescribeScalarShapesResponse{} },
+		Handler: impl.DescribeScalarShapes,
+	}, opts...); err != nil { return err }
+	if err := mcpruntime.RegisterProtoTool(server, mcpruntime.ToolSpec[*examplev1.HiddenThingRequest, *examplev1.HiddenThingResponse]{
+		Name: "HiddenThing", Namespace: "example",
+		InputSchemaJSON: examplev1.ExampleAPI_HiddenThing_ToolSpecInputSchemaJSON,
+		OutputSchemaJSON: examplev1.ExampleAPI_HiddenThing_ToolSpecOutputSchemaJSON,
+		NewRequest: func() *examplev1.HiddenThingRequest { return &examplev1.HiddenThingRequest{} },
+		NewResponse: func() *examplev1.HiddenThingResponse { return &examplev1.HiddenThingResponse{} },
+		Handler: impl.HiddenThing,
+	}, opts...); err != nil { return err }
+	return nil
+}
+
 func newExampleSession(t *testing.T, handler exampleHandler, options ...mcpruntime.RegisterOption) (*testClient, func()) {
 	t.Helper()
 
 	server := newServer()
-	if err := examplev1.RegisterExampleAPITools(server, handler, options...); err != nil {
+	if err := registerLegacyFixtureTools(server, handler, options...); err != nil {
 		t.Fatalf("RegisterExampleAPITools() failed: %v", err)
 	}
 
@@ -681,10 +728,10 @@ func TestRegisterExampleAPIToolsNamespaceOverride(t *testing.T) {
 	server := newServer()
 	handler := exampleHandler{}
 
-	if err := examplev1.RegisterExampleAPITools(server, handler); err != nil {
+	if err := registerLegacyFixtureTools(server, handler); err != nil {
 		t.Fatalf("RegisterExampleAPITools(default) failed: %v", err)
 	}
-	if err := examplev1.RegisterExampleAPITools(server, handler, mcpruntime.WithNamespace("custom.v1")); err != nil {
+	if err := registerLegacyFixtureTools(server, handler, mcpruntime.WithNamespace("custom.v1")); err != nil {
 		t.Fatalf("RegisterExampleAPITools(custom.v1) failed: %v", err)
 	}
 
@@ -720,11 +767,11 @@ func TestRegisterExampleAPIToolsDuplicateNameFails(t *testing.T) {
 	server := newServer()
 	handler := exampleHandler{}
 
-	if err := examplev1.RegisterExampleAPITools(server, handler); err != nil {
+	if err := registerLegacyFixtureTools(server, handler); err != nil {
 		t.Fatalf("first RegisterExampleAPITools() failed: %v", err)
 	}
 
-	err := examplev1.RegisterExampleAPITools(server, handler)
+	err := registerLegacyFixtureTools(server, handler)
 	if err == nil {
 		t.Fatal("second RegisterExampleAPITools() unexpectedly succeeded")
 	}
