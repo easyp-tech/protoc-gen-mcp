@@ -141,6 +141,10 @@ func (c *cachedJWKS) load(ctx context.Context) error {
 		return err
 	}
 	defer resp.Body.Close()
+	// Even a custom HTTP client must not silently downgrade JWKS fetches.
+	if resp.Request != nil && resp.Request.URL.Scheme != "https" {
+		return errors.New("JWKS redirect to an insecure scheme is forbidden")
+	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("JWKS endpoint returned HTTP %d", resp.StatusCode)
 	}
