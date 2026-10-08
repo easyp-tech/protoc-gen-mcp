@@ -225,8 +225,9 @@ func (x *Document) GetAuthor() string {
 
 // SkillDocument is served as raw Markdown instead of ProtoJSON.
 type SkillDocument struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Markdown      string                 `protobuf:"bytes,1,opt,name=markdown,proto3" json:"markdown,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Raw Markdown body read from the embedded SKILL.md file.
+	Markdown      string `protobuf:"bytes,1,opt,name=markdown,proto3" json:"markdown,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -270,8 +271,9 @@ func (x *SkillDocument) GetMarkdown() string {
 
 // PlainText demonstrates parameterized text resources.
 type PlainText struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Body          string                 `protobuf:"bytes,1,opt,name=body,proto3" json:"body,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Raw body of the dynamically selected plain-text document.
+	Body          string `protobuf:"bytes,1,opt,name=body,proto3" json:"body,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -315,8 +317,9 @@ func (x *PlainText) GetBody() string {
 
 // RawBinary demonstrates an MCP blob using a bytes content field.
 type RawBinary struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Unmodified binary payload returned in MCP blob form.
+	Data          []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -360,8 +363,9 @@ func (x *RawBinary) GetData() []byte {
 
 // AppPage is an MCP Apps HTML resource generated from a protobuf message.
 type AppPage struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Html          string                 `protobuf:"bytes,1,opt,name=html,proto3" json:"html,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Interactive HTML content delivered as an MCP Apps resource.
+	Html          string `protobuf:"bytes,1,opt,name=html,proto3" json:"html,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
