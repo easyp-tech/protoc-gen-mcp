@@ -273,7 +273,7 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 
 				generated.P("}")
 				if resource.Annotations.Priority != nil {
-					generated.P("annotations.SetPriority(", fmt.Sprintf("%g", resource.Annotations.GetPriority()), ")")
+					generated.P("annotations.Priority = ", fmt.Sprintf("%g", resource.Annotations.GetPriority()))
 				}
 			}
 

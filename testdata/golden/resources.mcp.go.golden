@@ -37,7 +37,7 @@ func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx c
 				"assistant",
 			},
 		}
-		annotations.SetPriority(0.8)
+		annotations.Priority = 0.8
 		server.AddResource(&mcp.Resource{
 			Name:        name,
 			URI:         "server://status",
@@ -99,7 +99,7 @@ func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx c
 			name = resolvedOpts.Namespace + "_" + name
 		}
 		annotations := &mcp.Annotations{}
-		annotations.SetPriority(0.5)
+		annotations.Priority = 0.5
 		instances, err := impl.ListDocuments(ctx)
 		if err != nil {
 			return fmt.Errorf("RegisterFile_internal_testproto_resources_v1_resources_protoResources: listing document: %w", err)
