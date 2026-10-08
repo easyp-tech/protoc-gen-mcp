@@ -134,9 +134,13 @@ func TestResourcesPromptsRoundTrip(t *testing.T) {
 		t.Fatalf("embedded frontend asset missing from generated resource: %s", html.Contents[0].Text)
 	}
 	appMeta, ok := html.Contents[0].Meta["ui"].(map[string]any)
-	if !ok { t.Fatalf("missing content _meta.ui: %+v", html.Contents[0].Meta) }
+	if !ok {
+		t.Fatalf("missing content _meta.ui: %+v", html.Contents[0].Meta)
+	}
 	csp, ok := appMeta["csp"].(map[string]any)
-	if !ok { t.Fatalf("missing CSP metadata: %+v", appMeta) }
+	if !ok {
+		t.Fatalf("missing CSP metadata: %+v", appMeta)
+	}
 	connect, ok := csp["connectDomains"].([]any)
 	if !ok || len(connect) != 1 || connect[0] != "https://api.example.com" {
 		t.Fatalf("CSP connectDomains mismatch: %+v", csp)
@@ -151,7 +155,9 @@ func TestResourcesPromptsRoundTrip(t *testing.T) {
 			_, listed = resource.Meta["ui"]
 		}
 	}
-	if !listed { t.Fatal("UI resource metadata missing from resources/list") }
+	if !listed {
+		t.Fatal("UI resource metadata missing from resources/list")
+	}
 
 	prompts, err := session.ListPrompts(ctx, nil)
 	if err != nil {
@@ -167,7 +173,7 @@ func TestResourcesPromptsRoundTrip(t *testing.T) {
 		}
 	}
 	result, err := session.GetPrompt(ctx, &mcp.GetPromptParams{
-		Name: "code_review",
+		Name:      "code_review",
 		Arguments: map[string]string{"code": "print(1)", "language": "python"},
 	})
 	if err != nil {
@@ -260,7 +266,7 @@ func TestAppUIUsesProtobufResource(t *testing.T) {
 func TestPromptsGetMissingRequiredArg(t *testing.T) {
 	session := newResourcesClient(t)
 	_, err := session.GetPrompt(context.Background(), &mcp.GetPromptParams{
-		Name: "code_review",
+		Name:      "code_review",
 		Arguments: map[string]string{"code": "print(1)"},
 	})
 	if err == nil {

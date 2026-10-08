@@ -26,14 +26,20 @@ func TestGeneratedMCPServerAndOAuthHTTPFactory(t *testing.T) {
 		configv1.File_internal_testproto_config_v1_server_config_protoMCPHandlers{
 			SecureAPI: secureAPIHandler{},
 		})
-	if err != nil { t.Fatalf("generated server: %v", err) }
+	if err != nil {
+		t.Fatalf("generated server: %v", err)
+	}
 	transportServer, transportClient := mcp.NewInMemoryTransports()
 	ss, err := server.Connect(ctx, transportServer, nil)
-	if err != nil { t.Fatalf("server connect: %v", err) }
+	if err != nil {
+		t.Fatalf("server connect: %v", err)
+	}
 	defer ss.Close()
 	client := mcp.NewClient(&mcp.Implementation{Name: "config-test", Version: "v0.0.1"}, nil)
 	cs, err := client.Connect(ctx, transportClient, nil)
-	if err != nil { t.Fatalf("client connect: %v", err) }
+	if err != nil {
+		t.Fatalf("client connect: %v", err)
+	}
 	defer cs.Close()
 
 	tools, err := cs.ListTools(ctx, nil)
@@ -51,17 +57,27 @@ func TestGeneratedMCPServerAndOAuthHTTPFactory(t *testing.T) {
 
 	handler, err := configv1.NewFile_internal_testproto_config_v1_server_config_protoMCPHTTPHandler(server,
 		func(_ context.Context, token string, _ *http.Request) (*auth.TokenInfo, error) {
-			if token != "valid-token" && token != "read-only" { return nil, auth.ErrInvalidToken }
+			if token != "valid-token" && token != "read-only" {
+				return nil, auth.ErrInvalidToken
+			}
 			scopes := []string{"reports:read"}
-			if token == "valid-token" { scopes = append(scopes, "reports:write") }
+			if token == "valid-token" {
+				scopes = append(scopes, "reports:write")
+			}
 			return &auth.TokenInfo{UserID: "test", Scopes: scopes, Expiration: time.Now().Add(time.Hour)}, nil
 		})
-	if err != nil { t.Fatalf("configured OAuth HTTP handler: %v", err) }
+	if err != nil {
+		t.Fatalf("configured OAuth HTTP handler: %v", err)
+	}
 	meta := httptest.NewRecorder()
 	handler.ServeHTTP(meta, httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil))
-	if meta.Code != 200 { t.Fatalf("discovery status %d: %s", meta.Code, meta.Body.String()) }
+	if meta.Code != 200 {
+		t.Fatalf("discovery status %d: %s", meta.Code, meta.Body.String())
+	}
 	var metadata map[string]any
-	if err := json.Unmarshal(meta.Body.Bytes(), &metadata); err != nil { t.Fatal(err) }
+	if err := json.Unmarshal(meta.Body.Bytes(), &metadata); err != nil {
+		t.Fatal(err)
+	}
 	if metadata["resource"] != "https://mcp.example.com/mcp" {
 		t.Fatalf("wrong resource: %+v", metadata)
 	}
@@ -82,24 +98,31 @@ func TestGeneratedMCPServerAndOAuthHTTPFactory(t *testing.T) {
 	}
 	endpoint := httptest.NewServer(handler)
 	defer endpoint.Close()
-	for _, tc := range []struct { token string; allowed bool }{
+	for _, tc := range []struct {
+		token   string
+		allowed bool
+	}{
 		{"read-only", false},
 		{"valid-token", true},
 	} {
 		t.Run(tc.token, func(t *testing.T) {
-			c := mcp.NewClient(&mcp.Implementation{Name:"scoped-http-test", Version:"v0.0.1"}, nil)
+			c := mcp.NewClient(&mcp.Implementation{Name: "scoped-http-test", Version: "v0.0.1"}, nil)
 			transport := &mcp.StreamableClientTransport{
-				Endpoint: endpoint.URL+"/mcp",
-				HTTPClient: &http.Client{Timeout: 5*time.Second, Transport: bearerTransport{token: tc.token, base: http.DefaultTransport}},
+				Endpoint:             endpoint.URL + "/mcp",
+				HTTPClient:           &http.Client{Timeout: 5 * time.Second, Transport: bearerTransport{token: tc.token, base: http.DefaultTransport}},
 				DisableStandaloneSSE: true,
 			}
 			session, err := c.Connect(ctx, transport, nil)
-			if err != nil { t.Fatalf("HTTP MCP initialize: %v", err) }
+			if err != nil {
+				t.Fatalf("HTTP MCP initialize: %v", err)
+			}
 			defer session.Close()
 			response, err := session.CallTool(ctx, &mcp.CallToolParams{
 				Name: "secure_check_access", Arguments: map[string]any{"label": "ok"},
 			})
-			if err != nil { t.Fatalf("HTTP tool call: %v", err) }
+			if err != nil {
+				t.Fatalf("HTTP tool call: %v", err)
+			}
 			if response.IsError == tc.allowed {
 				t.Fatalf("tool result isError=%t, expected allowed=%t", response.IsError, tc.allowed)
 			}
@@ -109,7 +132,7 @@ func TestGeneratedMCPServerAndOAuthHTTPFactory(t *testing.T) {
 
 type bearerTransport struct {
 	token string
-	base http.RoundTripper
+	base  http.RoundTripper
 }
 
 func (t bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {

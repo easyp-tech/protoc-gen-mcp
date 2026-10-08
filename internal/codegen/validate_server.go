@@ -34,7 +34,9 @@ func validateServerModel(model FileModel) error {
 	}
 	for _, resource := range model.Resources {
 		base, parameters, err := mime.ParseMediaType(resource.MIMEType)
-		if err != nil { return fmt.Errorf("resource %s: invalid mime_type: %w", resource.ProtoFullName, err) }
+		if err != nil {
+			return fmt.Errorf("resource %s: invalid mime_type: %w", resource.ProtoFullName, err)
+		}
 		if base == "text/html" && parameters["profile"] == "mcp-app" {
 			hasApps = true
 		}
@@ -50,15 +52,21 @@ func validateServerModel(model FileModel) error {
 			return fmt.Errorf("file %s: apps.enabled=false conflicts with MCP Apps tools/resources", model.ProtoPath)
 		}
 		if oauth := config.GetOauth(); oauth != nil {
-			if err := requireHTTPS("resource_url", oauth.GetResourceUrl()); err != nil { return err }
+			if err := requireHTTPS("resource_url", oauth.GetResourceUrl()); err != nil {
+				return err
+			}
 			if len(oauth.GetAuthorizationServers()) == 0 {
 				return fmt.Errorf("file %s: OAuth requires authorization_servers", model.ProtoPath)
 			}
 			for _, authServer := range oauth.GetAuthorizationServers() {
-				if err := requireHTTPS("authorization_server", authServer); err != nil { return err }
+				if err := requireHTTPS("authorization_server", authServer); err != nil {
+					return err
+				}
 			}
 			if oauth.GetJwksUri() != "" {
-				if err := requireHTTPS("jwks_uri", oauth.GetJwksUri()); err != nil { return err }
+				if err := requireHTTPS("jwks_uri", oauth.GetJwksUri()); err != nil {
+					return err
+				}
 				if oauth.GetIssuer() == "" || oauth.GetAudience() == "" {
 					return fmt.Errorf("file %s: JWKS verification requires issuer and audience", model.ProtoPath)
 				}
@@ -84,10 +92,16 @@ func modelNeedsApps(model FileModel) bool {
 		return model.ServerConfig.GetApps().GetEnabled()
 	}
 	for _, service := range model.Services {
-		for _, method := range service.Methods { if method.AppUI != nil { return true } }
+		for _, method := range service.Methods {
+			if method.AppUI != nil {
+				return true
+			}
+		}
 	}
 	for _, resource := range model.Resources {
-		if resource.AppUI != nil || strings.EqualFold(resource.MIMEType, "text/html;profile=mcp-app") { return true }
+		if resource.AppUI != nil || strings.EqualFold(resource.MIMEType, "text/html;profile=mcp-app") {
+			return true
+		}
 	}
 	return false
 }

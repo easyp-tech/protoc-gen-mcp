@@ -104,7 +104,9 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 			generated.P("Icons: ", stringifyIcons(generated, method.Icons), ",")
 			if len(method.RequiredScopes) > 0 {
 				generated.P("RequiredScopes: []string{")
-				for _, scope := range method.RequiredScopes { generated.P(quote(scope), ",") }
+				for _, scope := range method.RequiredScopes {
+					generated.P(quote(scope), ",")
+				}
 				generated.P("},")
 			}
 			if method.AppUI != nil {
@@ -240,7 +242,9 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 		generated.P("// ", interfaceName, " defines handlers for MCP resources in ", model.ProtoPath, ".")
 		generated.P("type ", interfaceName, " interface {")
 		for _, resource := range model.Resources {
-			if resource.SourceFile != "" { continue }
+			if resource.SourceFile != "" {
+				continue
+			}
 			outputType, err := qualifyTypeRef(generated, goInfo, resource.Output)
 			if err != nil {
 				return err
@@ -385,24 +389,24 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 					generated.P("}); err != nil { return err }")
 				} else {
 					generated.P("}, func(ctx ", contextIdent, ", req *", mcpReadResourceReqIdent, ") (*", mcpReadResourceResIdent, ", error) {")
-				generated.P("result, err := impl.Read", resource.ProtoName, "(ctx)")
-				generated.P("if err != nil {")
-				generated.P("return nil, err")
-				generated.P("}")
-				if resource.ContentField == "" {
-					generated.P("contents, err := ", marshalResourceContentIdent, "(", quote(resource.URI), ", ", quote(resource.MIMEType), ", result)")
-				} else {
-					generated.P("contents, err := ", marshalResourceContentIdent, "(", quote(resource.URI), ", ", quote(resource.MIMEType), ", result, ", quote(resource.ContentField), ")")
-				}
-				generated.P("if err != nil {")
-				generated.P("return nil, err")
-				generated.P("}")
-				if resource.AppUI != nil {
-					generated.P("return &", mcpReadResourceResIdent, "{Contents: ", generated.QualifiedGoIdent(mcpruntimeImport.Ident("SetResourceMetadata")), "(contents, ", stringifyGoAppResourceMeta(generated, resource.AppUI), ")}, nil")
-				} else {
-					generated.P("return &", mcpReadResourceResIdent, "{Contents: contents}, nil")
-				}
-				generated.P("})")
+					generated.P("result, err := impl.Read", resource.ProtoName, "(ctx)")
+					generated.P("if err != nil {")
+					generated.P("return nil, err")
+					generated.P("}")
+					if resource.ContentField == "" {
+						generated.P("contents, err := ", marshalResourceContentIdent, "(", quote(resource.URI), ", ", quote(resource.MIMEType), ", result)")
+					} else {
+						generated.P("contents, err := ", marshalResourceContentIdent, "(", quote(resource.URI), ", ", quote(resource.MIMEType), ", result, ", quote(resource.ContentField), ")")
+					}
+					generated.P("if err != nil {")
+					generated.P("return nil, err")
+					generated.P("}")
+					if resource.AppUI != nil {
+						generated.P("return &", mcpReadResourceResIdent, "{Contents: ", generated.QualifiedGoIdent(mcpruntimeImport.Ident("SetResourceMetadata")), "(contents, ", stringifyGoAppResourceMeta(generated, resource.AppUI), ")}, nil")
+					} else {
+						generated.P("return &", mcpReadResourceResIdent, "{Contents: contents}, nil")
+					}
+					generated.P("})")
 				}
 			}
 
@@ -418,7 +422,9 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 		generated.P()
 	}
 	if model.ServerConfig != nil || modelNeedsApps(model) {
-		if err := renderGoServerFactory(generated, goInfo, model); err != nil { return err }
+		if err := renderGoServerFactory(generated, goInfo, model); err != nil {
+			return err
+		}
 	}
 
 	return nil

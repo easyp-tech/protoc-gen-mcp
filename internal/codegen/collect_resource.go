@@ -2,8 +2,8 @@ package codegen
 
 import (
 	"fmt"
-	"mime"
 	"io/fs"
+	"mime"
 	"path"
 	"regexp"
 	"strings"
