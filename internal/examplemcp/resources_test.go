@@ -108,6 +108,45 @@ func TestResourcesPromptsRoundTrip(t *testing.T) {
 	}
 }
 
+// TestGeneratedAppUIFromProto verifies that an annotated unary RPC advertises
+// the MCP Apps UI resource without losing its generated JSON Schema.
+func TestGeneratedAppUIFromProto(t *testing.T) {
+	server, err := examplemcp.NewServer()
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
+	if err != nil {
+		t.Fatalf("server connect: %v", err)
+	}
+	t.Cleanup(func() { _ = serverSession.Close() })
+	client := mcp.NewClient(&mcp.Implementation{Name: "ui-test", Version: "v0.0.1"}, nil)
+	session, err := client.Connect(context.Background(), clientTransport, nil)
+	if err != nil {
+		t.Fatalf("client connect: %v", err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+	tools, err := session.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("tools/list: %v", err)
+	}
+	for _, tool := range tools.Tools {
+		if tool.Name != "example_CreateReport" {
+			continue
+		}
+		ui, ok := tool.Meta["ui"].(map[string]any)
+		if !ok || ui["resourceUri"] != "ui://example/report" {
+			t.Fatalf("generated tool UI metadata = %+v", tool.Meta)
+		}
+		if tool.InputSchema == nil {
+			t.Fatal("generated tool lost input schema")
+		}
+		return
+	}
+	t.Fatal("generated example_CreateReport tool was not registered")
+}
+
 func TestPromptsGetMissingRequiredArg(t *testing.T) {
 	session := newResourcesClient(t)
 	_, err := session.GetPrompt(context.Background(), &mcp.GetPromptParams{
