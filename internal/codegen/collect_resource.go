@@ -2,10 +2,12 @@ package codegen
 
 import (
 	"fmt"
+	"mime"
 	"regexp"
 	"strings"
 
 	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // paramRegex matches valid URI template parameter placeholders like {user_id}.
@@ -63,6 +65,31 @@ func collectResources(file *protogen.File) ([]ResourceModel, error) {
 		if mimeType == "" {
 			mimeType = "application/json"
 		}
+		baseMIME, _, err := mime.ParseMediaType(mimeType)
+		if err != nil {
+			return nil, fmt.Errorf("resource %s: invalid mime_type %q: %w", message.Desc.FullName(), mimeType, err)
+		}
+
+		contentField := strings.TrimSpace(opts.GetContentField())
+		if contentField == "" {
+			if baseMIME != "application/json" && !strings.HasSuffix(baseMIME, "+json") {
+				return nil, fmt.Errorf("resource %s: non-JSON mime_type %q requires content_field to avoid serving ProtoJSON as another format", message.Desc.FullName(), mimeType)
+			}
+		} else {
+			field := message.Desc.Fields().ByName(protoreflect.Name(contentField))
+			if field == nil {
+				return nil, fmt.Errorf("resource %s: content_field %q is not a declared protobuf field", message.Desc.FullName(), contentField)
+			}
+			if field.IsList() || field.IsMap() {
+				return nil, fmt.Errorf("resource %s: content_field %q must be singular string or bytes", message.Desc.FullName(), contentField)
+			}
+			if field.Kind() != protoreflect.StringKind && field.Kind() != protoreflect.BytesKind {
+				return nil, fmt.Errorf("resource %s: content_field %q must be string or bytes, got %s", message.Desc.FullName(), contentField, field.Kind())
+			}
+			if field.Kind() == protoreflect.BytesKind && strings.HasPrefix(baseMIME, "text/") {
+				return nil, fmt.Errorf("resource %s: text mime_type %q requires a string content_field, not bytes", message.Desc.FullName(), mimeType)
+			}
+		}
 
 		resource := ResourceModel{
 			ProtoFullName: string(message.Desc.FullName()),
@@ -72,6 +99,7 @@ func collectResources(file *protogen.File) ([]ResourceModel, error) {
 			URI:           uri,
 			URITemplate:   uriTemplate,
 			MIMEType:      mimeType,
+			ContentField:  contentField,
 			IsTemplate:    isTemplate,
 			Params:        params,
 			Annotations:   opts.GetAnnotations(),

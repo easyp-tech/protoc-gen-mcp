@@ -303,7 +303,11 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 				generated.P("if err != nil {")
 				generated.P("return nil, err")
 				generated.P("}")
-				generated.P("contents, err := ", marshalResourceContentIdent, "(req.Params.URI, ", quote(resource.MIMEType), ", result)")
+				if resource.ContentField == "" {
+					generated.P("contents, err := ", marshalResourceContentIdent, "(req.Params.URI, ", quote(resource.MIMEType), ", result)")
+				} else {
+					generated.P("contents, err := ", marshalResourceContentIdent, "(req.Params.URI, ", quote(resource.MIMEType), ", result, ", quote(resource.ContentField), ")")
+				}
 				generated.P("if err != nil {")
 				generated.P("return nil, err")
 				generated.P("}")
@@ -344,7 +348,11 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 				generated.P("if err != nil {")
 				generated.P("return nil, err")
 				generated.P("}")
-				generated.P("contents, err := ", marshalResourceContentIdent, "(", quote(resource.URI), ", ", quote(resource.MIMEType), ", result)")
+				if resource.ContentField == "" {
+					generated.P("contents, err := ", marshalResourceContentIdent, "(", quote(resource.URI), ", ", quote(resource.MIMEType), ", result)")
+				} else {
+					generated.P("contents, err := ", marshalResourceContentIdent, "(", quote(resource.URI), ", ", quote(resource.MIMEType), ", result, ", quote(resource.ContentField), ")")
+				}
 				generated.P("if err != nil {")
 				generated.P("return nil, err")
 				generated.P("}")

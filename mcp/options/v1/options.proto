@@ -854,6 +854,14 @@ message ResourceOptions {
 
   // icons for the resource.
   repeated Icon icons = 7;
+
+  // content_field selects a singular string or bytes field of this message
+  // as the raw resource body instead of serializing the whole message using
+  // ProtoJSON. String fields become MCP text; bytes fields become MCP blob.
+  // Required for non-JSON MIME types such as text/markdown, text/plain,
+  // text/html;profile=mcp-app and application/octet-stream.
+  // Use the protobuf field name (for example "markdown"), not its JSON name.
+  string content_field = 8;
 }
 
 extend google.protobuf.MessageOptions {
