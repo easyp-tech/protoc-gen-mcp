@@ -28,6 +28,7 @@ jobs:
         run: |
           go install github.com/easyp-tech/easyp/cmd/easyp@v0.15.2-rc1
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          easyp --cfg .github/mcp-options-bootstrap.yaml generate -p mcp -r .
           go install ./cmd/protoc-gen-mcp
       - name: Refresh dependencies and generated outputs
         run: |
