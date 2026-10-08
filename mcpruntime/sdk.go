@@ -43,9 +43,6 @@ func RegisterSDKProtoTool[Req proto.Message, Resp proto.Message](
 
 	opts := resolveOptions(spec.Namespace, options)
 	fullName := qualifyToolName(opts.Namespace, spec.Name)
-	if err := reserveSDKToolName(server, fullName); err != nil {
-		return err
-	}
 
 	icons := make([]mcp.Icon, 0, len(spec.Icons))
 	for _, icon := range spec.Icons {
@@ -72,6 +69,11 @@ func RegisterSDKProtoTool[Req proto.Message, Resp proto.Message](
 			return fmt.Errorf("mcpruntime: tool %q UI: %w", fullName, err)
 		}
 		tool.Meta = mcp.Meta{"ui": ui.metadata()}
+	}
+	// Reserve only after all schema and metadata validation succeeds so a
+	// failed registration does not block a subsequent valid attempt.
+	if err := reserveSDKToolName(server, fullName); err != nil {
+		return err
 	}
 
 	server.AddTool(tool, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
