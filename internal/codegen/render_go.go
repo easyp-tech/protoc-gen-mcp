@@ -2,6 +2,7 @@ package codegen
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	mcpoptionsv1 "github.com/easyp-tech/protoc-gen-mcp/mcp/options/v1"
@@ -22,6 +23,21 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 	generated.P()
 	generated.P("package ", goInfo.file.GoPackageName)
 	generated.P()
+
+	var assets []string
+	seen := map[string]bool{}
+	for _, r := range model.Resources {
+		if r.SourceFile != "" && !seen[r.SourceFile] {
+			assets = append(assets, r.SourceFile)
+			seen[r.SourceFile] = true
+		}
+	}
+	if len(assets) > 0 {
+		sort.Strings(assets)
+		generated.P("//go:embed ", strings.Join(assets, " "))
+		generated.P("var ", goInfo.file.GoDescriptorIdent.GoName, "_mcpAssets ", generated.QualifiedGoIdent(protogen.GoImportPath("embed").Ident("FS")))
+		generated.P()
+	}
 
 	contextIdent := generated.QualifiedGoIdent(protogen.GoImportPath("context").Ident("Context"))
 	errorsIdent := generated.QualifiedGoIdent(protogen.GoImportPath("errors").Ident("New"))
