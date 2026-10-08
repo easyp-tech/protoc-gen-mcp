@@ -159,8 +159,8 @@ func TestCollectFileModel_Resources(t *testing.T) {
 		t.Fatalf("CollectFileModel: %v", err)
 	}
 
-	if len(model.Resources) != 3 {
-		t.Fatalf("resource count = %d, want 3", len(model.Resources))
+	if len(model.Resources) != 7 {
+		t.Fatalf("resource count = %d, want 7", len(model.Resources))
 	}
 
 	// Static resource: ServerStatus.
@@ -206,6 +206,26 @@ func TestCollectFileModel_Resources(t *testing.T) {
 	}
 	if doc.Params[0].Name != "project_id" || doc.Params[1].Name != "document_id" {
 		t.Errorf("Resources[2].Params = %v, want [project_id, document_id]", doc.Params)
+	}
+
+	for _, tc := range []struct {
+		index int
+		name string
+		mime string
+		field string
+		template bool
+	}{
+		{3, "skill_document", "text/markdown", "markdown", false},
+		{4, "plain_text", "text/plain", "body", true},
+		{5, "raw_binary", "application/octet-stream", "data", false},
+		{6, "report_ui", "text/html;profile=mcp-app", "html", false},
+	} {
+		resource := model.Resources[tc.index]
+		if resource.Name != tc.name || resource.MIMEType != tc.mime ||
+			resource.ContentField != tc.field || resource.IsTemplate != tc.template {
+			t.Errorf("resource[%d] = %+v, want name=%q mime=%q field=%q template=%t",
+				tc.index, resource, tc.name, tc.mime, tc.field, tc.template)
+		}
 	}
 }
 
