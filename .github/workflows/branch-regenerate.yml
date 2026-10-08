@@ -4,16 +4,21 @@ on:
   push:
     branches:
       - feat/go-sdk-mcp-apps-modernization
+  pull_request:
+    branches:
+      - master
 
 permissions:
   contents: write
 
 jobs:
   generate:
+    if: github.ref_name == 'feat/go-sdk-mcp-apps-modernization' || github.head_ref == 'feat/go-sdk-mcp-apps-modernization'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: feat/go-sdk-mcp-apps-modernization
           persist-credentials: true
       - uses: actions/setup-go@v5
         with:
