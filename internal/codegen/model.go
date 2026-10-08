@@ -40,6 +40,7 @@ type MethodModel struct {
 	Icons            []*mcpoptionsv1.Icon
 	// TaskSupport mcpoptionsv1.TaskSupport preserves execution.task_support.
 	TaskSupport mcpoptionsv1.TaskSupport
+	AppUI       *mcpoptionsv1.AppUIOptions
 }
 
 type TypeRef struct {
