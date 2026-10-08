@@ -29,7 +29,7 @@ service SecureAPI {
     option (mcp.options.v1.method) = {
       name: "check_access"
       title: "Access check"
-      required_scopes: "reports:read"
+      required_scopes: "reports:write"
     };
   }
 }
