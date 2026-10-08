@@ -149,15 +149,3 @@ func reserveSDKToolName(server *mcp.Server, name string) error {
 	return nil
 }
 
-// MarshalSDKResourceContent returns official-SDK resource contents encoded
-// using the same ProtoJSON rules as the generator's tool outputs.
-func MarshalSDKResourceContent(uri, mimeType string, msg proto.Message) ([]*mcp.ResourceContents, error) {
-	if msg == nil {
-		return nil, errors.New("mcpruntime: nil resource message")
-	}
-	data, err := (protojson.MarshalOptions{EmitDefaultValues: true}).Marshal(msg)
-	if err != nil {
-		return nil, fmt.Errorf("mcpruntime: marshal resource content: %w", err)
-	}
-	return []*mcp.ResourceContents{{URI: uri, MIMEType: mimeType, Text: string(data)}}, nil
-}

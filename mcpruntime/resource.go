@@ -7,6 +7,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 var templateParamRe = regexp.MustCompile(`\{([a-zA-Z_][a-zA-Z0-9_]*)\}`)
@@ -58,7 +59,7 @@ func ExtractURIParams(uri, uriTemplate string) (map[string]string, error) {
 
 // MarshalResourceContent serializes a proto message as MCP ResourceContents
 // using ProtoJSON encoding.
-func MarshalResourceContent(uri, mimeType string, msg proto.Message) ([]*ResourceContents, error) {
+func MarshalResourceContent(uri, mimeType string, msg proto.Message) ([]*mcp.ResourceContents, error) {
 	jsonBytes, err := protojson.MarshalOptions{
 		EmitDefaultValues: true,
 	}.Marshal(msg)
@@ -66,7 +67,7 @@ func MarshalResourceContent(uri, mimeType string, msg proto.Message) ([]*Resourc
 		return nil, fmt.Errorf("mcpruntime: marshal resource content: %w", err)
 	}
 
-	contents := &ResourceContents{
+	contents := &mcp.ResourceContents{
 		URI:      uri,
 		MIMEType: mimeType,
 		Text:     string(jsonBytes),

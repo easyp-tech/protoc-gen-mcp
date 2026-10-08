@@ -209,7 +209,7 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 		mcpAnnotationsIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("Annotations"))
 		mcpRoleIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("Role"))
 		extractURIParamsIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("ExtractURIParams"))
-		marshalResourceContentIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("MarshalSDKResourceContent"))
+		marshalResourceContentIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("MarshalResourceContent"))
 		fmtErrorfIdent := generated.QualifiedGoIdent(protogen.GoImportPath("fmt").Ident("Errorf"))
 
 		fileGoName := goInfo.file.GoDescriptorIdent.GoName
