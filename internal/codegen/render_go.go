@@ -335,7 +335,11 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 				generated.P("if err != nil {")
 				generated.P("return nil, err")
 				generated.P("}")
-				generated.P("return &", mcpReadResourceResIdent, "{Contents: contents}, nil")
+				if resource.AppUI != nil {
+					generated.P("return &", mcpReadResourceResIdent, "{Contents: ", generated.QualifiedGoIdent(mcpruntimeImport.Ident("SetResourceMetadata")), "(contents, ", stringifyGoAppResourceMeta(generated, resource.AppUI), ")}, nil")
+				} else {
+					generated.P("return &", mcpReadResourceResIdent, "{Contents: contents}, nil")
+				}
 				generated.P("}")
 
 				// Register instances.
@@ -353,6 +357,9 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 				}
 				if resource.Annotations != nil {
 					generated.P("Annotations: annotations,")
+				}
+				if resource.AppUI != nil {
+					generated.P("Meta: ", stringifyGoAppResourceMeta(generated, resource.AppUI), ",")
 				}
 				generated.P("}, readHandler)")
 			} else {
