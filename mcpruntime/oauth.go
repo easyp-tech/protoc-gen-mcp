@@ -20,6 +20,7 @@ type OAuthResourceServer struct {
 	ResourceURL          string
 	AuthorizationServers []string
 	Scopes               []string
+	Issuer, Audience, JWKSURL string
 	Verifier             auth.TokenVerifier
 	MCPPath              string
 }
