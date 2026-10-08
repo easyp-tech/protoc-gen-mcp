@@ -216,6 +216,17 @@ architecture unless explicitly revised.
 - Generated TypeScript files expose
   `register<Service>Tools(server, impl, namespace?)`
 - Runtime exposes only the minimal registration options used by generated code
+- Go protobuf file option `(mcp.options.v1.server)` generates a typed
+  `New<File>MCPServer` constructor and optional configured
+  `New<File>MCPHTTPHandler`. Never put bearer tokens, client secrets or
+  identity-provider internals into public protobuf options.
+- Go MCP Apps resources support static `source_file` (Go embed) and
+  `app_ui` CSP/permissions metadata, alongside `content_field` for dynamic
+  text/blob resources. Static `source_file` resources require no Go handler.
+- Generated method `required_scopes` are enforced separately from the
+  OAuth middleware's server-wide scopes; a missing token is denied.
+- RS256 JWKS verification requires HTTPS JWKS, issuer and audience; custom
+  `auth.TokenVerifier` remains supported for opaque or provider-specific tokens.
 - Go runtime transports: SDK `StdioTransport` / `NewStreamableHTTPHandler`
   (stateless HTTP by default, with SDK-managed protocol negotiation and
   cancellation). Legacy transport implementation is removed

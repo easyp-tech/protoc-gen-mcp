@@ -188,6 +188,26 @@ wrapping. Without `content_field`, resources use ProtoJSON and must declare a
 JSON-compatible MIME. See [MCP Apps and OAuth](docs/mcp-apps-oauth.md) for a
 complete `SKILL.md` example and UI resource wiring.
 
+### Protobuf-defined Go servers, apps and OAuth
+
+The Go generator now accepts a file-level `(mcp.options.v1.server)` option
+for `name`, `version`, MCP Apps capabilities, and OAuth resource-server
+configuration. It emits a typed `New<File>MCPServer(ctx, handlers)` factory
+plus `New<File>MCPHTTPHandler(server, verifier)`. OAuth may verify RS256
+access JWTs directly through a configured HTTPS JWKS endpoint and
+issuer/audience, or call an application-provided verifier. Per-RPC
+`required_scopes` provide additional authorization.
+
+For a compiled frontend, declare `source_file` in a static resource with
+`mime_type: "text/html;profile=mcp-app"`; it is embedded in Go and registered
+without a handwritten read handler. The protobuf `app_ui` annotation supports
+resource CSP and browser permissions. Asset paths are relative to the
+generated Go package. The frontend build and the external OAuth identity
+provider remain application-owned.
+
+See [Protobuf-first MCP server, Apps and OAuth](docs/mcp-apps-oauth.md) for
+working options, generated APIs, and security boundaries.
+
 ### Go Streamable HTTP (official Go SDK)
 
 Generated Go registration accepts `*mcp.Server` from
