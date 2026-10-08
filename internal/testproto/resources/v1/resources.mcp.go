@@ -8,19 +8,20 @@ import (
 	errors "errors"
 	fmt "fmt"
 	mcpruntime "github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
+	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // File_internal_testproto_resources_v1_resources_protoResourceHandler defines handlers for MCP resources in internal/testproto/resources/v1/resources.proto.
 type File_internal_testproto_resources_v1_resources_protoResourceHandler interface {
 	ReadServerStatus(ctx context.Context) (*ServerStatus, error)
-	ListUserProfiles(ctx context.Context) ([]mcpruntime.Resource, error)
+	ListUserProfiles(ctx context.Context) ([]mcp.Resource, error)
 	ReadUserProfile(ctx context.Context, user_id string) (*UserProfile, error)
-	ListDocuments(ctx context.Context) ([]mcpruntime.Resource, error)
+	ListDocuments(ctx context.Context) ([]mcp.Resource, error)
 	ReadDocument(ctx context.Context, project_id string, document_id string) (*Document, error)
 }
 
 // RegisterFile_internal_testproto_resources_v1_resources_protoResources registers generated MCP resources for File_internal_testproto_resources_v1_resources_proto.
-func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx context.Context, server *mcpruntime.Server, impl File_internal_testproto_resources_v1_resources_protoResourceHandler, opts ...mcpruntime.RegisterOption) error {
+func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx context.Context, server *mcp.Server, impl File_internal_testproto_resources_v1_resources_protoResourceHandler, opts ...mcpruntime.RegisterOption) error {
 	if impl == nil {
 		return errors.New("RegisterFile_internal_testproto_resources_v1_resources_protoResources: impl is nil")
 	}
@@ -30,29 +31,29 @@ func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx c
 		if resolvedOpts.Namespace != "" {
 			name = resolvedOpts.Namespace + "_" + name
 		}
-		annotations := &mcpruntime.Annotations{
-			Audience: []mcpruntime.Role{
+		annotations := &mcp.Annotations{
+			Audience: []mcp.Role{
 				"user",
 				"assistant",
 			},
-			Priority: mcpruntime.Ptr(0.8),
 		}
-		server.AddResource(&mcpruntime.Resource{
+		annotations.SetPriority(0.8)
+		server.AddResource(&mcp.Resource{
 			Name:        name,
 			URI:         "server://status",
 			Description: "Current server status and health information",
 			MIMEType:    "application/json",
 			Annotations: annotations,
-		}, func(ctx context.Context, req *mcpruntime.ReadResourceRequest) (*mcpruntime.ReadResourceResult, error) {
+		}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			result, err := impl.ReadServerStatus(ctx)
 			if err != nil {
 				return nil, err
 			}
-			contents, err := mcpruntime.MarshalResourceContent("server://status", "application/json", result)
+			contents, err := mcpruntime.MarshalSDKResourceContent("server://status", "application/json", result)
 			if err != nil {
 				return nil, err
 			}
-			return &mcpruntime.ReadResourceResult{Contents: contents}, nil
+			return &mcp.ReadResourceResult{Contents: contents}, nil
 		})
 	}
 
@@ -65,8 +66,8 @@ func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx c
 		if err != nil {
 			return fmt.Errorf("RegisterFile_internal_testproto_resources_v1_resources_protoResources: listing user_profile: %w", err)
 		}
-		readHandler := func(ctx context.Context, req *mcpruntime.ReadResourceRequest) (*mcpruntime.ReadResourceResult, error) {
-			params, err := mcpruntime.ExtractURIParams(req.URI, "users://{user_id}/profile")
+		readHandler := func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			params, err := mcpruntime.ExtractURIParams(req.Params.URI, "users://{user_id}/profile")
 			if err != nil {
 				return nil, err
 			}
@@ -75,16 +76,16 @@ func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx c
 			if err != nil {
 				return nil, err
 			}
-			contents, err := mcpruntime.MarshalResourceContent(req.URI, "application/json", result)
+			contents, err := mcpruntime.MarshalSDKResourceContent(req.Params.URI, "application/json", result)
 			if err != nil {
 				return nil, err
 			}
-			return &mcpruntime.ReadResourceResult{Contents: contents}, nil
+			return &mcp.ReadResourceResult{Contents: contents}, nil
 		}
 		for i := range instances {
 			server.AddResource(&instances[i], readHandler)
 		}
-		server.AddResourceTemplate(&mcpruntime.ResourceTemplate{
+		server.AddResourceTemplate(&mcp.ResourceTemplate{
 			Name:        name,
 			URITemplate: "users://{user_id}/profile",
 			Description: "User profile information",
@@ -97,15 +98,14 @@ func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx c
 		if resolvedOpts.Namespace != "" {
 			name = resolvedOpts.Namespace + "_" + name
 		}
-		annotations := &mcpruntime.Annotations{
-			Priority: mcpruntime.Ptr(0.5),
-		}
+		annotations := &mcp.Annotations{}
+		annotations.SetPriority(0.5)
 		instances, err := impl.ListDocuments(ctx)
 		if err != nil {
 			return fmt.Errorf("RegisterFile_internal_testproto_resources_v1_resources_protoResources: listing document: %w", err)
 		}
-		readHandler := func(ctx context.Context, req *mcpruntime.ReadResourceRequest) (*mcpruntime.ReadResourceResult, error) {
-			params, err := mcpruntime.ExtractURIParams(req.URI, "projects://{project_id}/documents/{document_id}")
+		readHandler := func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			params, err := mcpruntime.ExtractURIParams(req.Params.URI, "projects://{project_id}/documents/{document_id}")
 			if err != nil {
 				return nil, err
 			}
@@ -115,16 +115,16 @@ func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx c
 			if err != nil {
 				return nil, err
 			}
-			contents, err := mcpruntime.MarshalResourceContent(req.URI, "application/json", result)
+			contents, err := mcpruntime.MarshalSDKResourceContent(req.Params.URI, "application/json", result)
 			if err != nil {
 				return nil, err
 			}
-			return &mcpruntime.ReadResourceResult{Contents: contents}, nil
+			return &mcp.ReadResourceResult{Contents: contents}, nil
 		}
 		for i := range instances {
 			server.AddResource(&instances[i], readHandler)
 		}
-		server.AddResourceTemplate(&mcpruntime.ResourceTemplate{
+		server.AddResourceTemplate(&mcp.ResourceTemplate{
 			Name:        name,
 			URITemplate: "projects://{project_id}/documents/{document_id}",
 			Description: "Project document",
