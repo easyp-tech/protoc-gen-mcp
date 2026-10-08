@@ -18,10 +18,13 @@ architecture unless explicitly revised.
 - `easyp v0.15.2-rc1` for repository linting and code generation workflows
 - `google.golang.org/protobuf` for code generation, reflection, and ProtoJSON
 - `google.protobuf` for Python generated modules and ProtoJSON conversion
-- `mcpruntime` (in-repo, self-contained) as the Go MCP runtime; the Go target no
-  longer depends on `github.com/modelcontextprotocol/go-sdk`. Transports:
-  stdio (`ServeStdio` / `ServeIO`) and Streamable HTTP
-  (`NewStreamableHTTPHandler` / `ServeStreamableHTTP`, MCP spec 2025-11-25)
+- `github.com/modelcontextprotocol/go-sdk v1.8.0` is the Go target's
+  official MCP server runtime, protocol negotiation and transports (stdio and
+  stateless Streamable HTTP, including MCP 2026-07-28).
+- `mcpruntime` contains protobuf/ProtoJSON/JSON Schema adapters, MCP Apps
+  metadata/resource registration, and OAuth resource-server wiring. The old
+  self-hosted MCP wire implementation remains temporarily for migration tests
+  only and must not be used by new generated Go servers.
 - `mcp>=1.27,<2` as the official Python MCP SDK target
 - `io.modelcontextprotocol.sdk:mcp` as the official Java MCP SDK target
 - `io.modelcontextprotocol:kotlin-sdk-server` as the official Kotlin MCP SDK
