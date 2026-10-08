@@ -177,6 +177,17 @@ The example server currently exposes:
 - `example_DescribeAdvancedShapes`
 - `example_DescribeScalarShapes`
 
+### Markdown and other raw MCP resources
+
+The Go target can now expose `SKILL.md`, plain text, HTML and binary resources
+directly from protobuf message annotations. Set
+`(mcp.options.v1.resource).mime_type` and `content_field` to a singular
+`string` or `bytes` field. The generator registers both static and templated
+resources with the official SDK and emits the selected field without ProtoJSON
+wrapping. Without `content_field`, resources use ProtoJSON and must declare a
+JSON-compatible MIME. See [MCP Apps and OAuth](docs/mcp-apps-oauth.md) for a
+complete `SKILL.md` example and UI resource wiring.
+
 ### Go Streamable HTTP (official Go SDK)
 
 Generated Go registration accepts `*mcp.Server` from
