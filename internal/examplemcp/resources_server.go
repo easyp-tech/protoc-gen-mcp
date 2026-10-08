@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
 
 	promptsv1 "github.com/easyp-tech/protoc-gen-mcp/internal/testproto/prompts/v1"
 	resourcesv1 "github.com/easyp-tech/protoc-gen-mcp/internal/testproto/resources/v1"
@@ -20,9 +19,10 @@ var exampleSkillMarkdown string
 // registration code (resources.mcp.go) is actually compiled and exercised — the
 // text-only golden test does not compile it.
 func NewResourcesServer(ctx context.Context) (*mcp.Server, error) {
-	server := mcp.NewServer(&mcp.Implementation{Name: "protoc-gen-mcp-resources-server", Version: "v0.0.1"}, &mcp.ServerOptions{Capabilities: mcpruntime.AppCapabilities()})
-
-	if err := resourcesv1.RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx, server, ResourcesHandler{}); err != nil {
+	server, err := resourcesv1.NewFile_internal_testproto_resources_v1_resources_protoMCPServer(ctx, resourcesv1.File_internal_testproto_resources_v1_resources_protoMCPHandlers{
+		Resources: ResourcesHandler{},
+	})
+	if err != nil {
 		return nil, err
 	}
 	if err := promptsv1.RegisterFile_internal_testproto_prompts_v1_prompts_protoPrompts(server, PromptsHandler{}); err != nil {
