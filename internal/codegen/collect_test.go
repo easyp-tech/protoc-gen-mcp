@@ -218,9 +218,12 @@ func TestCollectFileModel_Resources(t *testing.T) {
 		{3, "skill_document", "text/markdown", "markdown", false},
 		{4, "plain_text", "text/plain", "body", true},
 		{5, "raw_binary", "application/octet-stream", "data", false},
-		{6, "report_ui", "text/html;profile=mcp-app", "html", false},
+		{6, "report_ui", "text/html;profile=mcp-app", "", false},
 	} {
 		resource := model.Resources[tc.index]
+		if tc.name == "report_ui" && resource.SourceFile != "testdata/report.html" {
+			t.Errorf("resource[6] has source_file %q, want embedded HTML path", resource.SourceFile)
+		}
 		if resource.Name != tc.name || resource.MIMEType != tc.mime ||
 			resource.ContentField != tc.field || resource.IsTemplate != tc.template {
 			t.Errorf("resource[%d] = %+v, want name=%q mime=%q field=%q template=%t",
