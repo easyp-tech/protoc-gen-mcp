@@ -356,8 +356,12 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 				}
 				generated.P("}, readHandler)")
 			} else {
-				// Static resource: register with read handler.
-				generated.P("server.AddResource(&", mcpResourceIdent, "{")
+				// Static resources may be registered directly from embedded files.
+				if resource.SourceFile != "" {
+					generated.P("if err := ", generated.QualifiedGoIdent(mcpruntimeImport.Ident("RegisterEmbeddedResource")), "(server, ", goInfo.file.GoDescriptorIdent.GoName, "_mcpAssets, ", quote(resource.SourceFile), ", &", mcpResourceIdent, "{")
+				} else {
+					generated.P("server.AddResource(&", mcpResourceIdent, "{")
+				}
 				generated.P("Name: name,")
 				generated.P("URI: ", quote(resource.URI), ",")
 				generated.P("Description: ", quote(resource.Description), ",")
@@ -367,7 +371,13 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 				if resource.Annotations != nil {
 					generated.P("Annotations: annotations,")
 				}
-				generated.P("}, func(ctx ", contextIdent, ", req *", mcpReadResourceReqIdent, ") (*", mcpReadResourceResIdent, ", error) {")
+				if resource.AppUI != nil {
+					generated.P("Meta: ", stringifyGoAppResourceMeta(generated, resource.AppUI), ",")
+				}
+				if resource.SourceFile != "" {
+					generated.P("}); err != nil { return err }")
+				} else {
+					generated.P("}, func(ctx ", contextIdent, ", req *", mcpReadResourceReqIdent, ") (*", mcpReadResourceResIdent, ", error) {")
 				generated.P("result, err := impl.Read", resource.ProtoName, "(ctx)")
 				generated.P("if err != nil {")
 				generated.P("return nil, err")
@@ -380,8 +390,13 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 				generated.P("if err != nil {")
 				generated.P("return nil, err")
 				generated.P("}")
-				generated.P("return &", mcpReadResourceResIdent, "{Contents: contents}, nil")
+				if resource.AppUI != nil {
+					generated.P("return &", mcpReadResourceResIdent, "{Contents: ", generated.QualifiedGoIdent(mcpruntimeImport.Ident("SetResourceMetadata")), "(contents, ", stringifyGoAppResourceMeta(generated, resource.AppUI), ")}, nil")
+				} else {
+					generated.P("return &", mcpReadResourceResIdent, "{Contents: contents}, nil")
+				}
 				generated.P("})")
+				}
 			}
 
 			generated.P("}")
