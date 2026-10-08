@@ -97,6 +97,7 @@ class MethodOptions:
     execution: ExecutionOptions
     app_ui: AppUIOptions
     icons: list[Icon] = field(default_factory=list)
+    required_scopes: list[str] = field(default_factory=list)
 
 @dataclass(slots=True)
 class ExampleObject:
@@ -200,6 +201,27 @@ class ResourceAnnotations:
     priority: float | _UnsetType = UNSET
 
 @dataclass(slots=True)
+class AppResourceCSP:
+    connect_domains: list[str] = field(default_factory=list)
+    resource_domains: list[str] = field(default_factory=list)
+    frame_domains: list[str] = field(default_factory=list)
+    base_uri_domains: list[str] = field(default_factory=list)
+
+@dataclass(slots=True)
+class AppResourcePermissions:
+    camera: bool
+    microphone: bool
+    geolocation: bool
+    clipboard_write: bool
+
+@dataclass(slots=True)
+class AppResourceOptions:
+    csp: AppResourceCSP
+    permissions: AppResourcePermissions
+    domain: str
+    prefers_border: bool | _UnsetType = UNSET
+
+@dataclass(slots=True)
 class ResourceOptions:
     uri: str
     uri_template: str
@@ -208,7 +230,30 @@ class ResourceOptions:
     mime_type: str
     annotations: ResourceAnnotations
     content_field: str
+    source_file: str
+    app_ui: AppResourceOptions
     icons: list[Icon] = field(default_factory=list)
+
+@dataclass(slots=True)
+class AppsConfig:
+    enabled: bool | _UnsetType = UNSET
+
+@dataclass(slots=True)
+class OAuthConfig:
+    resource_url: str
+    issuer: str
+    jwks_uri: str
+    audience: str
+    mcp_path: str
+    authorization_servers: list[str] = field(default_factory=list)
+    scopes: list[str] = field(default_factory=list)
+
+@dataclass(slots=True)
+class ServerConfig:
+    name: str
+    version: str
+    apps: AppsConfig
+    oauth: OAuthConfig
 
 @dataclass(frozen=True)
 class _RegisteredTool:
@@ -633,6 +678,7 @@ def _from_pb_method_options(message: options_pb2.MethodOptions) -> MethodOptions
         icons=[_from_pb_icon(item) for item in message.icons],
         execution=_from_pb_execution_options(message.execution),
         app_ui=_from_pb_app_ui_options(message.app_ui),
+        required_scopes=list(message.required_scopes),
     )
 
 def _to_pb_method_options(value: MethodOptions) -> options_pb2.MethodOptions:
@@ -645,6 +691,7 @@ def _to_pb_method_options(value: MethodOptions) -> options_pb2.MethodOptions:
     message.icons.extend(_to_pb_icon(item) for item in value.icons)
     message.execution.CopyFrom(_to_pb_execution_options(value.execution))
     message.app_ui.CopyFrom(_to_pb_app_ui_options(value.app_ui))
+    message.required_scopes.extend(value.required_scopes)
     return message
 
 def _from_pb_example_object(message: options_pb2.ExampleObject) -> ExampleObject:
@@ -839,6 +886,55 @@ def _to_pb_resource_annotations(value: ResourceAnnotations) -> options_pb2.Resou
         message.priority = value.priority
     return message
 
+def _from_pb_app_resource_csp(message: options_pb2.AppResourceCSP) -> AppResourceCSP:
+    return AppResourceCSP(
+        connect_domains=list(message.connect_domains),
+        resource_domains=list(message.resource_domains),
+        frame_domains=list(message.frame_domains),
+        base_uri_domains=list(message.base_uri_domains),
+    )
+
+def _to_pb_app_resource_csp(value: AppResourceCSP) -> options_pb2.AppResourceCSP:
+    message = options_pb2.AppResourceCSP()
+    message.connect_domains.extend(value.connect_domains)
+    message.resource_domains.extend(value.resource_domains)
+    message.frame_domains.extend(value.frame_domains)
+    message.base_uri_domains.extend(value.base_uri_domains)
+    return message
+
+def _from_pb_app_resource_permissions(message: options_pb2.AppResourcePermissions) -> AppResourcePermissions:
+    return AppResourcePermissions(
+        camera=message.camera,
+        microphone=message.microphone,
+        geolocation=message.geolocation,
+        clipboard_write=message.clipboard_write,
+    )
+
+def _to_pb_app_resource_permissions(value: AppResourcePermissions) -> options_pb2.AppResourcePermissions:
+    message = options_pb2.AppResourcePermissions()
+    message.camera = value.camera
+    message.microphone = value.microphone
+    message.geolocation = value.geolocation
+    message.clipboard_write = value.clipboard_write
+    return message
+
+def _from_pb_app_resource_options(message: options_pb2.AppResourceOptions) -> AppResourceOptions:
+    return AppResourceOptions(
+        csp=_from_pb_app_resource_csp(message.csp),
+        permissions=_from_pb_app_resource_permissions(message.permissions),
+        domain=message.domain,
+        prefers_border=message.prefers_border if message.HasField("prefers_border") else UNSET,
+    )
+
+def _to_pb_app_resource_options(value: AppResourceOptions) -> options_pb2.AppResourceOptions:
+    message = options_pb2.AppResourceOptions()
+    message.csp.CopyFrom(_to_pb_app_resource_csp(value.csp))
+    message.permissions.CopyFrom(_to_pb_app_resource_permissions(value.permissions))
+    message.domain = value.domain
+    if value.prefers_border is not UNSET:
+        message.prefers_border = value.prefers_border
+    return message
+
 def _from_pb_resource_options(message: options_pb2.ResourceOptions) -> ResourceOptions:
     return ResourceOptions(
         uri=message.uri,
@@ -849,6 +945,8 @@ def _from_pb_resource_options(message: options_pb2.ResourceOptions) -> ResourceO
         annotations=_from_pb_resource_annotations(message.annotations),
         icons=[_from_pb_icon(item) for item in message.icons],
         content_field=message.content_field,
+        source_file=message.source_file,
+        app_ui=_from_pb_app_resource_options(message.app_ui),
     )
 
 def _to_pb_resource_options(value: ResourceOptions) -> options_pb2.ResourceOptions:
@@ -861,5 +959,56 @@ def _to_pb_resource_options(value: ResourceOptions) -> options_pb2.ResourceOptio
     message.annotations.CopyFrom(_to_pb_resource_annotations(value.annotations))
     message.icons.extend(_to_pb_icon(item) for item in value.icons)
     message.content_field = value.content_field
+    message.source_file = value.source_file
+    message.app_ui.CopyFrom(_to_pb_app_resource_options(value.app_ui))
+    return message
+
+def _from_pb_apps_config(message: options_pb2.AppsConfig) -> AppsConfig:
+    return AppsConfig(
+        enabled=message.enabled if message.HasField("enabled") else UNSET,
+    )
+
+def _to_pb_apps_config(value: AppsConfig) -> options_pb2.AppsConfig:
+    message = options_pb2.AppsConfig()
+    if value.enabled is not UNSET:
+        message.enabled = value.enabled
+    return message
+
+def _from_pb_o_auth_config(message: options_pb2.OAuthConfig) -> OAuthConfig:
+    return OAuthConfig(
+        resource_url=message.resource_url,
+        authorization_servers=list(message.authorization_servers),
+        scopes=list(message.scopes),
+        issuer=message.issuer,
+        jwks_uri=message.jwks_uri,
+        audience=message.audience,
+        mcp_path=message.mcp_path,
+    )
+
+def _to_pb_o_auth_config(value: OAuthConfig) -> options_pb2.OAuthConfig:
+    message = options_pb2.OAuthConfig()
+    message.resource_url = value.resource_url
+    message.authorization_servers.extend(value.authorization_servers)
+    message.scopes.extend(value.scopes)
+    message.issuer = value.issuer
+    message.jwks_uri = value.jwks_uri
+    message.audience = value.audience
+    message.mcp_path = value.mcp_path
+    return message
+
+def _from_pb_server_config(message: options_pb2.ServerConfig) -> ServerConfig:
+    return ServerConfig(
+        name=message.name,
+        version=message.version,
+        apps=_from_pb_apps_config(message.apps),
+        oauth=_from_pb_o_auth_config(message.oauth),
+    )
+
+def _to_pb_server_config(value: ServerConfig) -> options_pb2.ServerConfig:
+    message = options_pb2.ServerConfig()
+    message.name = value.name
+    message.version = value.version
+    message.apps.CopyFrom(_to_pb_apps_config(value.apps))
+    message.oauth.CopyFrom(_to_pb_o_auth_config(value.oauth))
     return message
 

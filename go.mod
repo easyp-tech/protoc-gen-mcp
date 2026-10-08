@@ -4,6 +4,7 @@ go 1.26
 
 require (
 	github.com/bufbuild/protocompile v0.14.1
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/jsonschema-go v0.4.3
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	google.golang.org/protobuf v1.36.11

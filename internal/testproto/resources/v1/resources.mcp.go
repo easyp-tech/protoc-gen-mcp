@@ -5,11 +5,18 @@ package resourcesv1
 
 import (
 	context "context"
+	embed "embed"
 	errors "errors"
 	fmt "fmt"
 	mcpruntime "github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
+	auth "github.com/modelcontextprotocol/go-sdk/auth"
 	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
+	proto "google.golang.org/protobuf/proto"
+	http "net/http"
 )
+
+//go:embed testdata/report.html
+var File_internal_testproto_resources_v1_resources_proto_mcpAssets embed.FS
 
 // File_internal_testproto_resources_v1_resources_protoResourceHandler defines handlers for MCP resources in internal/testproto/resources/v1/resources.proto.
 type File_internal_testproto_resources_v1_resources_protoResourceHandler interface {
@@ -22,7 +29,6 @@ type File_internal_testproto_resources_v1_resources_protoResourceHandler interfa
 	ListPlainTexts(ctx context.Context) ([]mcp.Resource, error)
 	ReadPlainText(ctx context.Context, name string) (*PlainText, error)
 	ReadRawBinary(ctx context.Context) (*RawBinary, error)
-	ReadAppPage(ctx context.Context) (*AppPage, error)
 }
 
 // RegisterFile_internal_testproto_resources_v1_resources_protoResources registers generated MCP resources for File_internal_testproto_resources_v1_resources_proto.
@@ -225,23 +231,38 @@ func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx c
 		if resolvedOpts.Namespace != "" {
 			name = resolvedOpts.Namespace + "_" + name
 		}
-		server.AddResource(&mcp.Resource{
+		if err := mcpruntime.RegisterEmbeddedResource(server, File_internal_testproto_resources_v1_resources_proto_mcpAssets, "testdata/report.html", &mcp.Resource{
 			Name:        name,
 			URI:         "ui://example/report",
 			Description: "AppPage is an MCP Apps HTML resource generated from a protobuf message.",
 			MIMEType:    "text/html;profile=mcp-app",
-		}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-			result, err := impl.ReadAppPage(ctx)
-			if err != nil {
-				return nil, err
-			}
-			contents, err := mcpruntime.MarshalResourceContent("ui://example/report", "text/html;profile=mcp-app", result, "html")
-			if err != nil {
-				return nil, err
-			}
-			return &mcp.ReadResourceResult{Contents: contents}, nil
-		})
+			Meta:        mcpruntime.AppResourceMetadata(mcpruntime.AppResourceConfig{CSP: mcpruntime.AppResourceCSP{ConnectDomains: []string{"https://api.example.com"}, ResourceDomains: []string{"https://cdn.example.com"}, FrameDomains: []string{}, BaseURIDomains: []string{}}, Permissions: mcpruntime.AppResourcePermissions{Camera: false, Microphone: false, Geolocation: false, ClipboardWrite: true}, PrefersBorder: proto.Bool(true)}),
+		}); err != nil {
+			return err
+		}
 	}
 
 	return nil
+}
+
+// File_internal_testproto_resources_v1_resources_protoMCPHandlers supplies business handlers for the generated file.
+type File_internal_testproto_resources_v1_resources_protoMCPHandlers struct {
+	Resources File_internal_testproto_resources_v1_resources_protoResourceHandler
+}
+
+// NewFile_internal_testproto_resources_v1_resources_protoMCPServer constructs and populates an official MCP SDK server.
+func NewFile_internal_testproto_resources_v1_resources_protoMCPServer(ctx context.Context, handlers File_internal_testproto_resources_v1_resources_protoMCPHandlers) (*mcp.Server, error) {
+	server, err := mcpruntime.NewConfiguredServer("resource-fixture-server", "v1.0.0", true)
+	if err != nil {
+		return nil, err
+	}
+	if err := RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx, server, handlers.Resources); err != nil {
+		return nil, err
+	}
+	return server, nil
+}
+
+// NewFile_internal_testproto_resources_v1_resources_protoMCPHTTPHandler applies protobuf OAuth policy to SDK Streamable HTTP.
+func NewFile_internal_testproto_resources_v1_resources_protoMCPHTTPHandler(server *mcp.Server, verifier auth.TokenVerifier) (http.Handler, error) {
+	return mcpruntime.NewConfiguredHTTPHandler(server, nil, verifier)
 }

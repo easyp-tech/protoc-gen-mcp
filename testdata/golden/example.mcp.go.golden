@@ -129,3 +129,20 @@ const ExampleAPI_DescribeScalarShapes_ToolSpecOutputSchemaJSON = "{\"type\":\"ob
 const ExampleAPI_HiddenThing_ToolSpecInputSchemaJSON = "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"name is the hidden request payload.\",\"examples\":[\"example\"]}},\"description\":\"HiddenThingRequest is used by the hidden RPC.\",\"deprecated\":true,\"examples\":[{\"name\":\"example\"}],\"required\":[\"name\"],\"additionalProperties\":false}"
 
 const ExampleAPI_HiddenThing_ToolSpecOutputSchemaJSON = "{\"type\":\"object\",\"description\":\"HiddenThingResponse is used by the hidden RPC.\",\"additionalProperties\":false}"
+
+// File_internal_testproto_example_v1_example_protoMCPHandlers supplies business handlers for the generated file.
+type File_internal_testproto_example_v1_example_protoMCPHandlers struct {
+	ExampleAPI ExampleAPIToolHandler
+}
+
+// NewFile_internal_testproto_example_v1_example_protoMCPServer constructs and populates an official MCP SDK server.
+func NewFile_internal_testproto_example_v1_example_protoMCPServer(ctx context.Context, handlers File_internal_testproto_example_v1_example_protoMCPHandlers) (*mcp.Server, error) {
+	server, err := mcpruntime.NewConfiguredServer("example.proto", "v0.0.1", true)
+	if err != nil {
+		return nil, err
+	}
+	if err := RegisterExampleAPITools(server, handlers.ExampleAPI); err != nil {
+		return nil, err
+	}
+	return server, nil
+}

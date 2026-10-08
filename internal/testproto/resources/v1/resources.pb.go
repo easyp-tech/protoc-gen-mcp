@@ -494,13 +494,16 @@ const file_internal_testproto_resources_v1_resources_proto_rawDesc = "" +
 	"\tRawBinary\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\fR\x04data:K\x8a\xb8,G\n" +
 	"\x19blob://example/attachment\x1a\n" +
-	"raw_binary*\x18application/octet-streamB\x04data\"d\n" +
+	"raw_binary*\x18application/octet-streamB\x04data\"\xb2\x01\n" +
 	"\aAppPage\x12\x12\n" +
-	"\x04html\x18\x01 \x01(\tR\x04html:E\x8a\xb8,A\n" +
-	"\x13ui://example/report\x1a\treport_ui*\x19text/html;profile=mcp-appB\x04html\"3\n" +
+	"\x04html\x18\x01 \x01(\tR\x04html:\x92\x01\x8a\xb8,\x8d\x01\n" +
+	"\x13ui://example/report\x1a\treport_ui*\x19text/html;profile=mcp-appJ\x14testdata/report.htmlR:\n" +
+	"2\n" +
+	"\x17https://api.example.com\x12\x17https://cdn.example.com\x12\x02 \x01 \x01\"3\n" +
 	"\tPlainData\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05valueBRZPgithub.com/easyp-tech/protoc-gen-mcp/internal/testproto/resources/v1;resourcesv1b\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05valueB{\x92\xb8,%\n" +
+	"\x17resource-fixture-server\x12\x06v1.0.0\x1a\x02\b\x01ZPgithub.com/easyp-tech/protoc-gen-mcp/internal/testproto/resources/v1;resourcesv1b\x06proto3"
 
 var (
 	file_internal_testproto_resources_v1_resources_proto_rawDescOnce sync.Once
