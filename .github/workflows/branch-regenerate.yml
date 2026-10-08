@@ -1,0 +1,49 @@
+name: regenerate declarative MCP artifacts
+
+on:
+  push:
+    branches: [feat/go-sdk-mcp-apps-modernization]
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/go-sdk-mcp-apps-modernization
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install protobuf generator tools
+        run: |
+          go install github.com/easyp-tech/easyp/cmd/easyp@v0.15.2-rc1
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+      - name: Bootstrap options and regenerate all fixtures
+        run: |
+          easyp --cfg .github/mcp-options-bootstrap.yaml generate -p mcp -r .
+          go mod tidy
+          easyp --cfg easyp.yaml generate -p mcp -r .
+          easyp --cfg easyp.test.yaml generate -p internal/testproto -r .
+          (cd examples && make generate)
+          WRITE_GOLDEN=1 go test ./internal/codegen -run "TestWrite(Example|Prompts|Resources)GoldenFiles" -count=1
+          go mod tidy
+      - name: Commit generated outputs
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m 'chore: regenerate declarative MCP options, fixtures and goldens'
+            git fetch origin feat/go-sdk-mcp-apps-modernization
+            git rebase origin/feat/go-sdk-mcp-apps-modernization
+            git push origin HEAD:feat/go-sdk-mcp-apps-modernization
+          fi
