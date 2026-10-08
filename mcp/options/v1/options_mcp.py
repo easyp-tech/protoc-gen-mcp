@@ -207,6 +207,7 @@ class ResourceOptions:
     description: str
     mime_type: str
     annotations: ResourceAnnotations
+    content_field: str
     icons: list[Icon] = field(default_factory=list)
 
 @dataclass(frozen=True)
@@ -847,6 +848,7 @@ def _from_pb_resource_options(message: options_pb2.ResourceOptions) -> ResourceO
         mime_type=message.mime_type,
         annotations=_from_pb_resource_annotations(message.annotations),
         icons=[_from_pb_icon(item) for item in message.icons],
+        content_field=message.content_field,
     )
 
 def _to_pb_resource_options(value: ResourceOptions) -> options_pb2.ResourceOptions:
@@ -858,5 +860,6 @@ def _to_pb_resource_options(value: ResourceOptions) -> options_pb2.ResourceOptio
     message.mime_type = value.mime_type
     message.annotations.CopyFrom(_to_pb_resource_annotations(value.annotations))
     message.icons.extend(_to_pb_icon(item) for item in value.icons)
+    message.content_field = value.content_field
     return message
 

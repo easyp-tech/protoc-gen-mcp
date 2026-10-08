@@ -1843,7 +1843,14 @@ type ResourceOptions struct {
 	// annotations carries MCP-level resource metadata (audience, priority).
 	Annotations *ResourceAnnotations `protobuf:"bytes,6,opt,name=annotations,proto3" json:"annotations,omitempty"`
 	// icons for the resource.
-	Icons         []*Icon `protobuf:"bytes,7,rep,name=icons,proto3" json:"icons,omitempty"`
+	Icons []*Icon `protobuf:"bytes,7,rep,name=icons,proto3" json:"icons,omitempty"`
+	// content_field selects a singular string or bytes field of this message
+	// as the raw resource body instead of serializing the whole message using
+	// ProtoJSON. String fields become MCP text; bytes fields become MCP blob.
+	// Required for non-JSON MIME types such as text/markdown, text/plain,
+	// text/html;profile=mcp-app and application/octet-stream.
+	// Use the protobuf field name (for example "markdown"), not its JSON name.
+	ContentField  string `protobuf:"bytes,8,opt,name=content_field,json=contentField,proto3" json:"content_field,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1925,6 +1932,13 @@ func (x *ResourceOptions) GetIcons() []*Icon {
 		return x.Icons
 	}
 	return nil
+}
+
+func (x *ResourceOptions) GetContentField() string {
+	if x != nil {
+		return x.ContentField
+	}
+	return ""
 }
 
 var file_mcp_options_v1_options_proto_extTypes = []protoimpl.ExtensionInfo{
@@ -2185,7 +2199,7 @@ const file_mcp_options_v1_options_proto_rawDesc = "" +
 	"\x13ResourceAnnotations\x12<\n" +
 	"\baudience\x18\x01 \x03(\x0e2 .mcp.options.v1.ResourceAudienceR\baudience\x12\x1f\n" +
 	"\bpriority\x18\x02 \x01(\x01H\x00R\bpriority\x88\x01\x01B\v\n" +
-	"\t_priority\"\x8c\x02\n" +
+	"\t_priority\"\xb1\x02\n" +
 	"\x0fResourceOptions\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12!\n" +
 	"\furi_template\x18\x02 \x01(\tR\vuriTemplate\x12\x12\n" +
@@ -2193,7 +2207,8 @@ const file_mcp_options_v1_options_proto_rawDesc = "" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x1b\n" +
 	"\tmime_type\x18\x05 \x01(\tR\bmimeType\x12E\n" +
 	"\vannotations\x18\x06 \x01(\v2#.mcp.options.v1.ResourceAnnotationsR\vannotations\x12*\n" +
-	"\x05icons\x18\a \x03(\v2\x14.mcp.options.v1.IconR\x05icons*Z\n" +
+	"\x05icons\x18\a \x03(\v2\x14.mcp.options.v1.IconR\x05icons\x12#\n" +
+	"\rcontent_field\x18\b \x01(\tR\fcontentField*Z\n" +
 	"\vTaskSupport\x12\x15\n" +
 	"\x11TASK_SUPPORT_NONE\x10\x00\x12\x19\n" +
 	"\x15TASK_SUPPORT_OPTIONAL\x10\x01\x12\x19\n" +
