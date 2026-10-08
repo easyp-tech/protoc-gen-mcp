@@ -30,6 +30,7 @@ type ToolSpec[Req proto.Message, Resp proto.Message] struct {
 	OutputSchemaJSON string
 	Annotations      *ToolAnnotations
 	Icons            []Icon
+	AppUI            *AppUI
 	NewRequest       func() Req
 	NewResponse      func() Resp
 	Handler          func(context.Context, Req) (Resp, error)
