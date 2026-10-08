@@ -1,6 +1,20 @@
 # Generate the runnable protobuf-first example from the local repository source.
 # Unlike examples/easyp.yaml, this config does not resolve the older released
 # options.proto through a pinned external module.
+lint:
+  use:
+    - FIELD_LOWER_SNAKE_CASE
+    - MESSAGE_PASCAL_CASE
+    - RPC_PASCAL_CASE
+    - SERVICE_SUFFIX
+    - COMMENT_FIELD
+    - COMMENT_MESSAGE
+    - COMMENT_RPC
+    - COMMENT_SERVICE
+    - RPC_NO_CLIENT_STREAMING
+    - RPC_NO_SERVER_STREAMING
+  service_suffix: API
+
 generate:
   inputs:
     - directory:
