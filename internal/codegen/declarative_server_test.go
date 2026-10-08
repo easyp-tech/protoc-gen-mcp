@@ -119,3 +119,23 @@ func TestGoServerConfigAndSourceFileValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestGoServerConfigOnlyFileGeneration(t *testing.T) {
+	plugin := newTempProtogenPlugin(t, map[string]string{
+		"test/v1/only_server.proto": strings.Join([]string{
+			`syntax = "proto3";`,
+			`package test.v1;`,
+			`option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/codegen/testdata/config;configv1";`,
+			`import "mcp/options/v1/options.proto";`,
+			`option (mcp.options.v1.server) = { name: "server-only" };`,
+		},"\n"),
+	}, "test/v1/only_server.proto")
+	if err := Generate(plugin, Options{Language:LanguageGo}); err != nil {t.Fatalf("config-only generate: %v",err)}
+	result := string(generatedFileContent(t,plugin,"test/v1/only_server.mcp.go"))
+	for _, needle := range []string{"NewFile_test_v1_only_server_protoMCPServer","NewFile_test_v1_only_server_protoMCPHTTPHandler"} {
+		if !strings.Contains(result,needle) {t.Fatalf("missing %q in generated server-only output",needle)}
+	}
+	for _, extra := range []string{`errors "errors"`, `RegisterSDKProtoTool`, `RegisterOption`} {
+		if strings.Contains(result,extra) {t.Fatalf("unused helper %q in server-only output",extra)}
+	}
+}
