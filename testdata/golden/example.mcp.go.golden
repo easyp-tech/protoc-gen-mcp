@@ -7,6 +7,7 @@ import (
 	context "context"
 	errors "errors"
 	mcpruntime "github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
+	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	proto "google.golang.org/protobuf/proto"
 )
 
@@ -20,11 +21,11 @@ type ExampleAPIToolHandler interface {
 }
 
 // RegisterExampleAPITools registers generated MCP tools for ExampleAPI.
-func RegisterExampleAPITools(server *mcpruntime.Server, impl ExampleAPIToolHandler, opts ...mcpruntime.RegisterOption) error {
+func RegisterExampleAPITools(server *mcp.Server, impl ExampleAPIToolHandler, opts ...mcpruntime.RegisterOption) error {
 	if impl == nil {
 		return errors.New("RegisterExampleAPITools: impl is nil")
 	}
-	if err := mcpruntime.RegisterProtoTool(server, mcpruntime.ToolSpec[*CreateReportRequest, *CreateReportResponse]{
+	if err := mcpruntime.RegisterSDKProtoTool(server, mcpruntime.ToolSpec[*CreateReportRequest, *CreateReportResponse]{
 		Name:             "CreateReport",
 		Title:            "Create report",
 		Description:      "Create a report for a city.",
@@ -33,13 +34,20 @@ func RegisterExampleAPITools(server *mcpruntime.Server, impl ExampleAPIToolHandl
 		OutputSchemaJSON: ExampleAPI_CreateReport_ToolSpecOutputSchemaJSON,
 		Annotations:      nil,
 		Icons:            nil,
-		NewRequest:       func() *CreateReportRequest { return &CreateReportRequest{} },
-		NewResponse:      func() *CreateReportResponse { return &CreateReportResponse{} },
-		Handler:          impl.CreateReport,
+		AppUI: &mcpruntime.AppUI{
+			ResourceURI: "ui://example/report",
+			Visibility: []string{
+				"model",
+				"app",
+			},
+		},
+		NewRequest:  func() *CreateReportRequest { return &CreateReportRequest{} },
+		NewResponse: func() *CreateReportResponse { return &CreateReportResponse{} },
+		Handler:     impl.CreateReport,
 	}, opts...); err != nil {
 		return err
 	}
-	if err := mcpruntime.RegisterProtoTool(server, mcpruntime.ToolSpec[*PingRequest, *PingResponse]{
+	if err := mcpruntime.RegisterSDKProtoTool(server, mcpruntime.ToolSpec[*PingRequest, *PingResponse]{
 		Name:             "Health",
 		Title:            "Health check",
 		Description:      "Ping returns an empty response.",
@@ -54,7 +62,7 @@ func RegisterExampleAPITools(server *mcpruntime.Server, impl ExampleAPIToolHandl
 	}, opts...); err != nil {
 		return err
 	}
-	if err := mcpruntime.RegisterProtoTool(server, mcpruntime.ToolSpec[*DescribeAdvancedShapesRequest, *DescribeAdvancedShapesResponse]{
+	if err := mcpruntime.RegisterSDKProtoTool(server, mcpruntime.ToolSpec[*DescribeAdvancedShapesRequest, *DescribeAdvancedShapesResponse]{
 		Name:             "DescribeAdvancedShapes",
 		Title:            "Describe advanced shapes",
 		Description:      "Exercise maps and well-known protobuf types.",
@@ -69,7 +77,7 @@ func RegisterExampleAPITools(server *mcpruntime.Server, impl ExampleAPIToolHandl
 	}, opts...); err != nil {
 		return err
 	}
-	if err := mcpruntime.RegisterProtoTool(server, mcpruntime.ToolSpec[*DescribeScalarShapesRequest, *DescribeScalarShapesResponse]{
+	if err := mcpruntime.RegisterSDKProtoTool(server, mcpruntime.ToolSpec[*DescribeScalarShapesRequest, *DescribeScalarShapesResponse]{
 		Name:             "DescribeScalarShapes",
 		Title:            "Describe scalar shapes",
 		Description:      "Exercise plain protobuf scalar kinds.",
@@ -84,7 +92,7 @@ func RegisterExampleAPITools(server *mcpruntime.Server, impl ExampleAPIToolHandl
 	}, opts...); err != nil {
 		return err
 	}
-	if err := mcpruntime.RegisterProtoTool(server, mcpruntime.ToolSpec[*HiddenThingRequest, *HiddenThingResponse]{
+	if err := mcpruntime.RegisterSDKProtoTool(server, mcpruntime.ToolSpec[*HiddenThingRequest, *HiddenThingResponse]{
 		Name:             "HiddenThing",
 		Title:            "",
 		Description:      "HiddenThing is intentionally hidden from generated tools.\nNote: the `hidden` method option was removed in this iteration.",
@@ -121,3 +129,20 @@ const ExampleAPI_DescribeScalarShapes_ToolSpecOutputSchemaJSON = "{\"type\":\"ob
 const ExampleAPI_HiddenThing_ToolSpecInputSchemaJSON = "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"name is the hidden request payload.\",\"examples\":[\"example\"]}},\"description\":\"HiddenThingRequest is used by the hidden RPC.\",\"deprecated\":true,\"examples\":[{\"name\":\"example\"}],\"required\":[\"name\"],\"additionalProperties\":false}"
 
 const ExampleAPI_HiddenThing_ToolSpecOutputSchemaJSON = "{\"type\":\"object\",\"description\":\"HiddenThingResponse is used by the hidden RPC.\",\"additionalProperties\":false}"
+
+// File_internal_testproto_example_v1_example_protoMCPHandlers supplies business handlers for the generated file.
+type File_internal_testproto_example_v1_example_protoMCPHandlers struct {
+	ExampleAPI ExampleAPIToolHandler
+}
+
+// NewFile_internal_testproto_example_v1_example_protoMCPServer constructs and populates an official MCP SDK server.
+func NewFile_internal_testproto_example_v1_example_protoMCPServer(ctx context.Context, handlers File_internal_testproto_example_v1_example_protoMCPHandlers) (*mcp.Server, error) {
+	server, err := mcpruntime.NewConfiguredServer("example.proto", "v0.0.1", true)
+	if err != nil {
+		return nil, err
+	}
+	if err := RegisterExampleAPITools(server, handlers.ExampleAPI); err != nil {
+		return nil, err
+	}
+	return server, nil
+}

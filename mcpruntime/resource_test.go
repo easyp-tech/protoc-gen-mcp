@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func TestExtractURIParams_SimpleTemplate(t *testing.T) {
@@ -129,5 +130,73 @@ func TestMarshalResourceContent_CustomMIMEType(t *testing.T) {
 	}
 	if got := decoded["count"]; got != float64(42) {
 		t.Fatalf("decoded[count] = %v, want 42", got)
+	}
+}
+
+func TestMarshalResourceContent_RawMarkdown(t *testing.T) {
+	markdown := "# Example MCP Skill\n\n## Instructions\nUse tools.\n"
+	result, err := MarshalResourceContent("skill://example/SKILL.md", "text/markdown",
+		&wrapperspb.StringValue{Value: markdown}, "value")
+	if err != nil {
+		t.Fatalf("MarshalResourceContent: %v", err)
+	}
+	if len(result) != 1 || result[0].Text != markdown || result[0].Blob != nil {
+		t.Fatalf("raw Markdown differs from source: %+v", result)
+	}
+	if result[0].MIMEType != "text/markdown" {
+		t.Fatalf("MIMEType = %q", result[0].MIMEType)
+	}
+	wire, err := json.Marshal(result[0])
+	if err != nil {
+		t.Fatalf("marshal resource wire content: %v", err)
+	}
+	if strings.Contains(string(wire), `"blob"`) || !strings.Contains(string(wire), `"text"`) {
+		t.Fatalf("raw text not sent as MCP text: %s", wire)
+	}
+}
+
+func TestMarshalResourceContent_Binary(t *testing.T) {
+	payload := []byte{0, 1, 2, 255}
+	result, err := MarshalResourceContent("blob://example/attachment", "application/octet-stream",
+		&wrapperspb.BytesValue{Value: payload}, "value")
+	if err != nil {
+		t.Fatalf("MarshalResourceContent: %v", err)
+	}
+	if len(result) != 1 || string(result[0].Blob) != string(payload) {
+		t.Fatalf("binary payload differs from source: %+v", result)
+	}
+	if result[0].Text != "" {
+		t.Fatalf("binary resource returned unexpected text: %q", result[0].Text)
+	}
+	wire, err := json.Marshal(result[0])
+	if err != nil {
+		t.Fatalf("marshal resource wire content: %v", err)
+	}
+	if !strings.Contains(string(wire), `"blob"`) || strings.Contains(string(wire), `"text"`) {
+		t.Fatalf("binary payload not sent as MCP blob: %s", wire)
+	}
+}
+
+func TestMarshalResourceContent_RawValidation(t *testing.T) {
+	cases := []struct {
+		name string
+		mimeType string
+		msg *wrapperspb.StringValue
+		field []string
+		want string
+	}{
+		{"non-json without content field", "text/markdown", &wrapperspb.StringValue{Value: "hello"}, nil, "requires a raw content field"},
+		{"unknown field", "text/plain", &wrapperspb.StringValue{Value: "hello"}, []string{"missing"}, "not found"},
+		{"bad MIME", "invalid mime", &wrapperspb.StringValue{Value: "hello"}, []string{"value"}, "invalid MIME"},
+		{"two selectors", "text/plain", &wrapperspb.StringValue{Value: "hello"}, []string{"value","value"}, "at most one"},
+		{"blank selector", "text/plain", &wrapperspb.StringValue{Value: "hello"}, []string{""}, "cannot be empty"},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := MarshalResourceContent("docs://example/intro", tt.mimeType, tt.msg, tt.field...)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("error=%v, want %q", err, tt.want)
+			}
+		})
 	}
 }

@@ -7,32 +7,33 @@ import (
 	context "context"
 	errors "errors"
 	mcpruntime "github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
+	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // File_internal_testproto_prompts_v1_prompts_protoPromptHandler defines handlers for MCP prompts in internal/testproto/prompts/v1/prompts.proto.
 type File_internal_testproto_prompts_v1_prompts_protoPromptHandler interface {
-	CodeReview(ctx context.Context, req *CodeReview) ([]mcpruntime.PromptMessage, error)
-	Summarize(ctx context.Context, req *Summarize) ([]mcpruntime.PromptMessage, error)
-	ExplainError(ctx context.Context, req *ExplainError) ([]mcpruntime.PromptMessage, error)
+	CodeReview(ctx context.Context, req *CodeReview) ([]*mcp.PromptMessage, error)
+	Summarize(ctx context.Context, req *Summarize) ([]*mcp.PromptMessage, error)
+	ExplainError(ctx context.Context, req *ExplainError) ([]*mcp.PromptMessage, error)
 }
 
 // RegisterFile_internal_testproto_prompts_v1_prompts_protoPrompts registers generated MCP prompts for File_internal_testproto_prompts_v1_prompts_proto.
-func RegisterFile_internal_testproto_prompts_v1_prompts_protoPrompts(server *mcpruntime.Server, impl File_internal_testproto_prompts_v1_prompts_protoPromptHandler, opts ...mcpruntime.RegisterOption) error {
+func RegisterFile_internal_testproto_prompts_v1_prompts_protoPrompts(server *mcp.Server, impl File_internal_testproto_prompts_v1_prompts_protoPromptHandler, opts ...mcpruntime.RegisterOption) error {
 	if impl == nil {
 		return errors.New("RegisterFile_internal_testproto_prompts_v1_prompts_protoPrompts: impl is nil")
 	}
-	server.AddPrompt(&mcpruntime.Prompt{
+	server.AddPrompt(&mcp.Prompt{
 		Name:        "code_review",
 		Description: "Analyze code quality and suggest improvements",
-		Icons:       []mcpruntime.Icon{mcpruntime.Icon{URL: "https://example.com/review.svg", MIMEType: ""}},
-		Arguments: []mcpruntime.PromptArgument{
+		Icons:       []mcp.Icon{mcp.Icon{Source: "https://example.com/review.svg", MIMEType: ""}},
+		Arguments: []*mcp.PromptArgument{
 			{Name: "code", Description: "Source code to review", Required: true},
 			{Name: "language", Description: "Programming language (go, python, java, etc)", Required: true},
 			{Name: "focusArea", Description: "Specific area: security, performance, readability", Required: false},
 		},
-	}, func(ctx context.Context, req *mcpruntime.GetPromptRequest) (*mcpruntime.GetPromptResult, error) {
+	}, func(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 		msg := &CodeReview{}
-		if err := mcpruntime.ParsePromptArguments(req.Arguments, msg, []string{
+		if err := mcpruntime.ParsePromptArguments(req.Params.Arguments, msg, []string{
 			"code",
 			"language",
 		}); err != nil {
@@ -42,20 +43,20 @@ func RegisterFile_internal_testproto_prompts_v1_prompts_protoPrompts(server *mcp
 		if err != nil {
 			return nil, err
 		}
-		return &mcpruntime.GetPromptResult{Messages: result}, nil
+		return &mcp.GetPromptResult{Messages: result}, nil
 	})
-	server.AddPrompt(&mcpruntime.Prompt{
+	server.AddPrompt(&mcp.Prompt{
 		Name:        "summarize",
 		Title:       "Document Summarizer",
 		Description: "Summarize a document or text",
-		Arguments: []mcpruntime.PromptArgument{
+		Arguments: []*mcp.PromptArgument{
 			{Name: "content", Description: "Text content to summarize", Required: true},
 			{Name: "maxLength", Description: "Maximum length of the summary in words", Required: false},
 			{Name: "format", Description: "Output format: bullet_points, paragraph, tldr", Required: false},
 		},
-	}, func(ctx context.Context, req *mcpruntime.GetPromptRequest) (*mcpruntime.GetPromptResult, error) {
+	}, func(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 		msg := &Summarize{}
-		if err := mcpruntime.ParsePromptArguments(req.Arguments, msg, []string{
+		if err := mcpruntime.ParsePromptArguments(req.Params.Arguments, msg, []string{
 			"content",
 		}); err != nil {
 			return nil, err
@@ -64,19 +65,19 @@ func RegisterFile_internal_testproto_prompts_v1_prompts_protoPrompts(server *mcp
 		if err != nil {
 			return nil, err
 		}
-		return &mcpruntime.GetPromptResult{Messages: result}, nil
+		return &mcp.GetPromptResult{Messages: result}, nil
 	})
-	server.AddPrompt(&mcpruntime.Prompt{
+	server.AddPrompt(&mcp.Prompt{
 		Name:        "explain_error",
 		Description: "Explain an error message and suggest fixes",
-		Arguments: []mcpruntime.PromptArgument{
+		Arguments: []*mcp.PromptArgument{
 			{Name: "errorMessage", Description: "The error message or stack trace", Required: true},
 			{Name: "language", Description: "Programming language context", Required: true},
 			{Name: "level", Description: "Expertise level for the explanation", Required: true},
 		},
-	}, func(ctx context.Context, req *mcpruntime.GetPromptRequest) (*mcpruntime.GetPromptResult, error) {
+	}, func(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 		msg := &ExplainError{}
-		if err := mcpruntime.ParsePromptArguments(req.Arguments, msg, []string{
+		if err := mcpruntime.ParsePromptArguments(req.Params.Arguments, msg, []string{
 			"errorMessage",
 			"language",
 			"level",
@@ -87,7 +88,7 @@ func RegisterFile_internal_testproto_prompts_v1_prompts_protoPrompts(server *mcp
 		if err != nil {
 			return nil, err
 		}
-		return &mcpruntime.GetPromptResult{Messages: result}, nil
+		return &mcp.GetPromptResult{Messages: result}, nil
 	})
 	return nil
 }

@@ -5,6 +5,7 @@ import "strings"
 // RegisterOptions configures generated tool registration.
 type RegisterOptions struct {
 	Namespace string
+	AppUI map[string]AppUI
 }
 
 // RegisterOption mutates RegisterOptions.

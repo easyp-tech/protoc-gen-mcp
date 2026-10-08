@@ -6,6 +6,7 @@ import (
 
 // FileModel is the shared semantic IR entrypoint for language-specific renderers.
 type FileModel struct {
+	ServerConfig *mcpoptionsv1.ServerConfig
 	ProtoPath               string
 	GeneratedFilenamePrefix string
 	Options                 Options
@@ -25,6 +26,7 @@ type ServiceModel struct {
 }
 
 type MethodModel struct {
+	RequiredScopes []string
 	ProtoFullName    string
 	ProtoName        string
 	Name             string
@@ -40,6 +42,7 @@ type MethodModel struct {
 	Icons            []*mcpoptionsv1.Icon
 	// TaskSupport mcpoptionsv1.TaskSupport preserves execution.task_support.
 	TaskSupport mcpoptionsv1.TaskSupport
+	AppUI       *mcpoptionsv1.AppUIOptions
 }
 
 type TypeRef struct {
@@ -71,6 +74,8 @@ type PromptArgumentModel struct {
 // ResourceModel represents a single MCP resource derived from a proto message
 // marked with (mcp.options.v1.resource).
 type ResourceModel struct {
+	SourceFile   string
+	AppUI        *mcpoptionsv1.AppResourceOptions
 	ProtoFullName string
 	ProtoName     string
 	Name          string
@@ -78,6 +83,7 @@ type ResourceModel struct {
 	URI           string // Non-empty for static resources
 	URITemplate   string // Non-empty for template resources
 	MIMEType      string // Defaults to "application/json"
+	ContentField  string // Optional singular string/bytes field to return as raw resource body
 	IsTemplate    bool
 	Params        []ResourceParamModel
 	Annotations   *mcpoptionsv1.ResourceAnnotations
