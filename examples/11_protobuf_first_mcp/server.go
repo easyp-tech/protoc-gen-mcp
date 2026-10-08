@@ -81,8 +81,8 @@ func (s *showcase) ReadBinaryAttachment(_ context.Context) (*showcasev1.BinaryAt
 // registration, metadata, server version and MCP Apps capabilities.
 func newShowcaseServer(ctx context.Context) (*mcp.Server, error) {
 	impl := &showcase{}
-	return showcasev1.NewFile_11_protobuf_first_mcp_proto_showcase_protoMCPServer(
-		ctx, showcasev1.File_11_protobuf_first_mcp_proto_showcase_protoMCPHandlers{
+	return showcasev1.NewFile_examples_11_protobuf_first_mcp_proto_showcase_protoMCPServer(
+		ctx, showcasev1.File_examples_11_protobuf_first_mcp_proto_showcase_protoMCPHandlers{
 			ShowcaseAPI: impl,
 			Prompts:     impl,
 			Resources:   impl,
@@ -109,7 +109,7 @@ func demoVerifier(_ context.Context, token string, _ *http.Request) (*auth.Token
 }
 
 func newShowcaseHTTPHandler(server *mcp.Server, verifier auth.TokenVerifier) (http.Handler, error) {
-	return showcasev1.NewFile_11_protobuf_first_mcp_proto_showcase_protoMCPHTTPHandler(server, verifier)
+	return showcasev1.NewFile_examples_11_protobuf_first_mcp_proto_showcase_protoMCPHTTPHandler(server, verifier)
 }
 
 func demoHTTPAddressIsLoopback(address string) bool {
