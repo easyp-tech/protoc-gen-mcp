@@ -38,6 +38,7 @@ jobs:
           easyp --cfg easyp.test.yaml generate -p internal/testproto -r .
           (cd examples && make generate)
           WRITE_GOLDEN=1 go test ./internal/codegen -run "TestWrite(Example|Prompts|Resources)GoldenFiles" -count=1
+          gofmt -w             mcpruntime/app_metadata.go mcpruntime/jwks.go mcpruntime/server_config.go             mcpruntime/jwks_test.go mcpruntime/declarative_test.go             internal/codegen/render_go_server.go internal/codegen/render_go_apps.go             internal/codegen/validate_server.go internal/codegen/collect_resource.go             internal/codegen/render_go.go internal/examplemcp/declarative_server_test.go             internal/examplemcp/resources_test.go
           go mod tidy
       - name: Commit generated outputs
         run: |
