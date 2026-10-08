@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from mcp.options.v1 import options_pb2 as mcp_dot_options_dot_v1_dot_options__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n0internal/testproto/config/v1/server_config.proto\x12\x1cinternal.testproto.config.v1\x1a\x1cmcp/options/v1/options.proto\"*\n\x12\x43heckAccessRequest\x12\x14\n\x05label\x18\x01 \x01(\tR\x05label\"/\n\x13\x43heckAccessResponse\x12\x18\n\x07\x61llowed\x18\x01 \x01(\x08R\x07\x61llowed2\xbe\x01\n\tSecureAPI\x12\xa2\x01\n\x0b\x43heckAccess\x12\x30.internal.testproto.config.v1.CheckAccessRequest\x1a\x31.internal.testproto.config.v1.CheckAccessResponse\".\xd2\xb7,*\n\x0c\x63heck_access\x12\x0c\x41\x63\x63\x65ss checkr\x0creports:read\x1a\x0c\xca\xb7,\x08\n\x06secureB\x8c\x02ZJgithub.com/easyp-tech/protoc-gen-mcp/internal/testproto/config/v1;configv1\x92\xb8,\xbb\x01\n\x0esecure-example\x12\x06v2.0.0\"\xa0\x01\n\x1bhttps://mcp.example.com/mcp\x12\x18https://auth.example.com\x1a\x0creports:read\"\x18https://auth.example.com*\"https://auth.example.com/keys.json2\x1bhttps://mcp.example.com/mcpb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n0internal/testproto/config/v1/server_config.proto\x12\x1cinternal.testproto.config.v1\x1a\x1cmcp/options/v1/options.proto\"*\n\x12\x43heckAccessRequest\x12\x14\n\x05label\x18\x01 \x01(\tR\x05label\"/\n\x13\x43heckAccessResponse\x12\x18\n\x07\x61llowed\x18\x01 \x01(\x08R\x07\x61llowed2\xbf\x01\n\tSecureAPI\x12\xa3\x01\n\x0b\x43heckAccess\x12\x30.internal.testproto.config.v1.CheckAccessRequest\x1a\x31.internal.testproto.config.v1.CheckAccessResponse\"/\xd2\xb7,+\n\x0c\x63heck_access\x12\x0c\x41\x63\x63\x65ss checkr\rreports:write\x1a\x0c\xca\xb7,\x08\n\x06secureB\x8c\x02ZJgithub.com/easyp-tech/protoc-gen-mcp/internal/testproto/config/v1;configv1\x92\xb8,\xbb\x01\n\x0esecure-example\x12\x06v2.0.0\"\xa0\x01\n\x1bhttps://mcp.example.com/mcp\x12\x18https://auth.example.com\x1a\x0creports:read\"\x18https://auth.example.com*\"https://auth.example.com/keys.json2\x1bhttps://mcp.example.com/mcpb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -36,11 +36,11 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_SECUREAPI']._loaded_options = None
   _globals['_SECUREAPI']._serialized_options = b'\312\267,\010\n\006secure'
   _globals['_SECUREAPI'].methods_by_name['CheckAccess']._loaded_options = None
-  _globals['_SECUREAPI'].methods_by_name['CheckAccess']._serialized_options = b'\322\267,*\n\014check_access\022\014Access checkr\014reports:read'
+  _globals['_SECUREAPI'].methods_by_name['CheckAccess']._serialized_options = b'\322\267,+\n\014check_access\022\014Access checkr\rreports:write'
   _globals['_CHECKACCESSREQUEST']._serialized_start=112
   _globals['_CHECKACCESSREQUEST']._serialized_end=154
   _globals['_CHECKACCESSRESPONSE']._serialized_start=156
   _globals['_CHECKACCESSRESPONSE']._serialized_end=203
   _globals['_SECUREAPI']._serialized_start=206
-  _globals['_SECUREAPI']._serialized_end=396
+  _globals['_SECUREAPI']._serialized_end=397
 # @@protoc_insertion_point(module_scope)

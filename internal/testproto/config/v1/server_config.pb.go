@@ -124,10 +124,10 @@ const file_internal_testproto_config_v1_server_config_proto_rawDesc = "" +
 	"\x12CheckAccessRequest\x12\x14\n" +
 	"\x05label\x18\x01 \x01(\tR\x05label\"/\n" +
 	"\x13CheckAccessResponse\x12\x18\n" +
-	"\aallowed\x18\x01 \x01(\bR\aallowed2\xbe\x01\n" +
-	"\tSecureAPI\x12\xa2\x01\n" +
-	"\vCheckAccess\x120.internal.testproto.config.v1.CheckAccessRequest\x1a1.internal.testproto.config.v1.CheckAccessResponse\".ҷ,*\n" +
-	"\fcheck_access\x12\fAccess checkr\freports:read\x1a\fʷ,\b\n" +
+	"\aallowed\x18\x01 \x01(\bR\aallowed2\xbf\x01\n" +
+	"\tSecureAPI\x12\xa3\x01\n" +
+	"\vCheckAccess\x120.internal.testproto.config.v1.CheckAccessRequest\x1a1.internal.testproto.config.v1.CheckAccessResponse\"/ҷ,+\n" +
+	"\fcheck_access\x12\fAccess checkr\rreports:write\x1a\fʷ,\b\n" +
 	"\x06secureB\x8c\x02\x92\xb8,\xbb\x01\n" +
 	"\x0esecure-example\x12\x06v2.0.0\"\xa0\x01\n" +
 	"\x1bhttps://mcp.example.com/mcp\x12\x18https://auth.example.com\x1a\freports:read\"\x18https://auth.example.com*\"https://auth.example.com/keys.json2\x1bhttps://mcp.example.com/mcpZJgithub.com/easyp-tech/protoc-gen-mcp/internal/testproto/config/v1;configv1b\x06proto3"

@@ -32,7 +32,7 @@ func RegisterSecureAPITools(server *mcp.Server, impl SecureAPIToolHandler, opts 
 		Annotations:      nil,
 		Icons:            nil,
 		RequiredScopes: []string{
-			"reports:read",
+			"reports:write",
 		},
 		NewRequest:  func() *CheckAccessRequest { return &CheckAccessRequest{} },
 		NewResponse: func() *CheckAccessResponse { return &CheckAccessResponse{} },
