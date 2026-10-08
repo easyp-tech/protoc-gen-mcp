@@ -18,6 +18,11 @@ type File_internal_testproto_resources_v1_resources_protoResourceHandler interfa
 	ReadUserProfile(ctx context.Context, user_id string) (*UserProfile, error)
 	ListDocuments(ctx context.Context) ([]mcp.Resource, error)
 	ReadDocument(ctx context.Context, project_id string, document_id string) (*Document, error)
+	ReadSkillDocument(ctx context.Context) (*SkillDocument, error)
+	ListPlainTexts(ctx context.Context) ([]mcp.Resource, error)
+	ReadPlainText(ctx context.Context, name string) (*PlainText, error)
+	ReadRawBinary(ctx context.Context) (*RawBinary, error)
+	ReadAppPage(ctx context.Context) (*AppPage, error)
 }
 
 // RegisterFile_internal_testproto_resources_v1_resources_protoResources registers generated MCP resources for File_internal_testproto_resources_v1_resources_proto.
@@ -131,6 +136,111 @@ func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx c
 			MIMEType:    "application/json",
 			Annotations: annotations,
 		}, readHandler)
+	}
+
+	{
+		name := "skill_document"
+		if resolvedOpts.Namespace != "" {
+			name = resolvedOpts.Namespace + "_" + name
+		}
+		server.AddResource(&mcp.Resource{
+			Name:        name,
+			URI:         "skill://example/SKILL.md",
+			Description: "Instructions for the example MCP skill",
+			MIMEType:    "text/markdown",
+		}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			result, err := impl.ReadSkillDocument(ctx)
+			if err != nil {
+				return nil, err
+			}
+			contents, err := mcpruntime.MarshalResourceContent("skill://example/SKILL.md", "text/markdown", result, "markdown")
+			if err != nil {
+				return nil, err
+			}
+			return &mcp.ReadResourceResult{Contents: contents}, nil
+		})
+	}
+
+	{
+		name := "plain_text"
+		if resolvedOpts.Namespace != "" {
+			name = resolvedOpts.Namespace + "_" + name
+		}
+		instances, err := impl.ListPlainTexts(ctx)
+		if err != nil {
+			return fmt.Errorf("RegisterFile_internal_testproto_resources_v1_resources_protoResources: listing plain_text: %w", err)
+		}
+		readHandler := func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			params, err := mcpruntime.ExtractURIParams(req.Params.URI, "docs://example/{name}")
+			if err != nil {
+				return nil, err
+			}
+			name := params["name"]
+			result, err := impl.ReadPlainText(ctx, name)
+			if err != nil {
+				return nil, err
+			}
+			contents, err := mcpruntime.MarshalResourceContent(req.Params.URI, "text/plain", result, "body")
+			if err != nil {
+				return nil, err
+			}
+			return &mcp.ReadResourceResult{Contents: contents}, nil
+		}
+		for i := range instances {
+			server.AddResource(&instances[i], readHandler)
+		}
+		server.AddResourceTemplate(&mcp.ResourceTemplate{
+			Name:        name,
+			URITemplate: "docs://example/{name}",
+			Description: "PlainText demonstrates parameterized text resources.",
+			MIMEType:    "text/plain",
+		}, readHandler)
+	}
+
+	{
+		name := "raw_binary"
+		if resolvedOpts.Namespace != "" {
+			name = resolvedOpts.Namespace + "_" + name
+		}
+		server.AddResource(&mcp.Resource{
+			Name:        name,
+			URI:         "blob://example/attachment",
+			Description: "RawBinary demonstrates an MCP blob using a bytes content field.",
+			MIMEType:    "application/octet-stream",
+		}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			result, err := impl.ReadRawBinary(ctx)
+			if err != nil {
+				return nil, err
+			}
+			contents, err := mcpruntime.MarshalResourceContent("blob://example/attachment", "application/octet-stream", result, "data")
+			if err != nil {
+				return nil, err
+			}
+			return &mcp.ReadResourceResult{Contents: contents}, nil
+		})
+	}
+
+	{
+		name := "report_ui"
+		if resolvedOpts.Namespace != "" {
+			name = resolvedOpts.Namespace + "_" + name
+		}
+		server.AddResource(&mcp.Resource{
+			Name:        name,
+			URI:         "ui://example/report",
+			Description: "AppPage is an MCP Apps HTML resource generated from a protobuf message.",
+			MIMEType:    "text/html;profile=mcp-app",
+		}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			result, err := impl.ReadAppPage(ctx)
+			if err != nil {
+				return nil, err
+			}
+			contents, err := mcpruntime.MarshalResourceContent("ui://example/report", "text/html;profile=mcp-app", result, "html")
+			if err != nil {
+				return nil, err
+			}
+			return &mcp.ReadResourceResult{Contents: contents}, nil
+		})
 	}
 
 	return nil

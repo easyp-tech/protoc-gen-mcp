@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from mcp.options.v1 import options_pb2 as mcp_dot_options_dot_v1_dot_options__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n/internal/testproto/resources/v1/resources.proto\x12\x1finternal.testproto.resources.v1\x1a\x1cmcp/options/v1/options.proto\"\xa8\x02\n\x0cServerStatus\x12>\n\x07healthy\x18\x01 \x01(\x08\x42$\xda\xb7, \n\x1eWhether the server is healthy.R\x07healthy\x12%\n\x0euptime_seconds\x18\x02 \x01(\x03R\ruptimeSeconds\x12\x18\n\x07version\x18\x03 \x01(\tR\x07version:\x96\x01\x8a\xb8,\x91\x01\n\x0fserver://status\x1a\rserver_status\",Current server status and health information*\x10\x61pplication/json2\r\n\x02\x01\x02\x11\x9a\x99\x99\x99\x99\x99\xe9?: \n\x1ehttps://example.com/status.svg\"\xc0\x01\n\x0bUserProfile\x12\x17\n\x07user_id\x18\x01 \x01(\tR\x06userId\x12!\n\x0c\x64isplay_name\x18\x02 \x01(\tR\x0b\x64isplayName\x12\x14\n\x05\x65mail\x18\x03 \x01(\tR\x05\x65mail\x12\x16\n\x06\x61\x63tive\x18\x04 \x01(\x08R\x06\x61\x63tive:G\x8a\xb8,C\x12\x19users://{user_id}/profile\x1a\x0cuser_profile\"\x18User profile information\"\xbc\x01\n\x08\x44ocument\x12\x14\n\x05title\x18\x01 \x01(\tR\x05title\x12\x12\n\x04\x62ody\x18\x02 \x01(\tR\x04\x62ody\x12\x16\n\x06\x61uthor\x18\x03 \x01(\tR\x06\x61uthor:n\x8a\xb8,j\x12/projects://{project_id}/documents/{document_id}\x1a\x08\x64ocument\"\x10Project document*\x10\x61pplication/json2\t\x11\x00\x00\x00\x00\x00\x00\xe0?\"3\n\tPlainData\x12\x10\n\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n\x05value\x18\x02 \x01(\tR\x05valueBRZPgithub.com/easyp-tech/protoc-gen-mcp/internal/testproto/resources/v1;resourcesv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n/internal/testproto/resources/v1/resources.proto\x12\x1finternal.testproto.resources.v1\x1a\x1cmcp/options/v1/options.proto\"\xa8\x02\n\x0cServerStatus\x12>\n\x07healthy\x18\x01 \x01(\x08\x42$\xda\xb7, \n\x1eWhether the server is healthy.R\x07healthy\x12%\n\x0euptime_seconds\x18\x02 \x01(\x03R\ruptimeSeconds\x12\x18\n\x07version\x18\x03 \x01(\tR\x07version:\x96\x01\x8a\xb8,\x91\x01\n\x0fserver://status\x1a\rserver_status\",Current server status and health information*\x10\x61pplication/json2\r\n\x02\x01\x02\x11\x9a\x99\x99\x99\x99\x99\xe9?: \n\x1ehttps://example.com/status.svg\"\xc0\x01\n\x0bUserProfile\x12\x17\n\x07user_id\x18\x01 \x01(\tR\x06userId\x12!\n\x0c\x64isplay_name\x18\x02 \x01(\tR\x0b\x64isplayName\x12\x14\n\x05\x65mail\x18\x03 \x01(\tR\x05\x65mail\x12\x16\n\x06\x61\x63tive\x18\x04 \x01(\x08R\x06\x61\x63tive:G\x8a\xb8,C\x12\x19users://{user_id}/profile\x1a\x0cuser_profile\"\x18User profile information\"\xbc\x01\n\x08\x44ocument\x12\x14\n\x05title\x18\x01 \x01(\tR\x05title\x12\x12\n\x04\x62ody\x18\x02 \x01(\tR\x04\x62ody\x12\x16\n\x06\x61uthor\x18\x03 \x01(\tR\x06\x61uthor:n\x8a\xb8,j\x12/projects://{project_id}/documents/{document_id}\x1a\x08\x64ocument\"\x10Project document*\x10\x61pplication/json2\t\x11\x00\x00\x00\x00\x00\x00\xe0?\"\x9c\x01\n\rSkillDocument\x12\x1a\n\x08markdown\x18\x01 \x01(\tR\x08markdown:o\x8a\xb8,k\n\x18skill://example/SKILL.md\x1a\x0eskill_document\"&Instructions for the example MCP skill*\rtext/markdownB\x08markdown\"Z\n\tPlainText\x12\x12\n\x04\x62ody\x18\x01 \x01(\tR\x04\x62ody:9\x8a\xb8,5\x12\x15\x64ocs://example/{name}\x1a\nplain_text*\ntext/plainB\x04\x62ody\"l\n\tRawBinary\x12\x12\n\x04\x64\x61ta\x18\x01 \x01(\x0cR\x04\x64\x61ta:K\x8a\xb8,G\n\x19\x62lob://example/attachment\x1a\nraw_binary*\x18\x61pplication/octet-streamB\x04\x64\x61ta\"d\n\x07\x41ppPage\x12\x12\n\x04html\x18\x01 \x01(\tR\x04html:E\x8a\xb8,A\n\x13ui://example/report\x1a\treport_ui*\x19text/html;profile=mcp-appB\x04html\"3\n\tPlainData\x12\x10\n\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n\x05value\x18\x02 \x01(\tR\x05valueBRZPgithub.com/easyp-tech/protoc-gen-mcp/internal/testproto/resources/v1;resourcesv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -41,12 +41,28 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_USERPROFILE']._serialized_options = b'\212\270,C\022\031users://{user_id}/profile\032\014user_profile\"\030User profile information'
   _globals['_DOCUMENT']._loaded_options = None
   _globals['_DOCUMENT']._serialized_options = b'\212\270,j\022/projects://{project_id}/documents/{document_id}\032\010document\"\020Project document*\020application/json2\t\021\000\000\000\000\000\000\340?'
+  _globals['_SKILLDOCUMENT']._loaded_options = None
+  _globals['_SKILLDOCUMENT']._serialized_options = b'\212\270,k\n\030skill://example/SKILL.md\032\016skill_document\"&Instructions for the example MCP skill*\rtext/markdownB\010markdown'
+  _globals['_PLAINTEXT']._loaded_options = None
+  _globals['_PLAINTEXT']._serialized_options = b'\212\270,5\022\025docs://example/{name}\032\nplain_text*\ntext/plainB\004body'
+  _globals['_RAWBINARY']._loaded_options = None
+  _globals['_RAWBINARY']._serialized_options = b'\212\270,G\n\031blob://example/attachment\032\nraw_binary*\030application/octet-streamB\004data'
+  _globals['_APPPAGE']._loaded_options = None
+  _globals['_APPPAGE']._serialized_options = b'\212\270,A\n\023ui://example/report\032\treport_ui*\031text/html;profile=mcp-appB\004html'
   _globals['_SERVERSTATUS']._serialized_start=115
   _globals['_SERVERSTATUS']._serialized_end=411
   _globals['_USERPROFILE']._serialized_start=414
   _globals['_USERPROFILE']._serialized_end=606
   _globals['_DOCUMENT']._serialized_start=609
   _globals['_DOCUMENT']._serialized_end=797
-  _globals['_PLAINDATA']._serialized_start=799
-  _globals['_PLAINDATA']._serialized_end=850
+  _globals['_SKILLDOCUMENT']._serialized_start=800
+  _globals['_SKILLDOCUMENT']._serialized_end=956
+  _globals['_PLAINTEXT']._serialized_start=958
+  _globals['_PLAINTEXT']._serialized_end=1048
+  _globals['_RAWBINARY']._serialized_start=1050
+  _globals['_RAWBINARY']._serialized_end=1158
+  _globals['_APPPAGE']._serialized_start=1160
+  _globals['_APPPAGE']._serialized_end=1260
+  _globals['_PLAINDATA']._serialized_start=1262
+  _globals['_PLAINDATA']._serialized_end=1313
 # @@protoc_insertion_point(module_scope)
