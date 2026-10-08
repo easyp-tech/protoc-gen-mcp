@@ -61,8 +61,13 @@ func RegisterSDKProtoTool[Req proto.Message, Resp proto.Message](
 		Icons:        icons,
 	}
 
-	// Metadata is advertised by the tool; rendering is optional on the client.
-	if ui, ok := opts.appUIFor(spec.Name, fullName); ok {
+	// Explicit registration options override UI metadata declared on the RPC.
+	// The tool's ordinary result remains available to clients without MCP Apps.
+	ui, found := opts.appUIFor(spec.Name, fullName)
+	if !found && spec.AppUI != nil {
+		ui, found = *spec.AppUI, true
+	}
+	if found {
 		if err := validateAppUI(ui); err != nil {
 			return fmt.Errorf("mcpruntime: tool %q UI: %w", fullName, err)
 		}
