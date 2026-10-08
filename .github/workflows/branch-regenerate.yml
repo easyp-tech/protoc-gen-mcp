@@ -1,0 +1,45 @@
+name: regenerate Go SDK migration artifacts
+
+on:
+  push:
+    branches:
+      - feat/go-sdk-mcp-apps-modernization
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install generator tools
+        run: |
+          go install github.com/easyp-tech/easyp/cmd/easyp@v0.15.2-rc1
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+          go install ./cmd/protoc-gen-mcp
+      - name: Refresh dependencies and generated outputs
+        run: |
+          go mod tidy
+          easyp --cfg easyp.yaml generate -p mcp -r .
+          easyp --cfg easyp.test.yaml generate -p internal/testproto -r .
+          (cd examples && make generate)
+          go mod tidy
+      - name: Commit refreshed artifacts on this branch only
+        run: |
+          git add -A
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'chore: regenerate SDK migration artifacts'
+            git push origin HEAD:feat/go-sdk-mcp-apps-modernization
+          fi
