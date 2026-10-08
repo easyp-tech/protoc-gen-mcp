@@ -30,6 +30,7 @@ type methodMetadata struct {
 	Annotations *mcpoptionsv1.ToolAnnotations
 	Icons       []*mcpoptionsv1.Icon
 	TaskSupport mcpoptionsv1.TaskSupport
+	AppUI       *mcpoptionsv1.AppUIOptions
 }
 
 type fieldMetadata struct {
@@ -85,6 +86,7 @@ func loadMethodMetadata(method *protogen.Method) (methodMetadata, error) {
 	metadata.Hidden = options.GetHidden()
 	metadata.Annotations = options.GetAnnotations()
 	metadata.Icons = options.GetIcons()
+	metadata.AppUI = options.GetAppUi()
 	if exec := options.GetExecution(); exec != nil {
 		metadata.TaskSupport = exec.GetTaskSupport()
 	}
