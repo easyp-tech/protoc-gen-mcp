@@ -242,7 +242,6 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 		mcpRoleIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("Role"))
 		extractURIParamsIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("ExtractURIParams"))
 		marshalResourceContentIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("MarshalResourceContent"))
-		fmtErrorfIdent := generated.QualifiedGoIdent(protogen.GoImportPath("fmt").Ident("Errorf"))
 
 		fileGoName := goInfo.file.GoDescriptorIdent.GoName
 		interfaceName := fileGoName + "ResourceHandler"
@@ -315,6 +314,7 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 			}
 
 			if resource.IsTemplate {
+				fmtErrorfIdent := generated.QualifiedGoIdent(protogen.GoImportPath("fmt").Ident("Errorf"))
 				// Template resource: call List, register instances, register template.
 				generated.P("instances, err := impl.List", resource.ProtoName, "s(ctx)")
 				generated.P("if err != nil {")
