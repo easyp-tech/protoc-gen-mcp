@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	promptsv1 "github.com/easyp-tech/protoc-gen-mcp/internal/testproto/prompts/v1"
 	resourcesv1 "github.com/easyp-tech/protoc-gen-mcp/internal/testproto/resources/v1"
@@ -14,8 +14,8 @@ import (
 // protobuf resources and prompts. It exists so that the generated resource
 // registration code (resources.mcp.go) is actually compiled and exercised — the
 // text-only golden test does not compile it.
-func NewResourcesServer(ctx context.Context) (*mcpruntime.Server, error) {
-	server := mcpruntime.NewServer("protoc-gen-mcp-resources-server", "v0.0.1")
+func NewResourcesServer(ctx context.Context) (*mcp.Server, error) {
+	server := mcp.NewServer(&mcp.Implementation{Name: "protoc-gen-mcp-resources-server", Version: "v0.0.1"}, nil)
 
 	if err := resourcesv1.RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx, server, ResourcesHandler{}); err != nil {
 		return nil, err
@@ -41,8 +41,8 @@ func (ResourcesHandler) ReadServerStatus(_ context.Context) (*resourcesv1.Server
 }
 
 // ListUserProfiles advertises the known user-profile instances.
-func (ResourcesHandler) ListUserProfiles(_ context.Context) ([]mcpruntime.Resource, error) {
-	return []mcpruntime.Resource{
+func (ResourcesHandler) ListUserProfiles(_ context.Context) ([]mcp.Resource, error) {
+	return []mcp.Resource{
 		{Name: "user_profile", URI: "users://ada/profile", Description: "User profile information"},
 	}, nil
 }
@@ -58,7 +58,7 @@ func (ResourcesHandler) ReadUserProfile(_ context.Context, userID string) (*reso
 }
 
 // ListDocuments advertises the known document instances.
-func (ResourcesHandler) ListDocuments(_ context.Context) ([]mcpruntime.Resource, error) {
+func (ResourcesHandler) ListDocuments(_ context.Context) ([]mcp.Resource, error) {
 	return nil, nil
 }
 
@@ -76,25 +76,25 @@ func (ResourcesHandler) ReadDocument(_ context.Context, projectID, documentID st
 type PromptsHandler struct{}
 
 // CodeReview renders a code-review prompt from its arguments.
-func (PromptsHandler) CodeReview(_ context.Context, req *promptsv1.CodeReview) ([]mcpruntime.PromptMessage, error) {
-	return []mcpruntime.PromptMessage{{
-		Role:    mcpruntime.RoleUser,
-		Content: &mcpruntime.TextContent{Type: "text", Text: fmt.Sprintf("Review this %s code: %s", req.GetLanguage(), req.GetCode())},
+func (PromptsHandler) CodeReview(_ context.Context, req *promptsv1.CodeReview) ([]*mcp.PromptMessage, error) {
+	return []*mcp.PromptMessage{{
+		Role:    mcp.RoleUser,
+		Content: &mcp.TextContent{Text: fmt.Sprintf("Review this %s code: %s", req.GetLanguage(), req.GetCode())},
 	}}, nil
 }
 
 // Summarize renders a summarization prompt from its arguments.
-func (PromptsHandler) Summarize(_ context.Context, req *promptsv1.Summarize) ([]mcpruntime.PromptMessage, error) {
-	return []mcpruntime.PromptMessage{{
-		Role:    mcpruntime.RoleUser,
-		Content: &mcpruntime.TextContent{Type: "text", Text: "Summarize: " + req.GetContent()},
+func (PromptsHandler) Summarize(_ context.Context, req *promptsv1.Summarize) ([]*mcp.PromptMessage, error) {
+	return []*mcp.PromptMessage{{
+		Role:    mcp.RoleUser,
+		Content: &mcp.TextContent{Text: "Summarize: " + req.GetContent()},
 	}}, nil
 }
 
 // ExplainError renders an error-explanation prompt from its arguments.
-func (PromptsHandler) ExplainError(_ context.Context, req *promptsv1.ExplainError) ([]mcpruntime.PromptMessage, error) {
-	return []mcpruntime.PromptMessage{{
-		Role:    mcpruntime.RoleUser,
-		Content: &mcpruntime.TextContent{Type: "text", Text: "Explain: " + req.GetErrorMessage()},
+func (PromptsHandler) ExplainError(_ context.Context, req *promptsv1.ExplainError) ([]*mcp.PromptMessage, error) {
+	return []*mcp.PromptMessage{{
+		Role:    mcp.RoleUser,
+		Content: &mcp.TextContent{Text: "Explain: " + req.GetErrorMessage()},
 	}}, nil
 }
