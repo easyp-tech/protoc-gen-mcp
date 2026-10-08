@@ -73,5 +73,5 @@ func MarshalResourceContent(uri, mimeType string, msg proto.Message) ([]*mcp.Res
 		Text:     string(jsonBytes),
 	}
 
-	return []*ResourceContents{contents}, nil
+	return []*mcp.ResourceContents{contents}, nil
 }
