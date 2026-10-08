@@ -891,9 +891,13 @@ extend google.protobuf.MessageOptions {
 // ServerConfig is attached to a protobuf file and controls the generated
 // Go server constructor and Streamable HTTP resource-server configuration.
 message ServerConfig {
+  // Server implementation name used during MCP initialization.
   string name = 1;
+  // Server software version used during MCP initialization.
   string version = 2;
+  // MCP Apps extension configuration, including an explicit opt-out.
   AppsConfig apps = 3;
+  // OAuth protected-resource and token-verification configuration.
   OAuthConfig oauth = 4;
 }
 
@@ -901,6 +905,7 @@ message ServerConfig {
 // If omitted, the generator enables Apps when a tool's app_ui or a
 // text/html;profile=mcp-app resource exists in the file.
 message AppsConfig {
+  // Enables or disables MCP Apps; unset automatically follows tool/resource usage.
   optional bool enabled = 1;
 }
 
@@ -908,33 +913,55 @@ message AppsConfig {
 // identity provider issues tokens; the generated handler verifies bearer
 // tokens through JWKS or an application-provided TokenVerifier.
 message OAuthConfig {
+  // Public HTTPS identifier of this protected MCP resource.
   string resource_url = 1;
+  // HTTPS authorization servers that can issue acceptable tokens.
   repeated string authorization_servers = 2;
+  // Scopes required for any authenticated request to the MCP HTTP endpoint.
   repeated string scopes = 3;
+  // Expected issuer claim when validating signed access JWTs.
   string issuer = 4;
+  // HTTPS JWKS endpoint containing public RSA verification keys.
   string jwks_uri = 5;
+  // Expected resource audience claim in JWT access tokens.
   string audience = 6;
+  // Route under which the MCP Streamable HTTP endpoint is exposed.
   string mcp_path = 7;
 }
 
+// AppResourceCSP declares the origins allowed by the MCP Apps sandbox.
 message AppResourceCSP {
+  // Origins permitted for fetch, WebSocket and other network calls.
   repeated string connect_domains = 1;
+  // Origins permitted for external scripts, styles, images and fonts.
   repeated string resource_domains = 2;
+  // Origins permitted for nested frames embedded inside the app.
   repeated string frame_domains = 3;
+  // Origins permitted in the embedded document base URI.
   repeated string base_uri_domains = 4;
 }
 
+// AppResourcePermissions declares optional browser capabilities for a UI resource.
 message AppResourcePermissions {
+  // Requests browser camera access from supporting MCP Apps hosts.
   bool camera = 1;
+  // Requests browser microphone access from supporting MCP Apps hosts.
   bool microphone = 2;
+  // Requests geolocation access from supporting MCP Apps hosts.
   bool geolocation = 3;
+  // Requests clipboard write access from supporting MCP Apps hosts.
   bool clipboard_write = 4;
 }
 
+// AppResourceOptions is the MCP Apps resource-level _meta.ui configuration.
 message AppResourceOptions {
+  // Content Security Policy allowlists for the app sandbox.
   AppResourceCSP csp = 1;
+  // Optional browser permissions the app would like to use.
   AppResourcePermissions permissions = 2;
+  // Optional host-specific stable origin for the app sandbox.
   string domain = 3;
+  // Whether this app prefers a visible host-rendered border.
   optional bool prefers_border = 4;
 }
 

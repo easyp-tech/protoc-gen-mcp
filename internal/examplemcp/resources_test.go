@@ -137,7 +137,7 @@ func TestResourcesPromptsRoundTrip(t *testing.T) {
 	if !ok { t.Fatalf("missing content _meta.ui: %+v", html.Contents[0].Meta) }
 	csp, ok := appMeta["csp"].(map[string]any)
 	if !ok { t.Fatalf("missing CSP metadata: %+v", appMeta) }
-	connect, ok := csp["connectDomains"].([]string)
+	connect, ok := csp["connectDomains"].([]any)
 	if !ok || len(connect) != 1 || connect[0] != "https://api.example.com" {
 		t.Fatalf("CSP connectDomains mismatch: %+v", csp)
 	}
