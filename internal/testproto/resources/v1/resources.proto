@@ -6,6 +6,13 @@ option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/testproto/res
 
 import "mcp/options/v1/options.proto";
 
+// File-scoped server metadata drives the generated server/HTTP factories.
+option (mcp.options.v1.server) = {
+  name: "resource-fixture-server"
+  version: "v1.0.0"
+  apps: { enabled: true }
+};
+
 // ServerStatus is a static resource returning server health info.
 message ServerStatus {
   option (mcp.options.v1.resource) = {
@@ -111,7 +118,15 @@ message AppPage {
     name: "report_ui"
     uri: "ui://example/report"
     mime_type: "text/html;profile=mcp-app"
-    content_field: "html"
+    source_file: "testdata/report.html"
+    app_ui: {
+      csp: {
+        connect_domains: "https://api.example.com"
+        resource_domains: "https://cdn.example.com"
+      }
+      permissions: { clipboard_write: true }
+      prefers_border: true
+    }
   };
   // Interactive HTML content delivered as an MCP Apps resource.
   string html = 1;
