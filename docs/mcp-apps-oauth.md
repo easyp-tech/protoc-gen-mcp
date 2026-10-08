@@ -1,16 +1,58 @@
-# Go MCP Apps and OAuth
+# Protobuf-first Go MCP server, MCP Apps and OAuth
 
-The Go target is built on the official
+The Go target uses the official
 [Model Context Protocol Go SDK](https://github.com/modelcontextprotocol/go-sdk).
-MCP transport, protocol negotiation, sessions, prompts, resource templates,
-tools and HTTP handling belong to that SDK. The generated adapter retains
-ProtoJSON conversion and JSON Schema validation.
+Protocol negotiation, Streamable HTTP, sessions, tools, prompts and resources
+are SDK-owned. `protoc-gen-mcp` owns only protobuf descriptions, generated
+bindings, ProtoJSON/JSON Schema adapters and declarative server wiring.
 
-## Attach an MCP App to an RPC
+## Declarative server configuration
 
-The `app_ui` option is attached to an ordinary unary RPC:
+The `(mcp.options.v1.server)` **file option** configures a generated server
+factory. The generated factory registers tools/prompts/resources from that
+protobuf file, chooses MCP Apps capabilities and exposes a configured HTTP
+handler. The original `Register<Service>Tools` and
+`Register<File>Resources` functions are still available for composing
+several proto files into one server.
 
-~~~proto
+```proto
+syntax = "proto3";
+package example.v1;
+import "mcp/options/v1/options.proto";
+
+option (mcp.options.v1.server) = {
+  name: "example-mcp"
+  version: "v1.0.0"
+  // Optional: if omitted, the generator detects MCP Apps tools/resources.
+  apps: { enabled: true }
+};
+```
+
+The generator emits:
+
+- `<File>MCPHandlers` — typed business handlers, one field per tool service and
+  optional fields for dynamic resources/prompts.
+- `New<File>MCPServer(ctx, handlers) (*mcp.Server, error)` — constructs the
+  official SDK server, enables the extension and registers this file's MCP
+  features. File names use the descriptor-safe Go symbol name (for example,
+  `NewFile_internal_testproto_resources_v1_resources_protoMCPServer`).
+- `New<File>MCPHTTPHandler(server, verifier)` when a server option exists;
+  the verifier argument may be nil if the configured OAuth provider supports
+  the built-in JWKS flow.
+
+Omitting the server option preserves the existing generator API. When a file
+declares an MCP Apps tool or resource, the factory is also generated
+automatically; the Apps extension is enabled unless explicitly disabled.
+`apps.enabled: false` alongside MCP Apps features is a generation error.
+
+**Composition:** a factory handles its own protobuf file only. Register
+additional generated packages onto the returned `*mcp.Server` through their
+`Register...Tools/Resources/Prompts` APIs. This avoids duplicate factories
+with conflicting global server policies.
+
+## Tools and MCP Apps UI
+
+```proto
 rpc CreateReport(CreateReportRequest) returns (CreateReportResponse) {
   option (mcp.options.v1.method) = {
     title: "Create report"
@@ -21,77 +63,65 @@ rpc CreateReport(CreateReportRequest) returns (CreateReportResponse) {
     }
   };
 }
-~~~
+```
 
-The generated tool includes:
+This generates the standard MCP Apps tool metadata
+`_meta.ui.resourceUri` and `visibility`, without replacing the ordinary
+text or structured tool outputs.
 
-~~~json
-{
-  "_meta": {
-    "ui": {
-      "resourceUri": "ui://reporting/composer",
-      "visibility": ["model", "app"]
-    }
-  }
-}
-~~~
+### Auto-embed a built frontend
 
-The MCP Apps UI extension is `io.modelcontextprotocol/ui`; its HTML MIME
-type is `text/html;profile=mcp-app`. The generator does not generate frontend
-code. Build your UI separately (e.g., Vite) and embed the resulting HTML in
-your Go binary.
-
-**You can also declare the HTML resource in protobuf**, not just the tool
-metadata:
-
-~~~proto
-message ReportApp {
+```proto
+// A resource can be static, with no Go handler and no body field.
+message ReportDashboard {
   option (mcp.options.v1.resource) = {
-    name: "report_app"
+    name: "report_ui"
     uri: "ui://reporting/composer"
     mime_type: "text/html;profile=mcp-app"
-    content_field: "html"
+    source_file: "assets/index.html"
+    app_ui: {
+      csp: {
+        connect_domains: "https://api.example.com"
+        resource_domains: "https://cdn.example.com"
+      }
+      permissions: { clipboard_write: true }
+      prefers_border: true
+    }
   };
-  string html = 1;
 }
-~~~
+```
 
-Implement the generated `ReadReportApp(ctx)` handler to return
-`&ReportApp{Html: appHTML}`, register it with the generated
-`Register<File>Resources(ctx, server, handler)` function and create the server
-with `&mcp.ServerOptions{Capabilities: mcpruntime.AppCapabilities()}`.
-The generator handles resource registration, MIME and unescaped HTML.
-Constructing and serving the frontend remains the application's responsibility.
+Build the React/Vite frontend **before** generating/compiling Go. Place the
+compiled single HTML file at `assets/index.html` relative to the **generated
+Go package directory** (not the root of the project). The generator emits a
+`//go:embed` directive and registers the resource through the SDK. No manual
+`ReadReportDashboard` handler is required.
 
-When protobuf resource annotations are not convenient, the original
-`mcpruntime.RegisterAppResource(server, AppResource{...})` helper is also
-available. The standard SDK's app extension capability must still be enabled
-at server construction; the protobuf annotations do not create a server.
+The generated resource descriptor and `resources/read` body both carry
+`_meta.ui`. The supported CSP fields are `connect_domains`,
+`resource_domains`, `frame_domains` and `base_uri_domains`. Browser
+permissions include camera, microphone, geolocation and clipboard write;
+hosts may decline requested permissions. No attempt is made to compile JS in
+the protoc plugin.
 
-**Resource URIs in RPC `app_ui` and resource `uri` must match.** The
-resource may be declared in a different protobuf file or registered manually.
+`source_file` supports other static types too: Markdown, plain text, XML
+and binary assets. Go embed requires paths to remain inside the generated
+package and to avoid parent traversal or hidden segments. The path must be a
+literal file, not an external URL. `source_file` cannot be combined with
+`content_field` or a dynamic URI template.
 
-A tool can instead be linked to a resource at registration time without
-changing its protobuf method option, using
-`mcpruntime.WithAppUI("CreateReport", "ui://reporting/composer", "model", "app")`.
+For runtime-provided HTML there is also the existing
+`mcpruntime.RegisterAppResource` helper. Whichever approach is used,
+`Tool.app_ui.resource_uri` must resolve to a registered resource URI.
 
-The UI is optional: clients without MCP Apps support still get ordinary
-`structuredContent` plus text. Do not put secrets or access tokens in HTML,
-tool descriptions or `_meta`.
+## Protobuf-defined Markdown, text and binary
 
-## Protobuf-driven Markdown, text and binary resources
+Without `content_field`, the generator encodes the whole protobuf result
+as ProtoJSON and requires a JSON-compatible MIME type. To return text or
+binary without JSON wrapping, use `content_field` selecting a singular
+protobuf `string` or `bytes` field.
 
-Resources default to JSON. Without `content_field`, the generator serializes
-the entire protobuf response using ProtoJSON; `mime_type` must be JSON-like
-(`application/json` or `application/*+json`). A non-JSON MIME without a raw
-content field is rejected at code-generation time.
-
-Use `content_field` to select a **singular string or bytes protobuf field** as
-the resource body. The selector is the *protobuf field name*, not its JSON
-name. A string field is emitted as MCP `text`; a bytes field as MCP `blob`
-(base64 on the wire). Both static and URI-template resources are supported.
-
-~~~proto
+```proto
 message SkillDocument {
   option (mcp.options.v1.resource) = {
     name: "skill"
@@ -101,72 +131,88 @@ message SkillDocument {
   };
   string markdown = 1;
 }
-~~~
+```
 
-A real file can be embedded by the implementing Go application:
-
-~~~go
+```go
 //go:embed skills/SKILL.md
-var skillMarkdown string
+var markdown string
 
 func (Handler) ReadSkillDocument(_ context.Context) (*v1.SkillDocument, error) {
-    return &v1.SkillDocument{Markdown: skillMarkdown}, nil
+    return &v1.SkillDocument{Markdown: markdown}, nil
 }
-~~~
+```
 
-The resulting `resources/read` returns the actual Markdown, **not** the JSON
-object `{"markdown":"..."}`. `text/plain`, raw HTML, XML and other text
-formats work the same way. With a `bytes` field and
-`application/octet-stream`, binary attachments are returned as MCP blobs.
-Invalid field selectors, repeated/map fields, and byte fields advertised as
-text MIME fail at generation time.
+The MCP `resources/read` response contains the original Markdown, not a
+JSON object. Static or template URIs are supported. A `bytes` field is
+returned as an MCP blob, base64-encoded on the wire. The generator fails
+early on unknown fields, repeated/map fields, or mismatched text/bytes MIME
+types.
 
-Exposing a `SKILL.md` as an MCP resource does not automatically install it as
-a native Skill in every host. The host must discover/read the resource, or an
-MCP tool/prompt must explicitly refer to it.
+Serving `SKILL.md` as an MCP resource does *not* cause every host to install
+it as a native Skill. The host must retrieve it or a tool/prompt must
+reference it.
 
-## Protect a remote MCP endpoint with OAuth
+## OAuth resource-server policy via protobuf
 
-OAuth is independent of the UI. The Go SDK supports OAuth *resource-server*
-behavior: bearer validation, public Protected Resource Metadata and
-authorization scopes. It is not a complete Authorization Server.
+```proto
+option (mcp.options.v1.server) = {
+  name: "secured-mcp"
+  oauth: {
+    resource_url: "https://mcp.example.com/mcp"
+    authorization_servers: "https://auth.example.com"
+    scopes: "reports:read"
+    issuer: "https://auth.example.com"
+    jwks_uri: "https://auth.example.com/.well-known/jwks.json"
+    audience: "https://mcp.example.com/mcp"
+    mcp_path: "/mcp"
+  }
+};
 
-`mcpruntime.NewOAuthResourceHandler` serves the public discovery URL
-`/.well-known/oauth-protected-resource` and protects the MCP endpoint.
-
-~~~go
-httpHandler, err := mcpruntime.NewOAuthResourceHandler(server, mcpruntime.OAuthResourceServer{
-    ResourceURL:          "https://api.example.com/mcp",
-    AuthorizationServers: []string{"https://auth.example.com"},
-    Scopes:               []string{"reports:read"},
-    Verifier:             verifyToken,
-})
-if err != nil {
-    log.Fatal(err)
+service ReportsAPI {
+  rpc Publish(PublishRequest) returns (PublishResponse) {
+    option (mcp.options.v1.method) = {
+      required_scopes: "reports:write"
+    };
+  }
 }
-log.Fatal(http.ListenAndServeTLS(":443", "cert.pem", "key.pem", httpHandler))
-~~~
+```
 
-The `verifyToken` function must satisfy `auth.TokenVerifier` from
-`github.com/modelcontextprotocol/go-sdk/auth` and validate signature, issuer,
-audience, resource binding and token status with your identity provider. It
-must return `auth.TokenInfo` including expiration, scopes and an appropriate
-user identity. The public metadata route is not authenticated; MCP requests
-are. Keep identity provider login, consent, code/PKCE and token issuance
-outside the generator and MCP resource server.
+The generated `New<File>MCPHTTPHandler(server, verifier)` configures public
+Protected Resource Metadata, validates bearer authorization through the SDK
+and enforces global `scopes`. Generated tool registrations independently
+enforce `required_scopes`. Thus a token with `reports:read` can access
+the server but cannot call a tool requiring `reports:write`.
 
-The helper defaults to stateless Streamable HTTP, making newer MCP protocol
-versions available while the official SDK handles compatibility with legacy
-clients.
+With `verifier=nil` the runtime verifies JWT access tokens using **RS256**
+public keys fetched from the specified HTTPS JWKS endpoint; it rejects tokens
+with missing or invalid signatures, issuer/audience, expiration or key ID.
+Keys are cached and refreshed. This is intentionally limited to standard
+RS256 access JWTs. An application can supply a custom
+`auth.TokenVerifier` when using opaque tokens or another provider-specific
+validation scheme; the verifier overrides the JWKS option.
 
-## Validation
+The generator does **not** create an authorization server, issue tokens,
+store OAuth secrets or handle users/passwords. OAuth login, consent, PKCE,
+client configuration and identity provider management belong outside this
+code generator. Never write access tokens or client secrets into `.proto`
+options.
 
-- `go test ./mcpruntime` verifies tool registration, in-memory SDK
-  connections, UI tool metadata, resource contents and bearer middleware.
-- `go test ./internal/examplemcp` checks the generated tools/prompts/resources
-  over MCP transports.
-- `go test ./internal/codegen` verifies generator contracts and goldens.
-- `go test ./...` is the repository-wide gate.
+The generated OAuth HTTP handler is secure by default. Constructing an SDK
+server and separately exposing it through some other HTTP handler does not
+automatically apply the generated OAuth middleware: use the generated
+`New<File>MCPHTTPHandler`. For local stdio use, authentication and identity
+semantics are distinct from remote bearer authorization.
 
-For production, serve HTTPS, maintain strict verifier checks, and do not
-expose app-only destructive tools without independent authorization checks.
+## Verification
+
+- `go test ./mcpruntime` — token/JWKS validation, permissions,
+  asset embedding, ProtoJSON and MCP Apps metadata.
+- `go test ./internal/examplemcp` — generated SDK factories,
+  real `resources/read`, OAuth HTTP, per-tool access scopes.
+- `go test ./internal/codegen` — protobuf options,
+  descriptor validation and generated-code goldens.
+- `go test ./...` — cross-language repository-wide tests.
+
+The current implementation is proposed in
+[PR #5](https://github.com/easyp-tech/protoc-gen-mcp/pull/5); it is not
+released or merged into `master` until its final CI checks pass.
