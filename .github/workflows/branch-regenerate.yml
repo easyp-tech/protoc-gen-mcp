@@ -45,9 +45,11 @@ jobs:
           go mod tidy
       - name: Commit refreshed artifacts on this branch only
         run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
           if ! git diff --cached --quiet; then
-            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'chore: regenerate SDK migration artifacts'
+            git commit -m 'chore: regenerate SDK migration artifacts'
             # Generated outputs are independent of concurrent source edits.
             # Rebase on the latest feature head before attempting a fast-forward.
             git fetch origin feat/go-sdk-mcp-apps-modernization
