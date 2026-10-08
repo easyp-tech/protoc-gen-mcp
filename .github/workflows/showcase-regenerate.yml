@@ -1,0 +1,43 @@
+name: regenerate protobuf-first example artifacts
+
+on:
+  push:
+    branches: [feat/go-sdk-mcp-apps-modernization]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    if: github.ref_name == 'feat/go-sdk-mcp-apps-modernization' || github.head_ref == 'feat/go-sdk-mcp-apps-modernization'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/go-sdk-mcp-apps-modernization
+          persist-credentials: true
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install generator tooling
+        run: |
+          go install github.com/easyp-tech/easyp/cmd/easyp@v0.15.2-rc1
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+      - name: Generate protobuf-first showcase
+        run: |
+          easyp --cfg easyp.showcase.yaml validate-config
+          easyp --cfg easyp.showcase.yaml generate -p examples/11_protobuf_first_mcp/proto -r .
+          gofmt -w examples/11_protobuf_first_mcp/main.go examples/11_protobuf_first_mcp/server.go examples/11_protobuf_first_mcp/server_test.go examples/11_protobuf_first_mcp/client/main.go
+      - name: Commit generated sources on the feature branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m 'chore: regenerate runnable protobuf-first showcase bindings'
+            git fetch origin feat/go-sdk-mcp-apps-modernization
+            git rebase origin/feat/go-sdk-mcp-apps-modernization
+            git push origin HEAD:feat/go-sdk-mcp-apps-modernization
+          fi
