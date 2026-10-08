@@ -68,6 +68,51 @@ message Document {
   string author = 3;
 }
 
+// SkillDocument is served as raw Markdown instead of ProtoJSON.
+message SkillDocument {
+  option (mcp.options.v1.resource) = {
+    name: "skill_document"
+    uri: "skill://example/SKILL.md"
+    description: "Instructions for the example MCP skill"
+    mime_type: "text/markdown"
+    content_field: "markdown"
+  };
+  string markdown = 1;
+}
+
+// PlainText demonstrates parameterized text resources.
+message PlainText {
+  option (mcp.options.v1.resource) = {
+    name: "plain_text"
+    uri_template: "docs://example/{name}"
+    mime_type: "text/plain"
+    content_field: "body"
+  };
+  string body = 1;
+}
+
+// RawBinary demonstrates an MCP blob using a bytes content field.
+message RawBinary {
+  option (mcp.options.v1.resource) = {
+    name: "raw_binary"
+    uri: "blob://example/attachment"
+    mime_type: "application/octet-stream"
+    content_field: "data"
+  };
+  bytes data = 1;
+}
+
+// AppPage is an MCP Apps HTML resource generated from a protobuf message.
+message AppPage {
+  option (mcp.options.v1.resource) = {
+    name: "report_ui"
+    uri: "ui://example/report"
+    mime_type: "text/html;profile=mcp-app"
+    content_field: "html"
+  };
+  string html = 1;
+}
+
 // PlainData is NOT a resource — used to test that non-resource messages are ignored.
 message PlainData {
   // Arbitrary key.

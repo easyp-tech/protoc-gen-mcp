@@ -2,20 +2,25 @@ package examplemcp
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
 
 	promptsv1 "github.com/easyp-tech/protoc-gen-mcp/internal/testproto/prompts/v1"
 	resourcesv1 "github.com/easyp-tech/protoc-gen-mcp/internal/testproto/resources/v1"
 )
+
+//go:embed testdata/SKILL.md
+var exampleSkillMarkdown string
 
 // NewResourcesServer returns a ready-to-run MCP server backed by the generated
 // protobuf resources and prompts. It exists so that the generated resource
 // registration code (resources.mcp.go) is actually compiled and exercised — the
 // text-only golden test does not compile it.
 func NewResourcesServer(ctx context.Context) (*mcp.Server, error) {
-	server := mcp.NewServer(&mcp.Implementation{Name: "protoc-gen-mcp-resources-server", Version: "v0.0.1"}, nil)
+	server := mcp.NewServer(&mcp.Implementation{Name: "protoc-gen-mcp-resources-server", Version: "v0.0.1"}, &mcp.ServerOptions{Capabilities: mcpruntime.AppCapabilities()})
 
 	if err := resourcesv1.RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx, server, ResourcesHandler{}); err != nil {
 		return nil, err
@@ -69,6 +74,31 @@ func (ResourcesHandler) ReadDocument(_ context.Context, projectID, documentID st
 		Body:   "body",
 		Author: "Ada",
 	}, nil
+}
+
+// ReadSkillDocument serves the embedded SKILL.md file as plain Markdown.
+func (ResourcesHandler) ReadSkillDocument(_ context.Context) (*resourcesv1.SkillDocument, error) {
+	return &resourcesv1.SkillDocument{Markdown: exampleSkillMarkdown}, nil
+}
+
+// ListPlainTexts enumerates one concrete instance of the templated document.
+func (ResourcesHandler) ListPlainTexts(_ context.Context) ([]mcp.Resource, error) {
+	return []mcp.Resource{{Name: "plain_text", URI: "docs://example/intro", MIMEType: "text/plain"}}, nil
+}
+
+// ReadPlainText creates a textual resource for the requested name.
+func (ResourcesHandler) ReadPlainText(_ context.Context, name string) (*resourcesv1.PlainText, error) {
+	return &resourcesv1.PlainText{Body: "document: " + name}, nil
+}
+
+// ReadRawBinary serves bytes as an MCP blob.
+func (ResourcesHandler) ReadRawBinary(_ context.Context) (*resourcesv1.RawBinary, error) {
+	return &resourcesv1.RawBinary{Data: []byte{0, 1, 2, 255}}, nil
+}
+
+// ReadAppPage serves an MCP Apps HTML document without ProtoJSON escaping.
+func (ResourcesHandler) ReadAppPage(_ context.Context) (*resourcesv1.AppPage, error) {
+	return &resourcesv1.AppPage{Html: "<!doctype html><html><body>Report UI</body></html>"}, nil
 }
 
 // PromptsHandler implements the generated prompt handler interface with
