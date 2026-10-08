@@ -83,6 +83,11 @@ class ExecutionOptions:
     task_support: TaskSupport
 
 @dataclass(slots=True)
+class AppUIOptions:
+    resource_uri: str
+    visibility: list[str] = field(default_factory=list)
+
+@dataclass(slots=True)
 class MethodOptions:
     name: str
     title: str
@@ -90,6 +95,7 @@ class MethodOptions:
     hidden: bool
     annotations: ToolAnnotations
     execution: ExecutionOptions
+    app_ui: AppUIOptions
     icons: list[Icon] = field(default_factory=list)
 
 @dataclass(slots=True)
@@ -604,6 +610,18 @@ def _to_pb_execution_options(value: ExecutionOptions) -> options_pb2.ExecutionOp
     message.task_support = int(value.task_support)
     return message
 
+def _from_pb_app_ui_options(message: options_pb2.AppUIOptions) -> AppUIOptions:
+    return AppUIOptions(
+        resource_uri=message.resource_uri,
+        visibility=list(message.visibility),
+    )
+
+def _to_pb_app_ui_options(value: AppUIOptions) -> options_pb2.AppUIOptions:
+    message = options_pb2.AppUIOptions()
+    message.resource_uri = value.resource_uri
+    message.visibility.extend(value.visibility)
+    return message
+
 def _from_pb_method_options(message: options_pb2.MethodOptions) -> MethodOptions:
     return MethodOptions(
         name=message.name,
@@ -613,6 +631,7 @@ def _from_pb_method_options(message: options_pb2.MethodOptions) -> MethodOptions
         annotations=_from_pb_tool_annotations(message.annotations),
         icons=[_from_pb_icon(item) for item in message.icons],
         execution=_from_pb_execution_options(message.execution),
+        app_ui=_from_pb_app_ui_options(message.app_ui),
     )
 
 def _to_pb_method_options(value: MethodOptions) -> options_pb2.MethodOptions:
@@ -624,6 +643,7 @@ def _to_pb_method_options(value: MethodOptions) -> options_pb2.MethodOptions:
     message.annotations.CopyFrom(_to_pb_tool_annotations(value.annotations))
     message.icons.extend(_to_pb_icon(item) for item in value.icons)
     message.execution.CopyFrom(_to_pb_execution_options(value.execution))
+    message.app_ui.CopyFrom(_to_pb_app_ui_options(value.app_ui))
     return message
 
 def _from_pb_example_object(message: options_pb2.ExampleObject) -> ExampleObject:

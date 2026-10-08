@@ -34,9 +34,16 @@ func RegisterExampleAPITools(server *mcp.Server, impl ExampleAPIToolHandler, opt
 		OutputSchemaJSON: ExampleAPI_CreateReport_ToolSpecOutputSchemaJSON,
 		Annotations:      nil,
 		Icons:            nil,
-		NewRequest:       func() *CreateReportRequest { return &CreateReportRequest{} },
-		NewResponse:      func() *CreateReportResponse { return &CreateReportResponse{} },
-		Handler:          impl.CreateReport,
+		AppUI: &mcpruntime.AppUI{
+			ResourceURI: "ui://example/report",
+			Visibility: []string{
+				"model",
+				"app",
+			},
+		},
+		NewRequest:  func() *CreateReportRequest { return &CreateReportRequest{} },
+		NewResponse: func() *CreateReportResponse { return &CreateReportResponse{} },
+		Handler:     impl.CreateReport,
 	}, opts...); err != nil {
 		return err
 	}
