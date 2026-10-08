@@ -1,5 +1,7 @@
 name: go sdk smoke
 on:
+  pull_request:
+    branches: [master]
   push:
     branches: [feat/go-sdk-mcp-apps-modernization]
 permissions:
