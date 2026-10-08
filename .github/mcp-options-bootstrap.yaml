@@ -1,0 +1,10 @@
+generate:
+  inputs:
+    - directory:
+        path: mcp
+        root: "."
+  plugins:
+    - name: go
+      out: .
+      opts:
+        paths: source_relative
