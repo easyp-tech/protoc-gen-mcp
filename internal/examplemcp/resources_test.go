@@ -1,11 +1,13 @@
 package examplemcp_test
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"testing"
 
 	"github.com/easyp-tech/protoc-gen-mcp/internal/examplemcp"
+	examplev1 "github.com/easyp-tech/protoc-gen-mcp/internal/testproto/example/v1"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -15,6 +17,11 @@ func newResourcesClient(t *testing.T) *mcp.ClientSession {
 	if err != nil {
 		t.Fatalf("NewResourcesServer: %v", err)
 	}
+	return connectResourcesClient(t, server)
+}
+
+func connectResourcesClient(t *testing.T, server *mcp.Server) *mcp.ClientSession {
+	t.Helper()
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()
 	serverSession, err := server.Connect(context.Background(), serverTransport, nil)
 	if err != nil {
@@ -77,6 +84,43 @@ func TestResourcesPromptsRoundTrip(t *testing.T) {
 	}
 	if len(profile.Contents) != 1 || !strings.Contains(profile.Contents[0].Text, `"userId":"ada"`) {
 		t.Fatalf("unexpected templated resource: %+v", profile.Contents)
+	}
+
+	skill, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: "skill://example/SKILL.md"})
+	if err != nil {
+		t.Fatalf("skill resources/read: %v", err)
+	}
+	if len(skill.Contents) != 1 || skill.Contents[0].MIMEType != "text/markdown" ||
+		!strings.Contains(skill.Contents[0].Text, "## Instructions") ||
+		!strings.HasPrefix(skill.Contents[0].Text, "# Example MCP Skill") {
+		t.Fatalf("SKILL.md was not delivered as raw Markdown: %+v", skill.Contents)
+	}
+
+	plain, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: "docs://example/intro"})
+	if err != nil {
+		t.Fatalf("plain text resources/read: %v", err)
+	}
+	if len(plain.Contents) != 1 || plain.Contents[0].MIMEType != "text/plain" ||
+		plain.Contents[0].Text != "document: intro" {
+		t.Fatalf("plain text was not served unescaped: %+v", plain.Contents)
+	}
+
+	binary, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: "blob://example/attachment"})
+	if err != nil {
+		t.Fatalf("binary resources/read: %v", err)
+	}
+	if len(binary.Contents) != 1 || binary.Contents[0].MIMEType != "application/octet-stream" ||
+		!bytes.Equal(binary.Contents[0].Blob, []byte{0, 1, 2, 255}) {
+		t.Fatalf("binary resource was not served as blob: %+v", binary.Contents)
+	}
+
+	html, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: "ui://example/report"})
+	if err != nil {
+		t.Fatalf("UI resources/read: %v", err)
+	}
+	if len(html.Contents) != 1 || html.Contents[0].MIMEType != "text/html;profile=mcp-app" ||
+		!strings.HasPrefix(html.Contents[0].Text, "<!doctype html>") {
+		t.Fatalf("MCP Apps HTML resource was not served as HTML: %+v", html.Contents)
 	}
 
 	prompts, err := session.ListPrompts(ctx, nil)
@@ -145,6 +189,42 @@ func TestGeneratedAppUIFromProto(t *testing.T) {
 		return
 	}
 	t.Fatal("generated example_CreateReport tool was not registered")
+}
+
+// TestAppUIUsesProtobufResource verifies tool _meta.ui references an HTML
+// resource declared and registered through generated protobuf resource options.
+func TestAppUIUsesProtobufResource(t *testing.T) {
+	ctx := context.Background()
+	server, err := examplemcp.NewResourcesServer(ctx)
+	if err != nil {
+		t.Fatalf("NewResourcesServer: %v", err)
+	}
+	if err := examplev1.RegisterExampleAPITools(server, examplemcp.Handler{}); err != nil {
+		t.Fatalf("register example tools: %v", err)
+	}
+	session := connectResourcesClient(t, server)
+	tools, err := session.ListTools(ctx, nil)
+	if err != nil {
+		t.Fatalf("tools/list: %v", err)
+	}
+	var resourceURI string
+	for _, tool := range tools.Tools {
+		if tool.Name != "example_CreateReport" {
+			continue
+		}
+		ui, ok := tool.Meta["ui"].(map[string]any)
+		if !ok {
+			t.Fatalf("tool UI metadata missing: %+v", tool.Meta)
+		}
+		resourceURI, _ = ui["resourceUri"].(string)
+	}
+	if resourceURI != "ui://example/report" {
+		t.Fatalf("generated tool resourceURI=%q", resourceURI)
+	}
+	html, err := session.ReadResource(ctx, &mcp.ReadResourceParams{URI: resourceURI})
+	if err != nil || len(html.Contents) != 1 || html.Contents[0].MIMEType != "text/html;profile=mcp-app" {
+		t.Fatalf("tool UI does not resolve to generated HTML resource: %+v, err=%v", html, err)
+	}
 }
 
 func TestPromptsGetMissingRequiredArg(t *testing.T) {
