@@ -22,9 +22,8 @@ architecture unless explicitly revised.
   official MCP server runtime, protocol negotiation and transports (stdio and
   stateless Streamable HTTP, including MCP 2026-07-28).
 - `mcpruntime` contains protobuf/ProtoJSON/JSON Schema adapters, MCP Apps
-  metadata/resource registration, and OAuth resource-server wiring. The old
-  self-hosted MCP wire implementation remains temporarily for migration tests
-  only and must not be used by new generated Go servers.
+  metadata/resource registration, and OAuth resource-server wiring. The
+  self-hosted MCP wire runtime has been removed.
 - `mcp>=1.27,<2` as the official Python MCP SDK target
 - `io.modelcontextprotocol.sdk:mcp` as the official Java MCP SDK target
 - `io.modelcontextprotocol:kotlin-sdk-server` as the official Kotlin MCP SDK
@@ -46,8 +45,8 @@ architecture unless explicitly revised.
 - `cmd/example-mcp-server`: runnable MCP server for manual agent/client checks
   (`-transport=stdio|http`)
 - `cmd/example-python-mcp-server`: runnable stdio MCP server for Python SDK parity checks
-- `mcpruntime`: public runtime helpers used by generated code (stdio + Streamable
-  HTTP transports, sessions, schema validation, tool/prompt/resource registration)
+- `mcpruntime`: protobuf, ProtoJSON and JSON Schema adapters, MCP Apps UI
+  metadata/resources, and OAuth resource-server integration over the Go SDK
 - `.github/workflows`: GitHub Actions CI and release workflows
 - `.goreleaser.yaml`: release packaging for the plugin binary
 - `examples`: standalone Go/Python/JVM integration projects; example
@@ -217,10 +216,9 @@ architecture unless explicitly revised.
 - Generated TypeScript files expose
   `register<Service>Tools(server, impl, namespace?)`
 - Runtime exposes only the minimal registration options used by generated code
-- Go runtime transports: `ServeStdio` / `ServeIO` (newline-delimited JSON-RPC)
-  and Streamable HTTP via `NewStreamableHTTPHandler` /
-  `ServeStreamableHTTP` (sessions, Origin checks, optional SSE, Last-Event-ID
-  resumability). Legacy HTTP+SSE (2024-11-05) is not implemented
+- Go runtime transports: SDK `StdioTransport` / `NewStreamableHTTPHandler`
+  (stateless HTTP by default, with SDK-managed protocol negotiation and
+  cancellation). Legacy transport implementation is removed
 - Generated MCP tool names must not contain dots; namespace prefixes and method
   names are joined with underscores, and any dots in configured segments are
   normalized to underscores
@@ -231,8 +229,8 @@ architecture unless explicitly revised.
 ## Current Status
 
 - Implemented:
-- Go `mcpruntime` Streamable HTTP transport (POST/GET/DELETE, multi-session,
-  Origin validation, optional SSE, Last-Event-ID resumability) alongside stdio
+- Official Go SDK stdio and stateless Streamable HTTP serving plus MCP Apps
+  UI metadata/resources, SDK protobuf registration and OAuth bearer middleware
 - `cmd/protoc-gen-mcp` plugin scaffold and generated `*.mcp.go` bindings
   - typed plugin option parsing for `lang=go|python|kotlin|java|typescript` and
     `python_runtime=google.protobuf|betterproto|grpclib`, plus Python-only
