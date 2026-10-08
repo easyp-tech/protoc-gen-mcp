@@ -49,7 +49,7 @@ func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx c
 			if err != nil {
 				return nil, err
 			}
-			contents, err := mcpruntime.MarshalSDKResourceContent("server://status", "application/json", result)
+			contents, err := mcpruntime.MarshalResourceContent("server://status", "application/json", result)
 			if err != nil {
 				return nil, err
 			}
@@ -76,7 +76,7 @@ func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx c
 			if err != nil {
 				return nil, err
 			}
-			contents, err := mcpruntime.MarshalSDKResourceContent(req.Params.URI, "application/json", result)
+			contents, err := mcpruntime.MarshalResourceContent(req.Params.URI, "application/json", result)
 			if err != nil {
 				return nil, err
 			}
@@ -115,7 +115,7 @@ func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx c
 			if err != nil {
 				return nil, err
 			}
-			contents, err := mcpruntime.MarshalSDKResourceContent(req.Params.URI, "application/json", result)
+			contents, err := mcpruntime.MarshalResourceContent(req.Params.URI, "application/json", result)
 			if err != nil {
 				return nil, err
 			}
