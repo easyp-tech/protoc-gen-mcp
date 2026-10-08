@@ -93,6 +93,7 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 				Annotations:      methodMetadata.Annotations,
 				Icons:            methodMetadata.Icons,
 				TaskSupport:      methodMetadata.TaskSupport,
+				AppUI:            methodMetadata.AppUI,
 			}
 			if len(methodModel.Icons) == 0 {
 				methodModel.Icons = serviceModel.Icons
