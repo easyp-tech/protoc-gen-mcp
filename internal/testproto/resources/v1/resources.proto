@@ -77,6 +77,7 @@ message SkillDocument {
     mime_type: "text/markdown"
     content_field: "markdown"
   };
+  // Raw Markdown body read from the embedded SKILL.md file.
   string markdown = 1;
 }
 
@@ -88,6 +89,7 @@ message PlainText {
     mime_type: "text/plain"
     content_field: "body"
   };
+  // Raw body of the dynamically selected plain-text document.
   string body = 1;
 }
 
@@ -99,6 +101,7 @@ message RawBinary {
     mime_type: "application/octet-stream"
     content_field: "data"
   };
+  // Unmodified binary payload returned in MCP blob form.
   bytes data = 1;
 }
 
@@ -110,6 +113,7 @@ message AppPage {
     mime_type: "text/html;profile=mcp-app"
     content_field: "html"
   };
+  // Interactive HTML content delivered as an MCP Apps resource.
   string html = 1;
 }
 
