@@ -86,6 +86,11 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 			generated.P("OutputSchemaJSON: ", specName, "OutputSchemaJSON,")
 			generated.P("Annotations: ", stringifyAnnotations(generated, method.Annotations), ",")
 			generated.P("Icons: ", stringifyIcons(generated, method.Icons), ",")
+			if len(method.RequiredScopes) > 0 {
+				generated.P("RequiredScopes: []string{")
+				for _, scope := range method.RequiredScopes { generated.P(quote(scope), ",") }
+				generated.P("},")
+			}
 			if method.AppUI != nil {
 				appUIIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("AppUI"))
 				generated.P("AppUI: &", appUIIdent, "{")
@@ -370,6 +375,9 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 		generated.P("return nil")
 		generated.P("}")
 		generated.P()
+	}
+	if model.ServerConfig != nil || modelNeedsApps(model) {
+		if err := renderGoServerFactory(generated, goInfo, model); err != nil { return err }
 	}
 
 	return nil

@@ -37,6 +37,7 @@ type ToolSpec[Req proto.Message, Resp proto.Message] struct {
 	Annotations      *ToolAnnotations
 	Icons            []Icon
 	AppUI            *AppUI
+	RequiredScopes  []string
 	NewRequest       func() Req
 	NewResponse      func() Resp
 	Handler          func(context.Context, Req) (Resp, error)

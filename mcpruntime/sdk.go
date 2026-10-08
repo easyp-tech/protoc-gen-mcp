@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"slices"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -77,6 +78,16 @@ func RegisterSDKProtoTool[Req proto.Message, Resp proto.Message](
 	}
 
 	server.AddTool(tool, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		if len(spec.RequiredScopes) > 0 {
+			if req == nil || req.Extra.TokenInfo == nil {
+				return sdkToolError(errors.New("permission denied: an authenticated token is required")), nil
+			}
+			for _, required := range spec.RequiredScopes {
+				if !slices.Contains(req.Extra.TokenInfo.Scopes, required) {
+					return sdkToolError(fmt.Errorf("permission denied: missing required scope %q", required)), nil
+				}
+			}
+		}
 		rawArgs := json.RawMessage("{}")
 		if req != nil && req.Params != nil && len(req.Params.Arguments) > 0 {
 			rawArgs = req.Params.Arguments
