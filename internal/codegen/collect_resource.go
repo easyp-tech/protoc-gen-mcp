@@ -157,7 +157,7 @@ func extractTemplateParams(msgFullName, uriTemplate string) ([]ResourceParamMode
 }
 
 func validateEmbedFile(name string) error {
-	if !fs.ValidPath(name) || path.Clean(name) != name || strings.ContainsAny(name, "*?[\\]") {
+	if !fs.ValidPath(name) || path.Clean(name) != name || strings.ContainsAny(name, "*?[\\] \t\r\n") {
 		return fmt.Errorf("source_file %q is not a valid relative Go embed path", name)
 	}
 	for _, segment := range strings.Split(name, "/") {
