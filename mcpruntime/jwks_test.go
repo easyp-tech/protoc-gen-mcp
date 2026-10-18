@@ -111,9 +111,9 @@ func TestJWKSVerifier_RejectHTTPRedirect(t *testing.T) {
 	defer secure.Close()
 	cache := &cachedJWKS{
 		client: secure.Client(),
-		config: JWKSVerifierConfig{JWKSURL: secure.URL+"/jwks"},
+		config: JWKSVerifierConfig{JWKSURL: secure.URL + "/jwks"},
 	}
-	err := cache.load(context.Background())
+	_, err := cache.fetch(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "insecure scheme") {
 		t.Fatalf("HTTPS-to-HTTP JWKS redirect error=%v; want secure refusal", err)
 	}
@@ -122,22 +122,26 @@ func TestJWKSVerifier_RejectHTTPRedirect(t *testing.T) {
 func TestJWKSVerifier_UnknownKidRefreshIsThrottled(t *testing.T) {
 	var requests int
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	remote := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests++
-		_ = json.NewEncoder(w).Encode(map[string]any{"keys":[]any{map[string]any{
-			"kty":"RSA","kid":"known","alg":"RS256","use":"sig",
+		_ = json.NewEncoder(w).Encode(map[string]any{"keys": []any{map[string]any{
+			"kty": "RSA", "kid": "known", "alg": "RS256", "use": "sig",
 			"n": base64.RawURLEncoding.EncodeToString(key.PublicKey.N.Bytes()),
 			"e": base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.PublicKey.E)).Bytes()),
 		}}})
 	}))
 	defer remote.Close()
-	cache := &cachedJWKS{client: remote.Client(),config: JWKSVerifierConfig{JWKSURL: remote.URL}}
+	cache := &cachedJWKS{client: remote.Client(), config: JWKSVerifierConfig{JWKSURL: remote.URL}}
 	// Prime the cache, then emulate a cache which is more than a minute old.
-	if err := cache.load(context.Background()); err != nil { t.Fatal(err) }
-	cache.expires = time.Now().Add(3*time.Minute)
-	for i:=0; i<8; i++ {
-		if _,err:=cache.key(context.Background(), "unknown-kid"); err==nil {
+	if _, err := cache.key(context.Background(), "known"); err != nil {
+		t.Fatal(err)
+	}
+	cache.expires = time.Now().Add(3 * time.Minute)
+	for i := 0; i < 8; i++ {
+		if _, err := cache.key(context.Background(), "unknown-kid"); err == nil {
 			t.Fatal("unknown kid was accepted")
 		}
 	}

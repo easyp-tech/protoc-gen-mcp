@@ -34,12 +34,12 @@ func TestSDKProtoToolAndAppsRoundTrip(t *testing.T) {
 		&mcp.ServerOptions{Capabilities: AppCapabilities()},
 	)
 	spec := ToolSpec[*emptypb.Empty, *emptypb.Empty]{
-		Name: "hello",
-		Namespace: "demo",
+		Name:             "hello",
+		Namespace:        "demo",
 		InputSchemaJSON:  `{"type":"object"}`,
 		OutputSchemaJSON: `{"type":"object"}`,
-		NewRequest: func() *emptypb.Empty { return &emptypb.Empty{} },
-		NewResponse: func() *emptypb.Empty { return &emptypb.Empty{} },
+		NewRequest:       func() *emptypb.Empty { return &emptypb.Empty{} },
+		NewResponse:      func() *emptypb.Empty { return &emptypb.Empty{} },
 		Handler: func(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 			return &emptypb.Empty{}, nil
 		},
@@ -85,11 +85,11 @@ func TestSDKProtoToolAndAppsRoundTrip(t *testing.T) {
 func TestSDKProtoToolInputValidationAndApplicationError(t *testing.T) {
 	server := mcp.NewServer(&mcp.Implementation{Name: "sdk-validation", Version: "v0.0.1"}, nil)
 	err := RegisterSDKProtoTool(server, ToolSpec[*emptypb.Empty, *emptypb.Empty]{
-		Name: "failure",
-		InputSchemaJSON: `{"type":"object","additionalProperties":false}`,
+		Name:             "failure",
+		InputSchemaJSON:  `{"type":"object","additionalProperties":false}`,
 		OutputSchemaJSON: `{"type":"object"}`,
-		NewRequest: func() *emptypb.Empty { return &emptypb.Empty{} },
-		NewResponse: func() *emptypb.Empty { return &emptypb.Empty{} },
+		NewRequest:       func() *emptypb.Empty { return &emptypb.Empty{} },
+		NewResponse:      func() *emptypb.Empty { return &emptypb.Empty{} },
 		Handler: func(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 			return nil, errors.New("business error")
 		},

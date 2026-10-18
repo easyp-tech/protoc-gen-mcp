@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
+	"slices"
 	"strings"
 	"sync"
-	"slices"
+	"weak"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -15,6 +17,8 @@ import (
 )
 
 // sdkServerRegistries keeps duplicate-name validation scoped to the SDK server.
+// Weak keys and cleanup let short-lived servers, their handlers and their
+// registry entries be collected without requiring a separate runtime Close API.
 var sdkServerRegistries sync.Map
 
 // RegisterSDKProtoTool registers a generated protobuf-backed tool with the
@@ -73,7 +77,8 @@ func RegisterSDKProtoTool[Req proto.Message, Resp proto.Message](
 	}
 	// Reserve only after all schema and metadata validation succeeds so a
 	// failed registration does not block a subsequent valid attempt.
-	if err := reserveSDKToolName(server, fullName); err != nil {
+	spec.RequiredScopes = slices.Clone(spec.RequiredScopes)
+	if err := reserveSDKToolName(server, fullName, spec.RequiredScopes); err != nil {
 		return err
 	}
 
@@ -148,17 +153,43 @@ func sdkToolAnnotations(a *ToolAnnotations) *mcp.ToolAnnotations {
 	return result
 }
 
-func reserveSDKToolName(server *mcp.Server, name string) error {
-	registryAny, _ := sdkServerRegistries.LoadOrStore(server, &serverRegistry{
-		tools: make(map[string]struct{}),
+func reserveSDKToolName(server *mcp.Server, name string, scopes []string) error {
+	defer runtime.KeepAlive(server)
+	key := weak.Make(server)
+	registryAny, loaded := sdkServerRegistries.LoadOrStore(key, &serverRegistry{
+		tools: make(map[string][]string),
 	})
+	if !loaded {
+		// Neither the cleanup argument nor the registry may retain the server.
+		runtime.AddCleanup(server, func(key weak.Pointer[mcp.Server]) {
+			sdkServerRegistries.Delete(key)
+		}, key)
+	}
 	registry := registryAny.(*serverRegistry)
 	registry.mu.Lock()
 	defer registry.mu.Unlock()
 	if _, exists := registry.tools[name]; exists {
 		return fmt.Errorf("mcpruntime: tool %q is already registered on this server", name)
 	}
-	registry.tools[name] = struct{}{}
+	registry.tools[name] = slices.Clone(scopes)
 	return nil
 }
 
+// registeredSDKToolScopes returns a stable snapshot for OAuth discovery. These
+// scopes describe optional tool access; they are not server-wide requirements.
+func registeredSDKToolScopes(server *mcp.Server) []string {
+	defer runtime.KeepAlive(server)
+	registryAny, ok := sdkServerRegistries.Load(weak.Make(server))
+	if !ok {
+		return nil
+	}
+	registry := registryAny.(*serverRegistry)
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+	var scopes []string
+	for _, required := range registry.tools {
+		scopes = append(scopes, required...)
+	}
+	slices.Sort(scopes)
+	return slices.Compact(scopes)
+}

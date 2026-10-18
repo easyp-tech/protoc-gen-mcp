@@ -63,6 +63,11 @@ func validateServerModel(model FileModel) error {
 					return err
 				}
 			}
+			if oauth.GetIssuer() != "" {
+				if err := requireHTTPS("issuer", oauth.GetIssuer()); err != nil {
+					return err
+				}
+			}
 			if oauth.GetJwksUri() != "" {
 				if err := requireHTTPS("jwks_uri", oauth.GetJwksUri()); err != nil {
 					return err
@@ -71,7 +76,7 @@ func validateServerModel(model FileModel) error {
 					return fmt.Errorf("file %s: JWKS verification requires issuer and audience", model.ProtoPath)
 				}
 			}
-			if oauth.GetMcpPath() != "" && (!strings.HasPrefix(oauth.GetMcpPath(), "/") || strings.Contains(oauth.GetMcpPath(), "?")) {
+			if path := oauth.GetMcpPath(); path != "" && (!strings.HasPrefix(path, "/") || strings.Contains(path, "?") || path == "/" || path == "/.well-known/oauth-protected-resource") {
 				return fmt.Errorf("file %s: invalid OAuth mcp_path %q", model.ProtoPath, oauth.GetMcpPath())
 			}
 		}
@@ -99,7 +104,14 @@ func modelNeedsApps(model FileModel) bool {
 		}
 	}
 	for _, resource := range model.Resources {
-		if resource.AppUI != nil || strings.EqualFold(resource.MIMEType, "text/html;profile=mcp-app") {
+		if resource.AppUI != nil {
+			return true
+		}
+		// Match validation semantics: media types and parameter names are
+		// case-insensitive, but profile values are not. Whitespace, quoting and
+		// additional MIME parameters must not suppress Apps capability inference.
+		base, parameters, err := mime.ParseMediaType(resource.MIMEType)
+		if err == nil && base == "text/html" && parameters["profile"] == "mcp-app" {
 			return true
 		}
 	}

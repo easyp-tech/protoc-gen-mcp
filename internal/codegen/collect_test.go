@@ -209,10 +209,10 @@ func TestCollectFileModel_Resources(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		index int
-		name string
-		mime string
-		field string
+		index    int
+		name     string
+		mime     string
+		field    string
 		template bool
 	}{
 		{3, "skill_document", "text/markdown", "markdown", false},

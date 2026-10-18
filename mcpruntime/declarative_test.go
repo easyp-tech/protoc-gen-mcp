@@ -179,7 +179,7 @@ func TestJWKSVerifier_InvalidRemoteDocuments(t *testing.T) {
 	} {
 		remote := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(body)) }))
 		cache := &cachedJWKS{client: remote.Client(), config: JWKSVerifierConfig{JWKSURL: remote.URL}}
-		if err := cache.load(context.Background()); err == nil {
+		if _, err := cache.fetch(context.Background()); err == nil {
 			t.Errorf("invalid JWKS body was accepted: %s", body[:min(len(body), 80)])
 		}
 		remote.Close()
@@ -187,7 +187,7 @@ func TestJWKSVerifier_InvalidRemoteDocuments(t *testing.T) {
 	remote := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Error(w, "unavailable", http.StatusBadGateway) }))
 	defer remote.Close()
 	cache := &cachedJWKS{client: remote.Client(), config: JWKSVerifierConfig{JWKSURL: remote.URL}}
-	if err := cache.load(context.Background()); err == nil {
+	if _, err := cache.fetch(context.Background()); err == nil {
 		t.Fatal("HTTP 502 JWKS accepted")
 	}
 }

@@ -27,10 +27,10 @@ type methodMetadata struct {
 	Disabled    bool
 	Deprecated  bool
 
-	Annotations *mcpoptionsv1.ToolAnnotations
-	Icons       []*mcpoptionsv1.Icon
-	TaskSupport mcpoptionsv1.TaskSupport
-	AppUI       *mcpoptionsv1.AppUIOptions
+	Annotations    *mcpoptionsv1.ToolAnnotations
+	Icons          []*mcpoptionsv1.Icon
+	TaskSupport    mcpoptionsv1.TaskSupport
+	AppUI          *mcpoptionsv1.AppUIOptions
 	RequiredScopes []string
 }
 

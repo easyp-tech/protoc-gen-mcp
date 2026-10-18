@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -17,12 +18,12 @@ const ProtectedResourceMetadataPath = "/.well-known/oauth-protected-resource"
 // is handled by an external authorization server. Verifier must validate that
 // the bearer token was issued for this resource (issuer, audience, signature).
 type OAuthResourceServer struct {
-	ResourceURL          string
-	AuthorizationServers []string
-	Scopes               []string
+	ResourceURL               string
+	AuthorizationServers      []string
+	Scopes                    []string
 	Issuer, Audience, JWKSURL string
-	Verifier             auth.TokenVerifier
-	MCPPath              string
+	Verifier                  auth.TokenVerifier
+	MCPPath                   string
 }
 
 // NewOAuthResourceHandler mounts the SDK's protected-resource discovery and
@@ -68,7 +69,15 @@ func NewOAuthResourceHandler(server *mcp.Server, config OAuthResourceServer) (ht
 	})(handler)
 
 	mux := http.NewServeMux()
-	mux.Handle(ProtectedResourceMetadataPath, auth.ProtectedResourceMetadataHandler(metadata))
+	mux.Handle(ProtectedResourceMetadataPath, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Keep discovery current when other generated files register tools after
+		// the HTTP handler is built. Tool scopes must not become global gates.
+		current := *metadata
+		current.ScopesSupported = append(slices.Clone(metadata.ScopesSupported), registeredSDKToolScopes(server)...)
+		slices.Sort(current.ScopesSupported)
+		current.ScopesSupported = slices.Compact(current.ScopesSupported)
+		auth.ProtectedResourceMetadataHandler(&current).ServeHTTP(w, r)
+	}))
 	mux.Handle(path, protected)
 	return http.NewCrossOriginProtection().Handler(mux), nil
 }

@@ -19,7 +19,11 @@ func NewConfiguredServer(name, version string, apps bool) (*mcp.Server, error) {
 	}
 	var options *mcp.ServerOptions
 	if apps {
-		options = &mcp.ServerOptions{Capabilities: AppCapabilities()}
+		capabilities := AppCapabilities()
+		// Supplying capabilities replaces the SDK defaults, so preserve logging
+		// while adding the Apps extension. Other capabilities remain inferred.
+		capabilities.Logging = &mcp.LoggingCapabilities{}
+		options = &mcp.ServerOptions{Capabilities: capabilities}
 	}
 	return mcp.NewServer(&mcp.Implementation{Name: name, Version: version}, options), nil
 }

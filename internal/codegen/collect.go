@@ -18,9 +18,11 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 	}
 
 	serverConfig, err := getServerConfig(file)
-	if err != nil { return FileModel{}, err }
+	if err != nil {
+		return FileModel{}, err
+	}
 	model := FileModel{
-		ServerConfig: serverConfig,
+		ServerConfig:            serverConfig,
 		ProtoPath:               file.Desc.Path(),
 		GeneratedFilenamePrefix: file.GeneratedFilenamePrefix,
 		Options:                 opts,
@@ -137,7 +139,9 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 	}
 	model.Resources = resources
 	if opts.Language == LanguageGo {
-		if err := validateServerModel(model); err != nil { return FileModel{}, err }
+		if err := validateServerModel(model); err != nil {
+			return FileModel{}, err
+		}
 	}
 	return model, nil
 }

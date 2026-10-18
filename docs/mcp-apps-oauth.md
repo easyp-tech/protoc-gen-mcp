@@ -6,6 +6,135 @@ Protocol negotiation, Streamable HTTP, sessions, tools, prompts and resources
 are SDK-owned. `protoc-gen-mcp` owns only protobuf descriptions, generated
 bindings, ProtoJSON/JSON Schema adapters and declarative server wiring.
 
+## Migrating Go applications from 0.7.0
+
+This is a **breaking Go migration** to `github.com/modelcontextprotocol/go-sdk`
+v1.8.0, requiring Go 1.26+. Regenerate `*.mcp.go` with the updated plugin
+through your Easyp generation configuration, update handwritten handlers and
+server wiring, then rebuild and test your application. Do not edit generated
+files or mix old generated bindings with the new runtime. Protobuf tool
+request/response handlers and the ProtoJSON contract stay the same.
+
+Import SDK types from `github.com/modelcontextprotocol/go-sdk/mcp`:
+
+| Removed or changed API | Replacement |
+| --- | --- |
+| `*mcpruntime.Server`, `mcpruntime.NewServer(name, version)` | `*mcp.Server`, `mcp.NewServer(&mcp.Implementation{Name: name, Version: version}, nil)`, or a generated `New<File>MCPServer` factory |
+| `mcpruntime.ServeStdio(ctx, server)` | `server.Run(ctx, &mcp.StdioTransport{})` |
+| `mcpruntime.ServeIO` | `server.Run(ctx, &mcp.IOTransport{Reader: reader, Writer: writer})`; the streams must implement `io.ReadCloser` / `io.WriteCloser` |
+| `mcpruntime.NewStreamableHTTPHandler`, `ServeStreamableHTTP`, `StreamableHTTPOptions` | Generated `New<File>MCPHTTPHandler` for configured stateless HTTP, or SDK `mcp.NewStreamableHTTPHandler` / `mcp.StreamableHTTPOptions` and `net/http` serving |
+| `mcpruntime.Session`, `WithSession`, `SessionFromContext` | SDK `*mcp.ServerSession`, available as `req.Session` in SDK handlers/middleware, or returned by `server.Connect`; there is no compatibility context-session accessor |
+| `Session.SendNotification` | SDK operations such as `req.Session.NotifyProgress(ctx, params)`, `req.Session.Log(ctx, params)` or `server.ResourceUpdated(ctx, params)`; SDK registry changes trigger supported list-change notifications |
+| `Server.HandleRaw` | Connect an SDK client/server with `mcp.NewInMemoryTransports` for tests, or use SDK stdio/HTTP transports |
+| `mcpruntime.RegisterProtoTool` | Regenerate bindings: their adapter is now `mcpruntime.RegisterSDKProtoTool`; application code should continue calling `Register<Service>Tools` |
+| `[]mcpruntime.PromptMessage` | `[]*mcp.PromptMessage`, with `mcp.Content` implementations such as `&mcp.TextContent{Text: text}` |
+| `[]mcpruntime.Resource` | `[]mcp.Resource` in generated resource-list handlers |
+| Legacy resource-content types | `[]*mcp.ResourceContents`, also returned by `mcpruntime.MarshalResourceContent` |
+
+Prompt handlers now return pointer elements. For example, the messages portion
+of a generated prompt implementation becomes:
+
+```go
+return []*mcp.PromptMessage{{
+    Role: "user",
+    Content: &mcp.TextContent{Text: "Review this code."},
+}}, nil
+```
+
+SDK resource annotations use `mcp.Annotations{Priority: 0.8,
+Audience: []mcp.Role{"user", "assistant"}}`; priority is a value, not a
+pointer. SDK icons use `mcp.Icon{Source: url, MIMEType: mimeType}`.
+The generator-owned `mcpruntime.ToolAnnotations`, `Icon`, `ToolSpec` and
+registration options remain adapters, so do not blindly replace every
+`mcpruntime` import. Generated protobuf handlers do not receive an SDK request
+or session argument; applications needing SDK-specific session behavior must
+integrate through the SDK's handlers/middleware.
+
+### HTTP contract: stateless helpers and stateful SDK servers
+
+`New<File>MCPHTTPHandler`, `mcpruntime.NewConfiguredHTTPHandler` and
+`mcpruntime.NewOAuthResourceHandler` deliberately use
+`mcp.StreamableHTTPOptions{Stateless: true}`. This is a runtime contract, not an
+option inferred from whether OAuth or MCP Apps is enabled:
+
+- The SDK creates a temporary session for each POST and does not read or set
+  `MCP-Session-Id`. GET and DELETE return 405 after any authentication checks.
+- There is no legacy standalone GET listen stream or configured event store
+  for `Last-Event-ID` replay. Code depending on the 0.7.0 persistent-session
+  contract must choose a different transport setup.
+- Stateless does **not** mean JSON-only responses or no notifications. SDK
+  notifications associated with an active request can reach its SSE response;
+  keep the incoming request context. The MCP 2026-07-28
+  `subscriptions/listen` POST can remain open for subscribed list-change
+  notifications. Detached background notifications are not a replacement for
+  that request/subscription lifecycle.
+- Server-initiated JSON-RPC requests cannot use the stateless transport.
+  Protocol negotiation and newer interaction mechanisms remain SDK-owned.
+
+For applications that still require legacy session IDs, GET streams and
+resumability, configure the SDK directly. Stateful SDK transport supports
+legacy protocols such as 2025-11-25, **not** the sessionless 2026-07-28
+protocol. `EventStore` is needed for replay; `Stateless: false` alone does not
+enable it. For example, using `context`, `net/http`, `time`, and the SDK's
+`auth`, `mcp` and `oauthex` packages:
+
+```go
+// server already has your generated tools/prompts/resources registered.
+// verifier must validate signature, issuer, audience and expiration.
+// Require a stable, nonempty principal ID for SDK session-owner checks.
+requireIdentity := func(ctx context.Context, token string, req *http.Request) (*auth.TokenInfo, error) {
+    info, err := verifier(ctx, token, req)
+    if err != nil {
+        return nil, err
+    }
+    if info == nil || info.UserID == "" {
+        return nil, auth.ErrInvalidToken
+    }
+    return info, nil
+}
+handler := mcp.NewStreamableHTTPHandler(
+    func(*http.Request) *mcp.Server { return server },
+    &mcp.StreamableHTTPOptions{
+        Stateless: false,
+        SessionTimeout: 5 * time.Minute,
+        EventStore: mcp.NewMemoryEventStore(nil),
+    },
+)
+protected := auth.RequireBearerToken(requireIdentity, &auth.RequireBearerTokenOptions{
+    Scopes: []string{"reports:read"},
+    ResourceMetadataURL: "https://mcp.example.com/.well-known/oauth-protected-resource",
+})(handler)
+mux := http.NewServeMux()
+mux.Handle("/mcp", protected)
+mux.Handle("/.well-known/oauth-protected-resource", auth.ProtectedResourceMetadataHandler(
+    &oauthex.ProtectedResourceMetadata{
+        Resource: "https://mcp.example.com/mcp",
+        AuthorizationServers: []string{"https://auth.example.com"},
+        ScopesSupported: []string{"reports:read", "reports:write"},
+    },
+))
+securedHandler := http.NewCrossOriginProtection().Handler(mux)
+// Serve securedHandler behind HTTPS using your application's HTTP server.
+// Call handler.Close() when the application shuts down to close SDK sessions.
+```
+
+This route is application-owned: replace the example URLs/scopes and apply
+authentication to **every** MCP request, including GET and DELETE. A session ID
+is not a credential. The SDK checks session ownership only when the verifier
+sets a nonempty `auth.TokenInfo.UserID`; it must identify the same principal
+consistently, including issuer/tenant distinctions where applicable. The
+built-in JWKS verifier maps JWT `sub` to `UserID` but does not require `sub`,
+so a stateful application must enforce this itself, as above.
+The in-memory event store is process-local and does not survive restarts;
+multi-instance routing and durable replay require application design.
+
+Constructing a generated SDK server does **not** install its generated HTTP
+OAuth policy on this separate handler. Retain protected-resource discovery,
+token/scope checks, HTTPS and cross-origin protection explicitly. Review the
+SDK's [transport options](https://github.com/modelcontextprotocol/go-sdk/blob/v1.8.0/mcp/streamable.go)
+and [authentication types](https://github.com/modelcontextprotocol/go-sdk/blob/v1.8.0/auth/auth.go)
+before adopting the stateful alternative.
+
 ## Declarative server configuration
 
 The `(mcp.options.v1.server)` **file option** configures a generated server
@@ -183,13 +312,49 @@ and enforces global `scopes`. Generated tool registrations independently
 enforce `required_scopes`. Thus a token with `reports:read` can access
 the server but cannot call a tool requiring `reports:write`.
 
+Discovery advertises the union of global scopes and the registered generated
+tools' required scopes, including tools registered after the HTTP handler is
+constructed. Advertising a tool scope does not make it a global requirement;
+do not add method-only scopes to `server.oauth.scopes`
+just to make them discoverable.
+
+**Current limitation:** a missing per-tool scope is reported as a tool result
+with `isError: true` in an HTTP 200 response. It is not an HTTP 403
+`WWW-Authenticate: Bearer ... error="insufficient_scope"` challenge, so clients
+cannot rely on that challenge to automatically request additional tool scopes.
+Server-wide scope checks still use SDK OAuth middleware. Transport-level
+per-method challenges require separate request-aware authorization wiring and
+are not implemented by the generated tool adapters.
+
 With `verifier=nil` the runtime verifies JWT access tokens using **RS256**
 public keys fetched from the specified HTTPS JWKS endpoint; it rejects tokens
 with missing or invalid signatures, issuer/audience, expiration or key ID.
-Keys are cached and refreshed. This is intentionally limited to standard
-RS256 access JWTs. An application can supply a custom
-`auth.TokenVerifier` when using opaque tokens or another provider-specific
-validation scheme; the verifier overrides the JWKS option.
+This is intentionally limited to standard RS256 access JWTs. An application
+can supply a custom `auth.TokenVerifier` when using opaque tokens or another
+provider-specific validation scheme; the verifier overrides the JWKS option.
+
+### JWKS cache and identity-provider outages
+
+Successful JWKS responses are cached for five minutes. A refresh performs
+network I/O outside the cache mutex, and concurrent callers share one
+in-flight fetch. Every caller can cancel independently without canceling that
+shared fetch or causing failure backoff for other requests. Requests for known
+keys in a still-fresh cache do not wait for a rotation refresh. Fetches have
+a five-second deadline even when a custom HTTP client is supplied.
+
+Failed refreshes use exponential retry delays of 1, 2, 4, 8, 16, 32 and then
+60 seconds, capped at one minute and reset after success. Unknown `kid`
+refreshes remain throttled to at most once per minute so attacker-controlled
+key IDs cannot cause an unbounded fetch loop.
+
+The policy **fails closed after cache expiry**: a failed fetch never extends
+the cache TTL or authorizes a token with stale keys. During backoff, requests
+needing an expired or missing key are rejected without another network fetch.
+A still-fresh known key remains usable after a failed rotation refresh until
+the existing TTL expires. Thus an IdP outage can interrupt authentication when
+cached keys expire, but it does not serialize every request behind a failing IdP or
+silently extend trust in a removed signing key. Applications needing a different
+availability/revocation policy must supply and review their own verifier.
 
 The generator does **not** create an authorization server, issue tokens,
 store OAuth secrets or handle users/passwords. OAuth login, consent, PKCE,

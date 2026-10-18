@@ -37,7 +37,7 @@ type ToolSpec[Req proto.Message, Resp proto.Message] struct {
 	Annotations      *ToolAnnotations
 	Icons            []Icon
 	AppUI            *AppUI
-	RequiredScopes  []string
+	RequiredScopes   []string
 	NewRequest       func() Req
 	NewResponse      func() Resp
 	Handler          func(context.Context, Req) (Resp, error)
@@ -46,7 +46,7 @@ type ToolSpec[Req proto.Message, Resp proto.Message] struct {
 // serverRegistry rejects duplicate names before they can replace an SDK tool.
 type serverRegistry struct {
 	mu    sync.Mutex
-	tools map[string]struct{}
+	tools map[string][]string
 }
 
 func loadSchema(schemaJSON string) (*jsonschema.Schema, *jsonschema.Resolved, error) {

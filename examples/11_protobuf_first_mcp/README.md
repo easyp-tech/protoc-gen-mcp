@@ -18,6 +18,12 @@ not a collection of unrelated snippets.
 | Transports | stdio and stateless Streamable HTTP via the official Go MCP SDK |
 | Tests | Real MCP SDK client exercises the contract end-to-end |
 
+The generated HTTP handler deliberately uses stateless sessions: it does not
+provide the 0.7.0 runtime's session IDs, legacy GET listen stream or replay.
+Request-associated SSE notifications remain SDK-supported. See the
+[Go migration and HTTP contract](../../docs/mcp-apps-oauth.md#migrating-go-applications-from-070)
+before moving an existing stateful application to this example's setup.
+
 ## Run it
 
 From the **repository root** (Go 1.26 is required by `go.mod`):

@@ -117,9 +117,9 @@ func TestCollectResources_StaticAndTemplateRecognized(t *testing.T) {
 }
 
 func TestCollectResources_RawContentFieldValidation(t *testing.T) {
-	cases := []struct{
-		name string
-		option string
+	cases := []struct {
+		name      string
+		option    string
 		wantError string
 		wantField string
 	}{
@@ -136,7 +136,7 @@ func TestCollectResources_RawContentFieldValidation(t *testing.T) {
 		{name: "invalid MIME", option: `uri: "data://example/status" mime_type: "this is not MIME"`, wantError: "invalid mime_type"},
 	}
 	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T){
+		t.Run(tc.name, func(t *testing.T) {
 			model, err := collectResourceFixture(t, tc.option)
 			if tc.wantError != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
@@ -144,7 +144,9 @@ func TestCollectResources_RawContentFieldValidation(t *testing.T) {
 				}
 				return
 			}
-			if err != nil { t.Fatalf("CollectFileModel: %v", err) }
+			if err != nil {
+				t.Fatalf("CollectFileModel: %v", err)
+			}
 			if len(model.Resources) != 1 || model.Resources[0].ContentField != tc.wantField {
 				t.Fatalf("resources=%+v, want ContentField=%q", model.Resources, tc.wantField)
 			}

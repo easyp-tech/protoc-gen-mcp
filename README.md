@@ -254,6 +254,11 @@ working options, generated APIs, and security boundaries.
 
 ### Go Streamable HTTP (official Go SDK)
 
+**Upgrading from 0.7.0:** this is a breaking Go API and HTTP behavior change.
+Regenerate Go bindings and follow the
+[migration guide](docs/mcp-apps-oauth.md#migrating-go-applications-from-070)
+for removed APIs, type replacements and the SDK stateful alternative.
+
 Generated Go registration accepts `*mcp.Server` from
 `github.com/modelcontextprotocol/go-sdk/mcp`. The SDK owns transport,
 session semantics, protocol negotiation and notifications; `mcpruntime`
@@ -272,6 +277,13 @@ _ = http.ListenAndServe("127.0.0.1:8080", mux)
 
 Stateless HTTP negotiates the newest supported protocol, including
 MCP 2026-07-28, while retaining SDK-managed compatibility with older clients.
+The generated `New<File>MCPHTTPHandler` and runtime HTTP helpers deliberately
+use this mode: no persistent `MCP-Session-Id`, legacy GET listen stream or
+`Last-Event-ID` replay. Request-associated SSE notifications remain possible;
+new-protocol clients can use `subscriptions/listen` for list changes. Applications
+that need legacy stateful sessions must configure the SDK directly, including
+authentication and any event store; see the
+[HTTP contract](docs/mcp-apps-oauth.md#http-contract-stateless-helpers-and-stateful-sdk-servers).
 This low-level snippet is an **unprotected** endpoint. For public
 servers, prefer protobuf `server.oauth` and the generated
 `New<File>MCPHTTPHandler` so OAuth middleware and discovery are applied.

@@ -179,16 +179,16 @@ func TestMarshalResourceContent_Binary(t *testing.T) {
 
 func TestMarshalResourceContent_RawValidation(t *testing.T) {
 	cases := []struct {
-		name string
+		name     string
 		mimeType string
-		msg *wrapperspb.StringValue
-		field []string
-		want string
+		msg      *wrapperspb.StringValue
+		field    []string
+		want     string
 	}{
 		{"non-json without content field", "text/markdown", &wrapperspb.StringValue{Value: "hello"}, nil, "requires a raw content field"},
 		{"unknown field", "text/plain", &wrapperspb.StringValue{Value: "hello"}, []string{"missing"}, "not found"},
 		{"bad MIME", "invalid mime", &wrapperspb.StringValue{Value: "hello"}, []string{"value"}, "invalid MIME"},
-		{"two selectors", "text/plain", &wrapperspb.StringValue{Value: "hello"}, []string{"value","value"}, "at most one"},
+		{"two selectors", "text/plain", &wrapperspb.StringValue{Value: "hello"}, []string{"value", "value"}, "at most one"},
 		{"blank selector", "text/plain", &wrapperspb.StringValue{Value: "hello"}, []string{""}, "cannot be empty"},
 	}
 	for _, tt := range cases {

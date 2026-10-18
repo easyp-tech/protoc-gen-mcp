@@ -15,17 +15,17 @@ import (
 func TestOAuthProtectedResourceHandler(t *testing.T) {
 	server := mcp.NewServer(&mcp.Implementation{Name: "oauth-test", Version: "v0.0.1"}, nil)
 	handler, err := NewOAuthResourceHandler(server, OAuthResourceServer{
-		ResourceURL: "https://example.com/mcp",
+		ResourceURL:          "https://example.com/mcp",
 		AuthorizationServers: []string{"https://login.example.com"},
-		Scopes: []string{"read"},
+		Scopes:               []string{"read"},
 		Verifier: func(ctx context.Context, token string, request *http.Request) (*auth.TokenInfo, error) {
 			if token != "valid-token" {
 				return nil, auth.ErrInvalidToken
 			}
 			return &auth.TokenInfo{
-				Scopes: []string{"read"},
+				Scopes:     []string{"read"},
 				Expiration: time.Now().Add(time.Hour),
-				UserID: "test-user",
+				UserID:     "test-user",
 			}, nil
 		},
 	})

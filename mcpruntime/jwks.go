@@ -25,13 +25,33 @@ type JWKSVerifierConfig struct {
 	HTTPClient                *http.Client // Optional trusted client, useful for test CAs.
 }
 
+const (
+	jwksCacheTTL           = 5 * time.Minute
+	jwksRefreshTimeout     = 5 * time.Second
+	jwksUnknownKeyInterval = time.Minute
+	jwksRetryMin           = time.Second
+	jwksRetryMax           = time.Minute
+)
+
 type cachedJWKS struct {
-	mu      sync.Mutex
-	keys    map[string]*rsa.PublicKey
-	expires time.Time
+	mu                    sync.Mutex
+	keys                  map[string]*rsa.PublicKey
+	expires               time.Time
 	lastUnknownKeyRefresh time.Time
-	client  *http.Client
-	config  JWKSVerifierConfig
+	refreshing            chan struct{}
+	retryAt               time.Time
+	retryDelay            time.Duration
+	refreshErr            error
+	client                *http.Client
+	config                JWKSVerifierConfig
+	now                   func() time.Time // Optional clock for deterministic cache tests.
+}
+
+func (c *cachedJWKS) timeNow() time.Time {
+	if c.now != nil {
+		return c.now()
+	}
+	return time.Now()
 }
 
 // NewJWKSVerifier returns an OAuth bearer TokenVerifier for RS256 access JWTs.
@@ -108,56 +128,107 @@ func requireHTTPSURL(field, raw string) error {
 }
 
 func (c *cachedJWKS) key(ctx context.Context, kid string) (*rsa.PublicKey, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	now := time.Now()
-	if c.keys == nil || now.After(c.expires) {
-		if err := c.load(ctx); err != nil {
+	for {
+		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-	}
-	if pub, ok := c.keys[kid]; ok {
-		return pub, nil
-	}
-	// Refresh keys for provider rotation, but only after the cache's minimum
-	// refresh interval; unknown kid must not trigger unlimited network calls.
-	if c.expires.Sub(now) < 4*time.Minute && now.Sub(c.lastUnknownKeyRefresh) >= time.Minute {
-		// Rate-limit refresh requests triggered by attacker-controlled kid
-		// values, including unsuccessful JWKS refresh attempts.
-		c.lastUnknownKeyRefresh = now
-		if err := c.load(ctx); err != nil {
+		c.mu.Lock()
+		now := c.timeNow()
+		fresh := c.keys != nil && now.Before(c.expires)
+		if fresh {
+			if pub, ok := c.keys[kid]; ok {
+				c.mu.Unlock()
+				return pub, nil
+			}
+		}
+		// Coalesce refreshes without holding the cache mutex across network IO.
+		// A waiting request can cancel independently of the refresh's caller.
+		if done := c.refreshing; done != nil {
+			c.mu.Unlock()
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-done:
+				continue
+			}
+		}
+		// Fail closed after expiry. Retained keys are never used beyond their
+		// TTL; failed refreshes are cached with bounded exponential backoff.
+		if now.Before(c.retryAt) {
+			err := c.refreshErr
+			c.mu.Unlock()
 			return nil, err
 		}
+		if fresh {
+			// Attacker-controlled kids may trigger at most one early refresh per
+			// minute, including failures, and never in the first cache minute.
+			if c.expires.Sub(now) > jwksCacheTTL-jwksUnknownKeyInterval || now.Sub(c.lastUnknownKeyRefresh) < jwksUnknownKeyInterval {
+				c.mu.Unlock()
+				return nil, errors.New("unknown JWT key id")
+			}
+			c.lastUnknownKeyRefresh = now
+		}
+		done := make(chan struct{})
+		c.refreshing = done
+		c.mu.Unlock()
+
+		// A client disconnect must not cancel the shared provider fetch or poison
+		// the cache's failure backoff for unrelated requests. fetch supplies its
+		// own bounded timeout; every caller, including this one, waits via ctx.
+		go c.refresh(context.WithoutCancel(ctx), done)
 	}
-	if pub, ok := c.keys[kid]; ok {
-		return pub, nil
-	}
-	return nil, errors.New("unknown JWT key id")
 }
 
-func (c *cachedJWKS) load(ctx context.Context) error {
+func (c *cachedJWKS) refresh(ctx context.Context, done chan struct{}) {
+	keys, err := c.fetch(ctx)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	now := c.timeNow()
+	if err != nil {
+		if c.retryDelay == 0 {
+			c.retryDelay = jwksRetryMin
+		} else {
+			c.retryDelay = min(2*c.retryDelay, jwksRetryMax)
+		}
+		c.retryAt = now.Add(c.retryDelay)
+		c.refreshErr = err
+	} else {
+		c.keys = keys
+		c.expires = now.Add(jwksCacheTTL)
+		c.retryAt = time.Time{}
+		c.retryDelay = 0
+		c.refreshErr = nil
+	}
+	c.refreshing = nil
+	close(done)
+}
+
+// fetch only performs IO and parsing; refresh publishes cache state under mu.
+func (c *cachedJWKS) fetch(ctx context.Context) (map[string]*rsa.PublicKey, error) {
+	ctx, cancel := context.WithTimeout(ctx, jwksRefreshTimeout)
+	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.config.JWKSURL, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	// Even a custom HTTP client must not silently downgrade JWKS fetches.
 	if resp.Request != nil && resp.Request.URL.Scheme != "https" {
-		return errors.New("JWKS redirect to an insecure scheme is forbidden")
+		return nil, errors.New("JWKS redirect to an insecure scheme is forbidden")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("JWKS endpoint returned HTTP %d", resp.StatusCode)
+		return nil, fmt.Errorf("JWKS endpoint returned HTTP %d", resp.StatusCode)
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(data) > 1<<20 {
-		return errors.New("JWKS response exceeds 1 MiB")
+		return nil, errors.New("JWKS response exceeds 1 MiB")
 	}
 	var result struct {
 		Keys []struct {
@@ -170,7 +241,7 @@ func (c *cachedJWKS) load(ctx context.Context) error {
 		} `json:"keys"`
 	}
 	if err := json.Unmarshal(data, &result); err != nil {
-		return err
+		return nil, err
 	}
 	keys := make(map[string]*rsa.PublicKey, len(result.Keys))
 	for _, k := range result.Keys {
@@ -196,9 +267,7 @@ func (c *cachedJWKS) load(ctx context.Context) error {
 		keys[k.Kid] = &rsa.PublicKey{N: modulus, E: e}
 	}
 	if len(keys) == 0 {
-		return errors.New("JWKS response contains no usable RS256 signing keys")
+		return nil, errors.New("JWKS response contains no usable RS256 signing keys")
 	}
-	c.keys = keys
-	c.expires = time.Now().Add(5 * time.Minute)
-	return nil
+	return keys, nil
 }
