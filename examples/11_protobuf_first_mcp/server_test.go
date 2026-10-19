@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -171,7 +173,7 @@ func TestRunnableShowcaseAllFeatures(t *testing.T) {
 	denied, err := read.CallTool(ctx, &mcp.CallToolParams{
 		Name: "showcase_publish_report", Arguments: map[string]any{"title": "Example", "body": "private"},
 	})
-	if err != nil || !denied.IsError {
+	if err == nil || !strings.Contains(err.Error(), http.StatusText(http.StatusForbidden)) {
 		t.Fatalf("read-only token did not deny publish: %+v, %v", denied, err)
 	}
 	write := connectDemoClient(t, srv.URL+"/mcp", "demo-write")
@@ -181,6 +183,9 @@ func TestRunnableShowcaseAllFeatures(t *testing.T) {
 	if err != nil || allowed.IsError {
 		t.Fatalf("write scope rejected: %+v, %v", allowed, err)
 	}
+	// Without an OAuthHandler the SDK closes a transport after an unhandled
+	// authorization challenge. Reconnect to inspect the shared server state.
+	read = connectDemoClient(t, srv.URL+"/mcp", "demo-read")
 	status, err := read.ReadResource(ctx, &mcp.ReadResourceParams{URI: "showcase://status"})
 	if err != nil || !strings.Contains(status.Contents[0].Text, `"reportCount":1`) {
 		t.Fatalf("post-publish server state: %+v, %v", status, err)
@@ -226,6 +231,34 @@ func TestDemoTokensAndLoopbackSafety(t *testing.T) {
 		}
 		if hasWrite != tc.write {
 			t.Errorf("%q write=%t, want %t", tc.token, hasWrite, tc.write)
+		}
+	}
+}
+
+func TestRunnableShowcaseSDKClient(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	server, err := newShowcaseServer(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, err := newShowcaseHTTPHandler(server, demoVerifier)
+	if err != nil {
+		t.Fatal(err)
+	}
+	endpoint := httptest.NewServer(handler)
+	defer endpoint.Close()
+	binary := filepath.Join(t.TempDir(), "showcase-client")
+	if output, err := exec.CommandContext(ctx, "go", "build", "-o", binary, "./client").CombinedOutput(); err != nil {
+		t.Fatalf("build SDK client: %v\n%s", err, output)
+	}
+	for _, tc := range []struct{ token, want string }{
+		{"demo-read", "Publish denied (expected for demo-read): HTTP 403 insufficient_scope"},
+		{"demo-write", "Publish succeeded (demo-write)"},
+	} {
+		output, err := exec.CommandContext(ctx, binary, "-url", endpoint.URL+"/mcp", "-token", tc.token).CombinedOutput()
+		if err != nil || !strings.Contains(string(output), tc.want) {
+			t.Fatalf("%s: err=%v, want %q\n%s", tc.token, err, tc.want, output)
 		}
 	}
 }

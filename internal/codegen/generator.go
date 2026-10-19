@@ -94,36 +94,7 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 		return nil
 	}
 
-	for _, file := range plugin.Files {
-		if !file.Generate {
-			continue
-		}
-
-		model, err := CollectFileModel(file, opts)
-		if err != nil {
-			return err
-		}
-
-		switch opts.Language {
-		case LanguageGo:
-			if len(model.Services) == 0 && len(model.Prompts) == 0 && len(model.Resources) == 0 && model.ServerConfig == nil {
-				continue
-			}
-			if err := renderGoFile(plugin, model); err != nil {
-				return err
-			}
-		case LanguagePython:
-			if !pythonModelRequiresOutput(model) {
-				continue
-			}
-			emitPythonPackageInitFile(plugin, pythonPackageInitFiles, pythonOutputPath(file))
-			if err := renderPythonFile(plugin, model); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
+	return generateGoFiles(plugin, opts)
 }
 
 func collectTypeScriptModels(plugin *protogen.Plugin, opts Options) (map[string]TypeScriptFileModel, []*protogen.File, error) {

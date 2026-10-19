@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/easyp-tech/protoc-gen-mcp/internal/schema"
+	mcpoptionsv1 "github.com/easyp-tech/protoc-gen-mcp/mcp/options/v1"
 	"github.com/google/jsonschema-go/jsonschema"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -52,6 +53,12 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 			}
 			if !include {
 				continue
+			}
+			// The official Go SDK cannot accept the 2025-11-25 task opt-in
+			// or return its task lifecycle. In particular, silently dropping
+			// REQUIRED would run a task-only operation synchronously.
+			if opts.Language == LanguageGo && methodMetadata.TaskSupport != mcpoptionsv1.TaskSupport_TASK_SUPPORT_NONE {
+				return FileModel{}, fmt.Errorf("method %s in %s: execution.task_support=%s is not supported by lang=go: the official Go MCP SDK does not implement the MCP 2025-11-25 Tasks lifecycle; omit execution.task_support or use TASK_SUPPORT_NONE for synchronous execution", method.Desc.FullName(), file.Desc.Path(), methodMetadata.TaskSupport)
 			}
 
 			inputSchema, err := generateSchema(method.Input)

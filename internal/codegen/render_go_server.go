@@ -12,7 +12,7 @@ import (
 // declarative capabilities. Other protobuf files can register additional
 // tools/resources on the returned SDK server without a second MCP runtime.
 func renderGoServerFactory(g *protogen.GeneratedFile, info goRenderInfo, model FileModel) error {
-	fileName := info.file.GoDescriptorIdent.GoName
+	fileName := goFileAPIName(info.file)
 	handlersName := fileName + "MCPHandlers"
 	newName := "New" + fileName + "MCPServer"
 	mcpImport := protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp")

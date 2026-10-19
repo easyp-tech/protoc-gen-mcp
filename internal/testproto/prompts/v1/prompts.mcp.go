@@ -10,17 +10,17 @@ import (
 	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// File_internal_testproto_prompts_v1_prompts_protoPromptHandler defines handlers for MCP prompts in internal/testproto/prompts/v1/prompts.proto.
-type File_internal_testproto_prompts_v1_prompts_protoPromptHandler interface {
+// PromptsPromptHandler defines handlers for MCP prompts in internal/testproto/prompts/v1/prompts.proto.
+type PromptsPromptHandler interface {
 	CodeReview(ctx context.Context, req *CodeReview) ([]*mcp.PromptMessage, error)
 	Summarize(ctx context.Context, req *Summarize) ([]*mcp.PromptMessage, error)
 	ExplainError(ctx context.Context, req *ExplainError) ([]*mcp.PromptMessage, error)
 }
 
-// RegisterFile_internal_testproto_prompts_v1_prompts_protoPrompts registers generated MCP prompts for File_internal_testproto_prompts_v1_prompts_proto.
-func RegisterFile_internal_testproto_prompts_v1_prompts_protoPrompts(server *mcp.Server, impl File_internal_testproto_prompts_v1_prompts_protoPromptHandler, opts ...mcpruntime.RegisterOption) error {
+// RegisterPromptsPrompts registers generated MCP prompts for Prompts.
+func RegisterPromptsPrompts(server *mcp.Server, impl PromptsPromptHandler, opts ...mcpruntime.RegisterOption) error {
 	if impl == nil {
-		return errors.New("RegisterFile_internal_testproto_prompts_v1_prompts_protoPrompts: impl is nil")
+		return errors.New("RegisterPromptsPrompts: impl is nil")
 	}
 	server.AddPrompt(&mcp.Prompt{
 		Name:        "code_review",
@@ -91,4 +91,12 @@ func RegisterFile_internal_testproto_prompts_v1_prompts_protoPrompts(server *mcp
 		return &mcp.GetPromptResult{Messages: result}, nil
 	})
 	return nil
+}
+
+// Deprecated: use PromptsPromptHandler.
+type File_internal_testproto_prompts_v1_prompts_protoPromptHandler = PromptsPromptHandler
+
+// Deprecated: use RegisterPromptsPrompts.
+func RegisterFile_internal_testproto_prompts_v1_prompts_protoPrompts(server *mcp.Server, impl PromptsPromptHandler, opts ...mcpruntime.RegisterOption) error {
+	return RegisterPromptsPrompts(server, impl, opts...)
 }

@@ -63,10 +63,13 @@ func NewOAuthResourceHandler(server *mcp.Server, config OAuthResourceServer) (ht
 		func(*http.Request) *mcp.Server { return server },
 		&mcp.StreamableHTTPOptions{Stateless: true},
 	)
+	metadataURL := resourceURL.Scheme + "://" + resourceURL.Host + ProtectedResourceMetadataPath
+	// Let the SDK validate bearer tokens and expiration before inspecting the
+	// body. Scope checks run at the HTTP boundary so clients can authorize and
+	// retry an operation without the business handler running first.
 	protected := auth.RequireBearerToken(config.Verifier, &auth.RequireBearerTokenOptions{
-		Scopes:              config.Scopes,
-		ResourceMetadataURL: resourceURL.Scheme + "://" + resourceURL.Host + ProtectedResourceMetadataPath,
-	})(handler)
+		ResourceMetadataURL: metadataURL,
+	})(requireOAuthScopes(server, config.Scopes, metadataURL, handler))
 
 	mux := http.NewServeMux()
 	mux.Handle(ProtectedResourceMetadataPath, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

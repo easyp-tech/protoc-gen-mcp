@@ -29,6 +29,7 @@ Import SDK types from `github.com/modelcontextprotocol/go-sdk/mcp`:
 | `mcpruntime.RegisterProtoTool` | Regenerate bindings: their adapter is now `mcpruntime.RegisterSDKProtoTool`; application code should continue calling `Register<Service>Tools` |
 | `[]mcpruntime.PromptMessage` | `[]*mcp.PromptMessage`, with `mcp.Content` implementations such as `&mcp.TextContent{Text: text}` |
 | `[]mcpruntime.Resource` | `[]mcp.Resource` in generated resource-list handlers |
+| `mcpruntime.Ptr` | Removed unused helper; SDK `Annotations.Priority` is a scalar. Use `proto.Bool` where generator adapter annotations require pointers |
 | Legacy resource-content types | `[]*mcp.ResourceContents`, also returned by `mcpruntime.MarshalResourceContent` |
 
 Prompt handlers now return pointer elements. For example, the messages portion
@@ -163,13 +164,21 @@ The generator emits:
   optional fields for dynamic resources/prompts.
 - `New<File>MCPServer(ctx, handlers) (*mcp.Server, error)` — constructs the
   official SDK server, enables the extension and registers this file's MCP
-  features. File names use the descriptor-safe Go symbol name (for example,
-  `NewFile_internal_testproto_resources_v1_resources_protoMCPServer`).
+  features. `<File>` is the exported CamelCase basename without `.proto`: for
+  example, `resources.proto` produces `NewResourcesMCPServer`, scoped to the
+  resolved `go_package`. Moving a file between directories does not rename
+  the canonical API.
 - `New<File>MCPHTTPHandler(server, verifier)` when a server option exists;
   the verifier argument may be nil if the configured OAuth provider supports
   the built-in JWKS flow.
 
-Omitting the server option preserves the existing generator API. When a file
+Prompt/resource types and registration helpers use the same basename rule.
+Generation rejects colliding names within a Go package, including collisions
+with protobuf declarations. Rename the basename/declaration or use a different
+`go_package`. Existing descriptor-path names remain deprecated aliases/wrappers
+for the current paths; migrate callers to canonical names before moving files.
+
+Omitting the server option preserves the existing service registration API. When a file
 declares an MCP Apps tool or resource, the factory is also generated
 automatically; the Apps extension is enabled unless explicitly disabled.
 `apps.enabled: false` alongside MCP Apps features is a generation error.
@@ -318,13 +327,23 @@ constructed. Advertising a tool scope does not make it a global requirement;
 do not add method-only scopes to `server.oauth.scopes`
 just to make them discoverable.
 
-**Current limitation:** a missing per-tool scope is reported as a tool result
-with `isError: true` in an HTTP 200 response. It is not an HTTP 403
-`WWW-Authenticate: Bearer ... error="insufficient_scope"` challenge, so clients
-cannot rely on that challenge to automatically request additional tool scopes.
-Server-wide scope checks still use SDK OAuth middleware. Transport-level
-per-method challenges require separate request-aware authorization wiring and
-are not implemented by the generated tool adapters.
+The generated OAuth HTTP handler rejects missing global or per-tool scopes
+**before dispatch** with HTTP 403 and a `WWW-Authenticate: Bearer` challenge
+containing `error="insufficient_scope"`, `scope` (the sorted union needed for
+that request), and `resource_metadata`. The official SDK client can use its
+`StreamableClientTransport.OAuthHandler` to request additional authorization
+and retry; no business handler runs before the challenge. Legacy batches are
+checked as a whole so retrying cannot repeat partially executed operations.
+Authentication and token expiration checks happen before reading the body;
+the preflight uses the SDK's 4 MiB request-body limit, including chunked input.
+
+The callback also retains its scope guard for SDK integrations outside this
+HTTP helper. Those integrations receive an `isError` tool result and must
+provide their own HTTP step-up wiring. Direct SDK tools that bypass generated
+registration also own their authorization policy. A client without an
+`OAuthHandler` receives an HTTP transport error on denial; the Go SDK may
+close that client session, so obtain appropriate authorization and reconnect.
+The stateless server itself has no session to revoke.
 
 With `verifier=nil` the runtime verifies JWT access tokens using **RS256**
 public keys fetched from the specified HTTPS JWKS endpoint; it rejects tokens
@@ -381,3 +400,23 @@ semantics are distinct from remote bearer authorization.
 The current implementation is proposed in
 [PR #5](https://github.com/easyp-tech/protoc-gen-mcp/pull/5); it is not
 released or merged into `master` until its final CI checks pass.
+
+
+## Tasks compatibility
+
+Go generation rejects visible `execution.task_support: TASK_SUPPORT_OPTIONAL`
+or `TASK_SUPPORT_REQUIRED` declarations instead of silently running task-only
+operations synchronously. Omitted or `TASK_SUPPORT_NONE` declarations remain
+synchronous. These protobuf declarations describe MCP 2025-11-25 Tasks,
+which the pinned official Go SDK cannot implement through its public
+registration API: `tools/call` loses the task request field before receiving
+middleware, and built-in methods cannot be replaced by custom methods.
+
+The distinct MCP 2026-07-28
+[`io.modelcontextprotocol/tasks` extension](https://modelcontextprotocol.io/extensions/tasks/overview)
+uses server-directed task creation and `tasks/get` terminal results; it is
+not implemented or advertised here. Supporting either lifecycle requires a
+separately verified SDK integration, including ownership, cancellation and
+bounded retention. The compatibility gate tests this boundary against both
+the pinned and latest released SDK, so upstream support changes are visible.
+See the [upstream Go SDK Tasks issue](https://github.com/modelcontextprotocol/go-sdk/issues/626).

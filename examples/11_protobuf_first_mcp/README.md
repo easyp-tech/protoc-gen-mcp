@@ -4,6 +4,12 @@ This example demonstrates the **current Go generator** from a single
 [protobuf contract](proto/showcase.proto). It is an application you can run,
 not a collection of unrelated snippets.
 
+`showcase.proto` generates `showcasev1.ShowcaseMCPHandlers`,
+`showcasev1.NewShowcaseMCPServer`, and `showcasev1.NewShowcaseMCPHTTPHandler`.
+The public names use the proto basename within its Go package, so moving the
+contract to a different directory does not rename the API. Older
+descriptor-path names are retained as deprecated aliases and wrappers.
+
 | Feature | What the example demonstrates |
 | --- | --- |
 | Server | File-level `server` option generates a typed SDK server factory |
@@ -46,7 +52,12 @@ go run ./examples/11_protobuf_first_mcp/client -token=demo-write
 
 The client prints the negotiated MCP protocol, tools, tool `_meta.ui`,
 prompt, resource list, resource templates, retrieved text and binary content,
-plus the outcome of a scope-protected tool call.
+plus the outcome of a scope-protected tool call. The read-only call receives
+HTTP 403 with an `insufficient_scope` challenge before the handler runs. This
+static-token demo prints the denial; production SDK clients configure
+`StreamableClientTransport.OAuthHandler` to obtain additional authorization
+and retry. An unhandled HTTP challenge closes the SDK client session, so a
+static-token application must reconnect before making further calls.
 
 Alternatively, use curl to inspect the OAuth discovery and missing-token
 challenge:

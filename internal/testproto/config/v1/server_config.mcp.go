@@ -47,13 +47,13 @@ const SecureAPI_CheckAccess_ToolSpecInputSchemaJSON = "{\"type\":\"object\",\"pr
 
 const SecureAPI_CheckAccess_ToolSpecOutputSchemaJSON = "{\"type\":\"object\",\"properties\":{\"allowed\":{\"type\":\"boolean\",\"description\":\"Whether the caller is allowed to see the resource.\",\"examples\":[true]}},\"description\":\"CheckAccessResponse indicates that authorization succeeded.\",\"examples\":[{\"allowed\":true}],\"required\":[\"allowed\"],\"additionalProperties\":false}"
 
-// File_internal_testproto_config_v1_server_config_protoMCPHandlers supplies business handlers for the generated file.
-type File_internal_testproto_config_v1_server_config_protoMCPHandlers struct {
+// ServerConfigMCPHandlers supplies business handlers for the generated file.
+type ServerConfigMCPHandlers struct {
 	SecureAPI SecureAPIToolHandler
 }
 
-// NewFile_internal_testproto_config_v1_server_config_protoMCPServer constructs and populates an official MCP SDK server.
-func NewFile_internal_testproto_config_v1_server_config_protoMCPServer(ctx context.Context, handlers File_internal_testproto_config_v1_server_config_protoMCPHandlers) (*mcp.Server, error) {
+// NewServerConfigMCPServer constructs and populates an official MCP SDK server.
+func NewServerConfigMCPServer(ctx context.Context, handlers ServerConfigMCPHandlers) (*mcp.Server, error) {
 	server, err := mcpruntime.NewConfiguredServer("secure-example", "v2.0.0", false)
 	if err != nil {
 		return nil, err
@@ -64,8 +64,8 @@ func NewFile_internal_testproto_config_v1_server_config_protoMCPServer(ctx conte
 	return server, nil
 }
 
-// NewFile_internal_testproto_config_v1_server_config_protoMCPHTTPHandler applies protobuf OAuth policy to SDK Streamable HTTP.
-func NewFile_internal_testproto_config_v1_server_config_protoMCPHTTPHandler(server *mcp.Server, verifier auth.TokenVerifier) (http.Handler, error) {
+// NewServerConfigMCPHTTPHandler applies protobuf OAuth policy to SDK Streamable HTTP.
+func NewServerConfigMCPHTTPHandler(server *mcp.Server, verifier auth.TokenVerifier) (http.Handler, error) {
 	return mcpruntime.NewConfiguredHTTPHandler(server, &mcpruntime.OAuthResourceServer{
 		ResourceURL: "https://mcp.example.com/mcp",
 		AuthorizationServers: []string{
@@ -79,4 +79,17 @@ func NewFile_internal_testproto_config_v1_server_config_protoMCPHTTPHandler(serv
 		JWKSURL:  "https://auth.example.com/keys.json",
 		MCPPath:  "",
 	}, verifier)
+}
+
+// Deprecated: use ServerConfigMCPHandlers.
+type File_internal_testproto_config_v1_server_config_protoMCPHandlers = ServerConfigMCPHandlers
+
+// Deprecated: use NewServerConfigMCPServer.
+func NewFile_internal_testproto_config_v1_server_config_protoMCPServer(ctx context.Context, handlers ServerConfigMCPHandlers) (*mcp.Server, error) {
+	return NewServerConfigMCPServer(ctx, handlers)
+}
+
+// Deprecated: use NewServerConfigMCPHTTPHandler.
+func NewFile_internal_testproto_config_v1_server_config_protoMCPHTTPHandler(server *mcp.Server, verifier auth.TokenVerifier) (http.Handler, error) {
+	return NewServerConfigMCPHTTPHandler(server, verifier)
 }

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -95,11 +96,12 @@ func TestOAuthDiscoveryIncludesToolScopesWithoutRequiringThemGlobally(t *testing
 				t.Fatalf("tools/list with server-wide scopes: %v", err)
 			}
 			result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: tc.tool})
-			if err != nil {
-				t.Fatalf("tools/call: %v", err)
-			}
-			if result.IsError != tc.wantError {
-				t.Fatalf("tools/call isError = %t, want %t: %+v", result.IsError, tc.wantError, result)
+			if tc.wantError {
+				if err == nil || !strings.Contains(err.Error(), http.StatusText(http.StatusForbidden)) {
+					t.Fatalf("tools/call must return HTTP 403: result=%+v, err=%v", result, err)
+				}
+			} else if err != nil || result.IsError {
+				t.Fatalf("tools/call: result=%+v, err=%v", result, err)
 			}
 		})
 	}

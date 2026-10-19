@@ -32,12 +32,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `subscriptions/listen`; legacy stateful HTTP is available through direct
   SDK configuration. See the [migration guide](docs/mcp-apps-oauth.md#migrating-go-applications-from-070)
   for concrete API/type replacements, stateful setup and authentication rules.
+- File-scoped Go APIs now use CamelCase proto basenames within `go_package`,
+  independent of directory layout. Prior descriptor-path names remain deprecated
+  aliases/wrappers; generation rejects collisions with other generated names
+  and protobuf declarations. Migrate to canonical names before moving files.
+- Go generation rejects unsupported `TASK_SUPPORT_OPTIONAL` / `REQUIRED`
+  declarations instead of silently dropping task semantics. Synchronous
+  `NONE`/omitted declarations remain supported. Neither the legacy Tasks API
+  nor the separate MCP 2026-07-28 Tasks extension is advertised.
+
+### Removed
+
+- Unused public `mcpruntime.Ptr` helper. SDK resource `Annotations.Priority`
+  is scalar; generated optional tool annotation pointers use `proto.Bool`.
 
 ### Added
 
 - Protobuf-defined Go server/HTTP factories, MCP Apps UI metadata and embedded
   resources, raw text/blob resource fields, OAuth resource-server discovery,
   RS256 JWKS verification and per-tool required scopes.
+- Pinned/latest official Go SDK CI gate compiling checked-in generated fixtures
+  and actual Go golden contents, with prompt/resource/Apps/annotation/factory
+  smoke tests, isolated dependencies and weekly/manual drift checks.
+- Executable Tasks SDK-boundary and raw-wire regressions for both negotiated
+  protocol versions; these detect future upstream integration opportunities.
 
 ### Fixed
 
@@ -56,8 +74,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   types instead of removed `mcpruntime` APIs.
 - OAuth discovery includes registered generated tools' required scopes as well
   as global scopes, without making tool-only scopes mandatory for every request.
-  Per-tool scope denial remains an `isError` tool result, not an HTTP 403
-  `insufficient_scope` challenge; see the security reference for this limitation.
+  Missing global/per-tool scopes now return HTTP 403 `insufficient_scope`
+  challenges with request-specific scopes and resource metadata before any
+  tool dispatch, enabling the official SDK client's OAuth step-up/retry flow.
+  Authentication precedes bounded body parsing; legacy batches authorize as
+  a whole and callback guards remain for other transports.
 
 ## [0.7.0] - 2026-07-11
 

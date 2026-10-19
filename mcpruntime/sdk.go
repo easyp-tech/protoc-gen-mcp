@@ -193,3 +193,15 @@ func registeredSDKToolScopes(server *mcp.Server) []string {
 	slices.Sort(scopes)
 	return slices.Compact(scopes)
 }
+
+func registeredSDKToolRequiredScopes(server *mcp.Server, name string) []string {
+	defer runtime.KeepAlive(server)
+	registryAny, ok := sdkServerRegistries.Load(weak.Make(server))
+	if !ok {
+		return nil
+	}
+	registry := registryAny.(*serverRegistry)
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+	return slices.Clone(registry.tools[name])
+}

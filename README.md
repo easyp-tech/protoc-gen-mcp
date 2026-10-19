@@ -117,6 +117,12 @@ go test ./internal/examplemcp -run 'Test(Java|Kotlin).*OverStdio' -count=1
 go test ./examples -run 'TestStandalonePython(Protobuf)?ExampleOverStdio' -count=1
 go test ./examples -run 'TestStandalone(TypeScript|JavaScript)ExampleOverStdio' -count=1
 go test ./...
+
+# Compile checked-in Go golden output and exercise SDK behavior against both
+# the pinned SDK and the latest published stable SDK (without changing go.mod).
+python3 scripts/check-go-sdk-compatibility.py --sdk pinned
+python3 scripts/check-go-sdk-compatibility.py --sdk latest
+python3 -m unittest discover -s scripts -p 'test_go_sdk_compatibility.py'
 goreleaser check
 ```
 
@@ -138,6 +144,13 @@ to publish tagged builds of the `protoc-gen-mcp` binary. This repository does
 not publish separate Java, Kotlin, TypeScript, or JavaScript runtime artifacts;
 downstream projects compile generated source against their language SDK
 dependencies.
+
+The separate [Go SDK compatibility gate](.github/workflows/go-sdk-smoke.yml)
+compiles checked-in Go fixtures and golden sources, then runs annotation,
+stdio, generated-server and OAuth HTTP checks against the pinned SDK and the
+latest published stable SDK. It runs on pull requests, `master` pushes, weekly
+and on manual dispatch. Resolving the latest SDK uses isolated dependency files
+and does not update the repository's `go.mod` or `go.sum`.
 
 ## TypeScript And JavaScript Support
 
@@ -240,7 +253,23 @@ configuration. It emits a typed `New<File>MCPServer(ctx, handlers)` factory
 plus `New<File>MCPHTTPHandler(server, verifier)`. OAuth may verify RS256
 access JWTs directly through a configured HTTPS JWKS endpoint and
 issuer/audience, or call an application-provided verifier. Per-RPC
-`required_scopes` provide additional authorization.
+`required_scopes` provide additional authorization. Missing global or per-tool
+scopes return an HTTP 403 `insufficient_scope` challenge before dispatch;
+SDK clients can use `OAuthHandler` to obtain additional authorization and retry.
+
+Go generation rejects `execution.task_support: TASK_SUPPORT_OPTIONAL` and
+`TASK_SUPPORT_REQUIRED`: the official Go SDK does not implement the MCP
+2025-11-25 Tasks lifecycle. Omitted or `TASK_SUPPORT_NONE` declarations keep
+ordinary synchronous tool calls.
+
+`<File>` is the exported CamelCase proto basename: `server_config.proto`
+generates `ServerConfigMCPHandlers`, `NewServerConfigMCPServer`, and
+`NewServerConfigMCPHTTPHandler` in its `go_package`. Prompt/resource handlers
+and registration functions use the same basename. Moving the proto to another
+directory preserves these names. Colliding names in one Go package fail
+generation; choose distinct basenames or Go packages. Previous descriptor-path
+names remain deprecated aliases and wrappers; migrate to the basename APIs
+before relocating a file.
 
 For a compiled frontend, declare `source_file` in a static resource with
 `mime_type: "text/html;profile=mcp-app"`; it is embedded in Go and registered

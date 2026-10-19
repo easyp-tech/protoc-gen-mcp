@@ -80,15 +80,15 @@ const ShowcaseAPI_PublishReport_ToolSpecInputSchemaJSON = "{\"type\":\"object\",
 
 const ShowcaseAPI_PublishReport_ToolSpecOutputSchemaJSON = "{\"type\":\"object\",\"properties\":{\"reportId\":{\"type\":\"string\",\"description\":\"Identifier created by the demonstration handler.\",\"examples\":[\"example\"]},\"status\":{\"type\":\"string\",\"description\":\"Status of the operation.\",\"examples\":[\"example\"]}},\"description\":\"PublishReportResponse confirms the new report.\",\"examples\":[{\"reportId\":\"example\",\"status\":\"example\"}],\"required\":[\"reportId\",\"status\"],\"additionalProperties\":false}"
 
-// File_examples_11_protobuf_first_mcp_proto_showcase_protoPromptHandler defines handlers for MCP prompts in examples/11_protobuf_first_mcp/proto/showcase.proto.
-type File_examples_11_protobuf_first_mcp_proto_showcase_protoPromptHandler interface {
+// ShowcasePromptHandler defines handlers for MCP prompts in examples/11_protobuf_first_mcp/proto/showcase.proto.
+type ShowcasePromptHandler interface {
 	GuidancePrompt(ctx context.Context, req *GuidancePrompt) ([]*mcp.PromptMessage, error)
 }
 
-// RegisterFile_examples_11_protobuf_first_mcp_proto_showcase_protoPrompts registers generated MCP prompts for File_examples_11_protobuf_first_mcp_proto_showcase_proto.
-func RegisterFile_examples_11_protobuf_first_mcp_proto_showcase_protoPrompts(server *mcp.Server, impl File_examples_11_protobuf_first_mcp_proto_showcase_protoPromptHandler, opts ...mcpruntime.RegisterOption) error {
+// RegisterShowcasePrompts registers generated MCP prompts for Showcase.
+func RegisterShowcasePrompts(server *mcp.Server, impl ShowcasePromptHandler, opts ...mcpruntime.RegisterOption) error {
 	if impl == nil {
-		return errors.New("RegisterFile_examples_11_protobuf_first_mcp_proto_showcase_protoPrompts: impl is nil")
+		return errors.New("RegisterShowcasePrompts: impl is nil")
 	}
 	server.AddPrompt(&mcp.Prompt{
 		Name:        "showcase_guide",
@@ -113,18 +113,18 @@ func RegisterFile_examples_11_protobuf_first_mcp_proto_showcase_protoPrompts(ser
 	return nil
 }
 
-// File_examples_11_protobuf_first_mcp_proto_showcase_protoResourceHandler defines handlers for MCP resources in examples/11_protobuf_first_mcp/proto/showcase.proto.
-type File_examples_11_protobuf_first_mcp_proto_showcase_protoResourceHandler interface {
+// ShowcaseResourceHandler defines handlers for MCP resources in examples/11_protobuf_first_mcp/proto/showcase.proto.
+type ShowcaseResourceHandler interface {
 	ReadServerStatus(ctx context.Context) (*ServerStatus, error)
 	ListNoteTexts(ctx context.Context) ([]mcp.Resource, error)
 	ReadNoteText(ctx context.Context, id string) (*NoteText, error)
 	ReadBinaryAttachment(ctx context.Context) (*BinaryAttachment, error)
 }
 
-// RegisterFile_examples_11_protobuf_first_mcp_proto_showcase_protoResources registers generated MCP resources for File_examples_11_protobuf_first_mcp_proto_showcase_proto.
-func RegisterFile_examples_11_protobuf_first_mcp_proto_showcase_protoResources(ctx context.Context, server *mcp.Server, impl File_examples_11_protobuf_first_mcp_proto_showcase_protoResourceHandler, opts ...mcpruntime.RegisterOption) error {
+// RegisterShowcaseResources registers generated MCP resources for Showcase.
+func RegisterShowcaseResources(ctx context.Context, server *mcp.Server, impl ShowcaseResourceHandler, opts ...mcpruntime.RegisterOption) error {
 	if impl == nil {
-		return errors.New("RegisterFile_examples_11_protobuf_first_mcp_proto_showcase_protoResources: impl is nil")
+		return errors.New("RegisterShowcaseResources: impl is nil")
 	}
 	resolvedOpts := mcpruntime.ResolveOptions("", opts)
 	{
@@ -157,7 +157,7 @@ func RegisterFile_examples_11_protobuf_first_mcp_proto_showcase_protoResources(c
 		}
 		instances, err := impl.ListNoteTexts(ctx)
 		if err != nil {
-			return fmt.Errorf("RegisterFile_examples_11_protobuf_first_mcp_proto_showcase_protoResources: listing note_text: %w", err)
+			return fmt.Errorf("RegisterShowcaseResources: listing note_text: %w", err)
 		}
 		readHandler := func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			params, err := mcpruntime.ExtractURIParams(req.Params.URI, "showcase://notes/{id}")
@@ -243,15 +243,15 @@ func RegisterFile_examples_11_protobuf_first_mcp_proto_showcase_protoResources(c
 	return nil
 }
 
-// File_examples_11_protobuf_first_mcp_proto_showcase_protoMCPHandlers supplies business handlers for the generated file.
-type File_examples_11_protobuf_first_mcp_proto_showcase_protoMCPHandlers struct {
+// ShowcaseMCPHandlers supplies business handlers for the generated file.
+type ShowcaseMCPHandlers struct {
 	ShowcaseAPI ShowcaseAPIToolHandler
-	Prompts     File_examples_11_protobuf_first_mcp_proto_showcase_protoPromptHandler
-	Resources   File_examples_11_protobuf_first_mcp_proto_showcase_protoResourceHandler
+	Prompts     ShowcasePromptHandler
+	Resources   ShowcaseResourceHandler
 }
 
-// NewFile_examples_11_protobuf_first_mcp_proto_showcase_protoMCPServer constructs and populates an official MCP SDK server.
-func NewFile_examples_11_protobuf_first_mcp_proto_showcase_protoMCPServer(ctx context.Context, handlers File_examples_11_protobuf_first_mcp_proto_showcase_protoMCPHandlers) (*mcp.Server, error) {
+// NewShowcaseMCPServer constructs and populates an official MCP SDK server.
+func NewShowcaseMCPServer(ctx context.Context, handlers ShowcaseMCPHandlers) (*mcp.Server, error) {
 	server, err := mcpruntime.NewConfiguredServer("protobuf-first-showcase", "v1.0.0", true)
 	if err != nil {
 		return nil, err
@@ -259,17 +259,17 @@ func NewFile_examples_11_protobuf_first_mcp_proto_showcase_protoMCPServer(ctx co
 	if err := RegisterShowcaseAPITools(server, handlers.ShowcaseAPI); err != nil {
 		return nil, err
 	}
-	if err := RegisterFile_examples_11_protobuf_first_mcp_proto_showcase_protoPrompts(server, handlers.Prompts); err != nil {
+	if err := RegisterShowcasePrompts(server, handlers.Prompts); err != nil {
 		return nil, err
 	}
-	if err := RegisterFile_examples_11_protobuf_first_mcp_proto_showcase_protoResources(ctx, server, handlers.Resources); err != nil {
+	if err := RegisterShowcaseResources(ctx, server, handlers.Resources); err != nil {
 		return nil, err
 	}
 	return server, nil
 }
 
-// NewFile_examples_11_protobuf_first_mcp_proto_showcase_protoMCPHTTPHandler applies protobuf OAuth policy to SDK Streamable HTTP.
-func NewFile_examples_11_protobuf_first_mcp_proto_showcase_protoMCPHTTPHandler(server *mcp.Server, verifier auth.TokenVerifier) (http.Handler, error) {
+// NewShowcaseMCPHTTPHandler applies protobuf OAuth policy to SDK Streamable HTTP.
+func NewShowcaseMCPHTTPHandler(server *mcp.Server, verifier auth.TokenVerifier) (http.Handler, error) {
 	return mcpruntime.NewConfiguredHTTPHandler(server, &mcpruntime.OAuthResourceServer{
 		ResourceURL: "https://mcp.example.com/mcp",
 		AuthorizationServers: []string{
@@ -283,4 +283,33 @@ func NewFile_examples_11_protobuf_first_mcp_proto_showcase_protoMCPHTTPHandler(s
 		JWKSURL:  "https://auth.example.com/.well-known/jwks.json",
 		MCPPath:  "/mcp",
 	}, verifier)
+}
+
+// Deprecated: use ShowcasePromptHandler.
+type File_examples_11_protobuf_first_mcp_proto_showcase_protoPromptHandler = ShowcasePromptHandler
+
+// Deprecated: use RegisterShowcasePrompts.
+func RegisterFile_examples_11_protobuf_first_mcp_proto_showcase_protoPrompts(server *mcp.Server, impl ShowcasePromptHandler, opts ...mcpruntime.RegisterOption) error {
+	return RegisterShowcasePrompts(server, impl, opts...)
+}
+
+// Deprecated: use ShowcaseResourceHandler.
+type File_examples_11_protobuf_first_mcp_proto_showcase_protoResourceHandler = ShowcaseResourceHandler
+
+// Deprecated: use RegisterShowcaseResources.
+func RegisterFile_examples_11_protobuf_first_mcp_proto_showcase_protoResources(ctx context.Context, server *mcp.Server, impl ShowcaseResourceHandler, opts ...mcpruntime.RegisterOption) error {
+	return RegisterShowcaseResources(ctx, server, impl, opts...)
+}
+
+// Deprecated: use ShowcaseMCPHandlers.
+type File_examples_11_protobuf_first_mcp_proto_showcase_protoMCPHandlers = ShowcaseMCPHandlers
+
+// Deprecated: use NewShowcaseMCPServer.
+func NewFile_examples_11_protobuf_first_mcp_proto_showcase_protoMCPServer(ctx context.Context, handlers ShowcaseMCPHandlers) (*mcp.Server, error) {
+	return NewShowcaseMCPServer(ctx, handlers)
+}
+
+// Deprecated: use NewShowcaseMCPHTTPHandler.
+func NewFile_examples_11_protobuf_first_mcp_proto_showcase_protoMCPHTTPHandler(server *mcp.Server, verifier auth.TokenVerifier) (http.Handler, error) {
+	return NewShowcaseMCPHTTPHandler(server, verifier)
 }

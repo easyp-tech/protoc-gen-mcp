@@ -135,6 +135,12 @@ func main() {
 		Arguments: map[string]any{"title": "From SDK client", "body": "Demo report"},
 	})
 	if err != nil {
+		// This static-token demo cannot run an authorization flow. Production
+		// clients configure StreamableClientTransport.OAuthHandler for step-up.
+		if *token == "demo-read" && strings.Contains(err.Error(), http.StatusText(http.StatusForbidden)) {
+			fmt.Printf("Publish denied (expected for demo-read): HTTP 403 insufficient_scope; retry with demo-write\n")
+			return
+		}
 		log.Fatal(err)
 	}
 	if publish.IsError {

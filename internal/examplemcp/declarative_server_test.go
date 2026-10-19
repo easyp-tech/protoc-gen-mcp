@@ -120,11 +120,12 @@ func TestGeneratedMCPServerAndOAuthHTTPFactory(t *testing.T) {
 			response, err := session.CallTool(ctx, &mcp.CallToolParams{
 				Name: "secure_check_access", Arguments: map[string]any{"label": "ok"},
 			})
-			if err != nil {
-				t.Fatalf("HTTP tool call: %v", err)
-			}
-			if response.IsError == tc.allowed {
-				t.Fatalf("tool result isError=%t, expected allowed=%t", response.IsError, tc.allowed)
+			if !tc.allowed {
+				if err == nil || !strings.Contains(err.Error(), http.StatusText(http.StatusForbidden)) {
+					t.Fatalf("expected HTTP 403: response=%+v, err=%v", response, err)
+				}
+			} else if err != nil || response.IsError {
+				t.Fatalf("HTTP tool call: response=%+v, err=%v", response, err)
 			}
 		})
 	}

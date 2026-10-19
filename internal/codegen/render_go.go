@@ -161,7 +161,7 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 		parsePromptArgsIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("ParsePromptArguments"))
 
 		// Use file base name for interface naming.
-		fileGoName := goInfo.file.GoDescriptorIdent.GoName
+		fileGoName := goFileAPIName(goInfo.file)
 		interfaceName := fileGoName + "PromptHandler"
 
 		generated.P("// ", interfaceName, " defines handlers for MCP prompts in ", model.ProtoPath, ".")
@@ -243,7 +243,7 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 		extractURIParamsIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("ExtractURIParams"))
 		marshalResourceContentIdent := generated.QualifiedGoIdent(mcpruntimeImport.Ident("MarshalResourceContent"))
 
-		fileGoName := goInfo.file.GoDescriptorIdent.GoName
+		fileGoName := goFileAPIName(goInfo.file)
 		interfaceName := fileGoName + "ResourceHandler"
 
 		// Generate interface.
@@ -435,6 +435,7 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 			return err
 		}
 	}
+	renderGoLegacyFileAliases(generated, goInfo, model)
 
 	return nil
 }

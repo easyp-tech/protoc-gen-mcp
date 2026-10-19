@@ -19,13 +19,13 @@ var exampleSkillMarkdown string
 // registration code (resources.mcp.go) is actually compiled and exercised — the
 // text-only golden test does not compile it.
 func NewResourcesServer(ctx context.Context) (*mcp.Server, error) {
-	server, err := resourcesv1.NewFile_internal_testproto_resources_v1_resources_protoMCPServer(ctx, resourcesv1.File_internal_testproto_resources_v1_resources_protoMCPHandlers{
+	server, err := resourcesv1.NewResourcesMCPServer(ctx, resourcesv1.ResourcesMCPHandlers{
 		Resources: ResourcesHandler{},
 	})
 	if err != nil {
 		return nil, err
 	}
-	if err := promptsv1.RegisterFile_internal_testproto_prompts_v1_prompts_protoPrompts(server, PromptsHandler{}); err != nil {
+	if err := promptsv1.RegisterPromptsPrompts(server, PromptsHandler{}); err != nil {
 		return nil, err
 	}
 

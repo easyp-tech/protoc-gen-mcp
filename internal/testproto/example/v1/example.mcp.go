@@ -130,13 +130,13 @@ const ExampleAPI_HiddenThing_ToolSpecInputSchemaJSON = "{\"type\":\"object\",\"p
 
 const ExampleAPI_HiddenThing_ToolSpecOutputSchemaJSON = "{\"type\":\"object\",\"description\":\"HiddenThingResponse is used by the hidden RPC.\",\"additionalProperties\":false}"
 
-// File_internal_testproto_example_v1_example_protoMCPHandlers supplies business handlers for the generated file.
-type File_internal_testproto_example_v1_example_protoMCPHandlers struct {
+// ExampleMCPHandlers supplies business handlers for the generated file.
+type ExampleMCPHandlers struct {
 	ExampleAPI ExampleAPIToolHandler
 }
 
-// NewFile_internal_testproto_example_v1_example_protoMCPServer constructs and populates an official MCP SDK server.
-func NewFile_internal_testproto_example_v1_example_protoMCPServer(ctx context.Context, handlers File_internal_testproto_example_v1_example_protoMCPHandlers) (*mcp.Server, error) {
+// NewExampleMCPServer constructs and populates an official MCP SDK server.
+func NewExampleMCPServer(ctx context.Context, handlers ExampleMCPHandlers) (*mcp.Server, error) {
 	server, err := mcpruntime.NewConfiguredServer("example.proto", "v0.0.1", true)
 	if err != nil {
 		return nil, err
@@ -145,4 +145,12 @@ func NewFile_internal_testproto_example_v1_example_protoMCPServer(ctx context.Co
 		return nil, err
 	}
 	return server, nil
+}
+
+// Deprecated: use ExampleMCPHandlers.
+type File_internal_testproto_example_v1_example_protoMCPHandlers = ExampleMCPHandlers
+
+// Deprecated: use NewExampleMCPServer.
+func NewFile_internal_testproto_example_v1_example_protoMCPServer(ctx context.Context, handlers ExampleMCPHandlers) (*mcp.Server, error) {
+	return NewExampleMCPServer(ctx, handlers)
 }

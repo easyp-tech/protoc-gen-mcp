@@ -18,8 +18,8 @@ import (
 //go:embed testdata/report.html
 var File_internal_testproto_resources_v1_resources_proto_mcpAssets embed.FS
 
-// File_internal_testproto_resources_v1_resources_protoResourceHandler defines handlers for MCP resources in internal/testproto/resources/v1/resources.proto.
-type File_internal_testproto_resources_v1_resources_protoResourceHandler interface {
+// ResourcesResourceHandler defines handlers for MCP resources in internal/testproto/resources/v1/resources.proto.
+type ResourcesResourceHandler interface {
 	ReadServerStatus(ctx context.Context) (*ServerStatus, error)
 	ListUserProfiles(ctx context.Context) ([]mcp.Resource, error)
 	ReadUserProfile(ctx context.Context, user_id string) (*UserProfile, error)
@@ -31,10 +31,10 @@ type File_internal_testproto_resources_v1_resources_protoResourceHandler interfa
 	ReadRawBinary(ctx context.Context) (*RawBinary, error)
 }
 
-// RegisterFile_internal_testproto_resources_v1_resources_protoResources registers generated MCP resources for File_internal_testproto_resources_v1_resources_proto.
-func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx context.Context, server *mcp.Server, impl File_internal_testproto_resources_v1_resources_protoResourceHandler, opts ...mcpruntime.RegisterOption) error {
+// RegisterResourcesResources registers generated MCP resources for Resources.
+func RegisterResourcesResources(ctx context.Context, server *mcp.Server, impl ResourcesResourceHandler, opts ...mcpruntime.RegisterOption) error {
 	if impl == nil {
-		return errors.New("RegisterFile_internal_testproto_resources_v1_resources_protoResources: impl is nil")
+		return errors.New("RegisterResourcesResources: impl is nil")
 	}
 	resolvedOpts := mcpruntime.ResolveOptions("", opts)
 	{
@@ -75,7 +75,7 @@ func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx c
 		}
 		instances, err := impl.ListUserProfiles(ctx)
 		if err != nil {
-			return fmt.Errorf("RegisterFile_internal_testproto_resources_v1_resources_protoResources: listing user_profile: %w", err)
+			return fmt.Errorf("RegisterResourcesResources: listing user_profile: %w", err)
 		}
 		readHandler := func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			params, err := mcpruntime.ExtractURIParams(req.Params.URI, "users://{user_id}/profile")
@@ -113,7 +113,7 @@ func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx c
 		annotations.Priority = 0.5
 		instances, err := impl.ListDocuments(ctx)
 		if err != nil {
-			return fmt.Errorf("RegisterFile_internal_testproto_resources_v1_resources_protoResources: listing document: %w", err)
+			return fmt.Errorf("RegisterResourcesResources: listing document: %w", err)
 		}
 		readHandler := func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			params, err := mcpruntime.ExtractURIParams(req.Params.URI, "projects://{project_id}/documents/{document_id}")
@@ -174,7 +174,7 @@ func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx c
 		}
 		instances, err := impl.ListPlainTexts(ctx)
 		if err != nil {
-			return fmt.Errorf("RegisterFile_internal_testproto_resources_v1_resources_protoResources: listing plain_text: %w", err)
+			return fmt.Errorf("RegisterResourcesResources: listing plain_text: %w", err)
 		}
 		readHandler := func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			params, err := mcpruntime.ExtractURIParams(req.Params.URI, "docs://example/{name}")
@@ -245,24 +245,45 @@ func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx c
 	return nil
 }
 
-// File_internal_testproto_resources_v1_resources_protoMCPHandlers supplies business handlers for the generated file.
-type File_internal_testproto_resources_v1_resources_protoMCPHandlers struct {
-	Resources File_internal_testproto_resources_v1_resources_protoResourceHandler
+// ResourcesMCPHandlers supplies business handlers for the generated file.
+type ResourcesMCPHandlers struct {
+	Resources ResourcesResourceHandler
 }
 
-// NewFile_internal_testproto_resources_v1_resources_protoMCPServer constructs and populates an official MCP SDK server.
-func NewFile_internal_testproto_resources_v1_resources_protoMCPServer(ctx context.Context, handlers File_internal_testproto_resources_v1_resources_protoMCPHandlers) (*mcp.Server, error) {
+// NewResourcesMCPServer constructs and populates an official MCP SDK server.
+func NewResourcesMCPServer(ctx context.Context, handlers ResourcesMCPHandlers) (*mcp.Server, error) {
 	server, err := mcpruntime.NewConfiguredServer("resource-fixture-server", "v1.0.0", true)
 	if err != nil {
 		return nil, err
 	}
-	if err := RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx, server, handlers.Resources); err != nil {
+	if err := RegisterResourcesResources(ctx, server, handlers.Resources); err != nil {
 		return nil, err
 	}
 	return server, nil
 }
 
-// NewFile_internal_testproto_resources_v1_resources_protoMCPHTTPHandler applies protobuf OAuth policy to SDK Streamable HTTP.
-func NewFile_internal_testproto_resources_v1_resources_protoMCPHTTPHandler(server *mcp.Server, verifier auth.TokenVerifier) (http.Handler, error) {
+// NewResourcesMCPHTTPHandler applies protobuf OAuth policy to SDK Streamable HTTP.
+func NewResourcesMCPHTTPHandler(server *mcp.Server, verifier auth.TokenVerifier) (http.Handler, error) {
 	return mcpruntime.NewConfiguredHTTPHandler(server, nil, verifier)
+}
+
+// Deprecated: use ResourcesResourceHandler.
+type File_internal_testproto_resources_v1_resources_protoResourceHandler = ResourcesResourceHandler
+
+// Deprecated: use RegisterResourcesResources.
+func RegisterFile_internal_testproto_resources_v1_resources_protoResources(ctx context.Context, server *mcp.Server, impl ResourcesResourceHandler, opts ...mcpruntime.RegisterOption) error {
+	return RegisterResourcesResources(ctx, server, impl, opts...)
+}
+
+// Deprecated: use ResourcesMCPHandlers.
+type File_internal_testproto_resources_v1_resources_protoMCPHandlers = ResourcesMCPHandlers
+
+// Deprecated: use NewResourcesMCPServer.
+func NewFile_internal_testproto_resources_v1_resources_protoMCPServer(ctx context.Context, handlers ResourcesMCPHandlers) (*mcp.Server, error) {
+	return NewResourcesMCPServer(ctx, handlers)
+}
+
+// Deprecated: use NewResourcesMCPHTTPHandler.
+func NewFile_internal_testproto_resources_v1_resources_protoMCPHTTPHandler(server *mcp.Server, verifier auth.TokenVerifier) (http.Handler, error) {
+	return NewResourcesMCPHTTPHandler(server, verifier)
 }

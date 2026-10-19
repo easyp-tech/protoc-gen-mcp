@@ -1,20 +1,31 @@
 name: go sdk smoke
 on:
   pull_request:
-    branches: [master]
   push:
     branches: [master]
+  workflow_dispatch:
+  schedule:
+    - cron: '23 6 * * 1'
 permissions:
   contents: read
 jobs:
   sdk:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk: [pinned, latest]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Compile and run SDK migration tests with bounded timeout
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Verify compatibility gate
         run: |
-          go test -v -count=1 -timeout=30s ./mcpruntime
-          go test -v -count=1 -timeout=45s ./internal/examplemcp -run 'TestServerOverStdio|TestResourcesPromptsRoundTrip|TestGeneratedAppUIFromProto|TestPromptsGetMissingRequiredArg|TestGeneratedMCPServerAndOAuthHTTPFactory'
+          python3 -m unittest discover -s scripts -p 'test_go_sdk_compatibility.py'
+      - name: Compile generated fixtures and goldens and run SDK smoke tests
+        run: python3 scripts/check-go-sdk-compatibility.py --sdk '${{ matrix.sdk }}'

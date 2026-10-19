@@ -62,6 +62,14 @@ truth for supported features, layout, commands, and working rules.
 | TypeScript | `lang=typescript` | `*_mcp.ts`, typed `<Service>ToolHandler`, `register<Service>Tools(server, impl, namespace?)` |
 | JavaScript | no direct `lang=javascript` in v1.1 | consume compiled TypeScript `.js` plus `.d.ts` output |
 
+Go `<File>` names use the exported CamelCase proto basename (for example,
+`resources.proto` → `Resources`), scoped to `go_package`, not directory paths.
+Path-derived names remain deprecated aliases; migrate before relocating files.
+Generation rejects Go name collisions and unsupported task-support declarations
+(`TASK_SUPPORT_OPTIONAL` / `REQUIRED`); omitted/`NONE` is synchronous.
+Generated OAuth HTTP handlers return HTTP 403 `insufficient_scope` challenges
+before tool dispatch. SDK clients use `OAuthHandler` for scope step-up/retry.
+
 ## Resources and Prompts (message-level)
 
 Unlike tools (RPC-method-level, on a `service`), MCP **prompts** and **resources**
