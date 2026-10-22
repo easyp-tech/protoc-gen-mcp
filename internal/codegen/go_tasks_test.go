@@ -26,7 +26,7 @@ service TaskAPI {
 }
 
 func TestGoTaskSupportRejectsUnsupportedDeclarations(t *testing.T) {
-	for _, mode := range []string{"TASK_SUPPORT_OPTIONAL", "TASK_SUPPORT_REQUIRED", "99", "-1"} {
+	for _, mode := range []string{"TASK_SUPPORT_REQUIRED", "99", "-1"} {
 		t.Run(mode, func(t *testing.T) {
 			plugin := goTaskSupportPlugin(t, "execution: { task_support: "+mode+" }")
 			err := Generate(plugin, Options{Language: LanguageGo})
@@ -46,7 +46,7 @@ func TestGoTaskSupportRejectsUnsupportedDeclarations(t *testing.T) {
 }
 
 func TestGoTaskSupportAllowsSynchronousDeclarations(t *testing.T) {
-	for _, declaration := range []string{"", "execution: {}", "execution: { task_support: TASK_SUPPORT_NONE }"} {
+	for _, declaration := range []string{"", "execution: {}", "execution: { task_support: TASK_SUPPORT_NONE }", "execution: { task_support: TASK_SUPPORT_OPTIONAL }"} {
 		t.Run(declaration, func(t *testing.T) {
 			plugin := goTaskSupportPlugin(t, declaration)
 			if err := Generate(plugin, Options{Language: LanguageGo}); err != nil {

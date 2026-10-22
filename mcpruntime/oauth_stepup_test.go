@@ -17,7 +17,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-const stepUpChallenge = `Bearer error="insufficient_scope", scope="mcp:access reports:write", resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource"`
+const stepUpChallenge = `Bearer error="insufficient_scope", scope="mcp:access reports:write", resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource/mcp"`
 
 func newStepUpTestHandler(t *testing.T, calls *atomic.Int32) http.Handler {
 	t.Helper()

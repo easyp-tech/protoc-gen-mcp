@@ -257,10 +257,10 @@ issuer/audience, or call an application-provided verifier. Per-RPC
 scopes return an HTTP 403 `insufficient_scope` challenge before dispatch;
 SDK clients can use `OAuthHandler` to obtain additional authorization and retry.
 
-Go generation rejects `execution.task_support: TASK_SUPPORT_OPTIONAL` and
-`TASK_SUPPORT_REQUIRED`: the official Go SDK does not implement the MCP
-2025-11-25 Tasks lifecycle. Omitted or `TASK_SUPPORT_NONE` declarations keep
-ordinary synchronous tool calls.
+Go generation rejects `execution.task_support: TASK_SUPPORT_REQUIRED`: the
+official Go SDK does not implement the MCP 2025-11-25 Tasks lifecycle. Omitted,
+`TASK_SUPPORT_NONE` and `TASK_SUPPORT_OPTIONAL` declarations keep ordinary
+synchronous tool calls without advertising `execution.taskSupport`.
 
 `<File>` is the exported CamelCase proto basename: `server_config.proto`
 generates `ServerConfigMCPHandlers`, `NewServerConfigMCPServer`, and

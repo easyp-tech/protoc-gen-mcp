@@ -45,11 +45,11 @@ func TestJWKSCache_ExpiredFailureBackoffAndRecovery(t *testing.T) {
 	}))
 	defer remote.Close()
 	now := time.Now()
-	cache := &cachedJWKS{client: remote.Client(), config: JWKSVerifierConfig{JWKSURL: remote.URL}, now: func() time.Time { return now }}
+	cache := &cachedJWKS{client: remote.Client(), config: JWKSVerifierConfig{JWKSURL: remote.URL, MaxStale: -1}, now: func() time.Time { return now }}
 	if _, err := cache.key(context.Background(), "known"); err != nil {
 		t.Fatal(err)
 	}
-	// At the exact expiry boundary, retained keys must not authenticate.
+	// In strict mode, retained keys must not authenticate at the expiry boundary.
 	now = now.Add(jwksCacheTTL)
 	unavailable.Store(true)
 	if key, err := cache.key(context.Background(), "known"); err == nil || key != nil {
@@ -165,7 +165,7 @@ func TestJWKSCache_FreshKeysDoNotWaitForRotationRefresh(t *testing.T) {
 	defer releaseOnce.Do(func() { close(release) })
 	known := &rsa.PublicKey{}
 	cache := &cachedJWKS{
-		keys: map[string]*rsa.PublicKey{"known": known}, expires: time.Now().Add(3 * time.Minute),
+		keys: map[string]*rsa.PublicKey{"known": known}, expires: time.Now().Add(3 * time.Minute), hardExpires: time.Now().Add(time.Hour),
 		config: JWKSVerifierConfig{JWKSURL: "https://auth.example/jwks"},
 		client: &http.Client{Transport: jwksRoundTripper(func(r *http.Request) (*http.Response, error) {
 			close(started)
@@ -205,7 +205,7 @@ func TestJWKSCache_UnknownKidFailureRemainsThrottled(t *testing.T) {
 	now := time.Now()
 	var requests int
 	cache := &cachedJWKS{
-		keys: map[string]*rsa.PublicKey{"known": {}}, expires: now.Add(3 * time.Minute),
+		keys: map[string]*rsa.PublicKey{"known": {}}, expires: now.Add(3 * time.Minute), hardExpires: now.Add(time.Hour),
 		config: JWKSVerifierConfig{JWKSURL: "https://auth.example/jwks"}, now: func() time.Time { return now },
 		client: &http.Client{Transport: jwksRoundTripper(func(r *http.Request) (*http.Response, error) {
 			requests++
@@ -290,5 +290,168 @@ func TestJWKSCache_RefreshOwnerCancellationDoesNotPoisonCache(t *testing.T) {
 	}
 	if requests.Load() != 1 || cache.refreshErr != nil || cache.retryDelay != 0 {
 		t.Fatalf("owner cancellation affected shared fetch: requests=%d err=%v delay=%v", requests.Load(), cache.refreshErr, cache.retryDelay)
+	}
+}
+
+func TestJWKSCache_StaleKeyServedWhileRevalidating(t *testing.T) {
+	now := time.Now()
+	var clock sync.Mutex
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	defer releaseOnce.Do(func() { close(release) })
+	var requests atomic.Int32
+	cache := &cachedJWKS{
+		config: JWKSVerifierConfig{JWKSURL: "https://auth.example/jwks"},
+		now: func() time.Time {
+			clock.Lock()
+			defer clock.Unlock()
+			return now
+		},
+		client: &http.Client{Transport: jwksRoundTripper(func(r *http.Request) (*http.Response, error) {
+			if requests.Add(1) == 2 {
+				close(started)
+				<-release
+			}
+			return cacheTestResponse(r, cacheTestJWKS("known"), http.StatusOK), nil
+		})},
+	}
+	if _, err := cache.key(context.Background(), "known"); err != nil {
+		t.Fatal(err)
+	}
+	clock.Lock()
+	now = now.Add(jwksCacheTTL)
+	clock.Unlock()
+	lookups := make(chan error, 1)
+	go func() {
+		for range 32 {
+			if _, err := cache.key(context.Background(), "known"); err != nil {
+				lookups <- err
+				return
+			}
+		}
+		lookups <- nil
+	}()
+	select {
+	case err := <-lookups:
+		if err != nil {
+			t.Fatalf("known key past the cache TTL was not served while revalidating: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("known key lookup past the cache TTL blocked behind the JWKS refresh")
+	}
+	<-started
+	if got := requests.Load(); got != 2 {
+		t.Fatalf("got %d requests; want the initial fetch and one background refresh", got)
+	}
+	releaseOnce.Do(func() { close(release) })
+	for {
+		cache.mu.Lock()
+		refreshing := cache.refreshing
+		cache.mu.Unlock()
+		if refreshing == nil {
+			break
+		}
+		<-refreshing
+	}
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+	if want := now.Add(jwksCacheTTL); !cache.expires.Equal(want) {
+		t.Fatalf("background refresh did not extend the cache TTL: expires=%v want %v", cache.expires, want)
+	}
+}
+
+func TestJWKSCache_StaleKeyUsableDuringOutageUntilMaxStale(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		maxStale time.Duration
+		window   time.Duration
+	}{
+		{name: "default", window: jwksDefaultMaxStale},
+		{name: "custom", maxStale: 20 * time.Minute, window: 20 * time.Minute},
+		{name: "below TTL", maxStale: time.Second, window: jwksCacheTTL},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			now := time.Now()
+			var clock sync.Mutex
+			var unavailable atomic.Bool
+			var requests atomic.Int32
+			cache := &cachedJWKS{
+				config: JWKSVerifierConfig{JWKSURL: "https://auth.example/jwks", MaxStale: tc.maxStale},
+				now: func() time.Time {
+					clock.Lock()
+					defer clock.Unlock()
+					return now
+				},
+				client: &http.Client{Transport: jwksRoundTripper(func(r *http.Request) (*http.Response, error) {
+					requests.Add(1)
+					if unavailable.Load() {
+						return cacheTestResponse(r, "IdP unavailable", http.StatusServiceUnavailable), nil
+					}
+					return cacheTestResponse(r, cacheTestJWKS("known"), http.StatusOK), nil
+				})},
+			}
+			if _, err := cache.key(context.Background(), "known"); err != nil {
+				t.Fatal(err)
+			}
+			fetched := now
+			unavailable.Store(true)
+			waitRefresh := func() {
+				cache.mu.Lock()
+				refreshing := cache.refreshing
+				cache.mu.Unlock()
+				if refreshing != nil {
+					<-refreshing
+				}
+			}
+			advance := func(to time.Time) {
+				clock.Lock()
+				now = to
+				clock.Unlock()
+			}
+			for at := fetched.Add(jwksCacheTTL); at.Before(fetched.Add(tc.window)); at = at.Add(15 * time.Second) {
+				advance(at)
+				if _, err := cache.key(context.Background(), "known"); err != nil {
+					t.Fatalf("known key rejected %v after the last fetch, within the %v window: %v", at.Sub(fetched), tc.window, err)
+				}
+				waitRefresh()
+			}
+			// Background retries follow the failure backoff rather than one per request.
+			if got, ceiling := requests.Load(), int32(tc.window/jwksRetryMin); got > ceiling {
+				t.Fatalf("outage made %d refresh requests; backoff should keep it under %d", got, ceiling)
+			}
+			advance(fetched.Add(tc.window))
+			if key, err := cache.key(context.Background(), "known"); err == nil || key != nil {
+				t.Fatalf("known key accepted after the trust window: key=%v err=%v", key, err)
+			}
+			unavailable.Store(false)
+			advance(fetched.Add(tc.window).Add(jwksRetryMax))
+			if _, err := cache.key(context.Background(), "known"); err != nil {
+				t.Fatalf("cache did not recover after the IdP returned: %v", err)
+			}
+		})
+	}
+}
+
+func TestJWKSCache_UnknownKidPastTTLFailsClosedDuringOutage(t *testing.T) {
+	now := time.Now()
+	var unavailable atomic.Bool
+	cache := &cachedJWKS{
+		config: JWKSVerifierConfig{JWKSURL: "https://auth.example/jwks"},
+		now:    func() time.Time { return now },
+		client: &http.Client{Transport: jwksRoundTripper(func(r *http.Request) (*http.Response, error) {
+			if unavailable.Load() {
+				return cacheTestResponse(r, "IdP unavailable", http.StatusServiceUnavailable), nil
+			}
+			return cacheTestResponse(r, cacheTestJWKS("known"), http.StatusOK), nil
+		})},
+	}
+	if _, err := cache.key(context.Background(), "known"); err != nil {
+		t.Fatal(err)
+	}
+	unavailable.Store(true)
+	now = now.Add(jwksCacheTTL + time.Minute)
+	if key, err := cache.key(context.Background(), "rotated"); err == nil || key != nil {
+		t.Fatalf("unknown key accepted from a stale cache: key=%v err=%v", key, err)
 	}
 }

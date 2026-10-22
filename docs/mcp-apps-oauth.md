@@ -103,11 +103,12 @@ handler := mcp.NewStreamableHTTPHandler(
 )
 protected := auth.RequireBearerToken(requireIdentity, &auth.RequireBearerTokenOptions{
     Scopes: []string{"reports:read"},
-    ResourceMetadataURL: "https://mcp.example.com/.well-known/oauth-protected-resource",
+    ResourceMetadataURL: "https://mcp.example.com/.well-known/oauth-protected-resource/mcp",
 })(handler)
 mux := http.NewServeMux()
 mux.Handle("/mcp", protected)
-mux.Handle("/.well-known/oauth-protected-resource", auth.ProtectedResourceMetadataHandler(
+// RFC 9728: metadata for https://mcp.example.com/mcp lives under the resource path.
+mux.Handle("/.well-known/oauth-protected-resource/mcp", auth.ProtectedResourceMetadataHandler(
     &oauthex.ProtectedResourceMetadata{
         Resource: "https://mcp.example.com/mcp",
         AuthorizationServers: []string{"https://auth.example.com"},
@@ -366,14 +367,22 @@ Failed refreshes use exponential retry delays of 1, 2, 4, 8, 16, 32 and then
 refreshes remain throttled to at most once per minute so attacker-controlled
 key IDs cannot cause an unbounded fetch loop.
 
-The policy **fails closed after cache expiry**: a failed fetch never extends
-the cache TTL or authorizes a token with stale keys. During backoff, requests
-needing an expired or missing key are rejected without another network fetch.
-A still-fresh known key remains usable after a failed rotation refresh until
-the existing TTL expires. Thus an IdP outage can interrupt authentication when
-cached keys expire, but it does not serialize every request behind a failing IdP or
-silently extend trust in a removed signing key. Applications needing a different
-availability/revocation policy must supply and review their own verifier.
+Past the five-minute TTL, a token signed with a **known** key is still
+accepted immediately while the cache revalidates in the background, so
+requests never wait on the IdP for a key the server already holds. Known keys
+stay usable for `JWKSVerifierConfig.MaxStale` after the last successful fetch
+(one hour by default); if every refresh fails for that long, verification
+**fails closed**. A key the IdP removes stops being accepted at the first
+successful refresh, so stale keys only extend trust while the IdP is
+unreachable, which is also when it cannot issue new tokens.
+
+Unknown or rotated `kid`s are never served from a stale cache: past the TTL
+they wait for a refresh, and during backoff they are rejected without another
+network fetch. Set `MaxStale` to a negative value for strict behaviour, where
+every key fails closed at the TTL and an IdP outage longer than five minutes
+interrupts authentication. Generated `New<File>MCPHTTPHandler` uses the
+default; applications needing another availability/revocation policy can pass
+a verifier built with `mcpruntime.NewJWKSVerifier` or their own.
 
 The generator does **not** create an authorization server, issue tokens,
 store OAuth secrets or handle users/passwords. OAuth login, consent, PKCE,
@@ -386,6 +395,20 @@ server and separately exposing it through some other HTTP handler does not
 automatically apply the generated OAuth middleware: use the generated
 `New<File>MCPHTTPHandler`. For local stdio use, authentication and identity
 semantics are distinct from remote bearer authorization.
+
+Protected-resource metadata is served where RFC 9728 places it for the
+configured `resource_url`: `https://mcp.example.com/mcp` publishes
+`/.well-known/oauth-protected-resource/mcp`, which `WWW-Authenticate` challenges
+reference and SDK clients probe first. The root
+`/.well-known/oauth-protected-resource` keeps answering for older clients.
+`mcp_path` may not live under `/.well-known/`.
+
+Tools with `required_scopes` fail closed without a bearer token. Over stdio,
+an in-memory transport, or `NewConfiguredHTTPHandler` without an OAuth config
+there is no token, so such tools always return `permission denied` tool
+errors; only tools without `required_scopes` are callable there. Serve scoped
+tools through the generated OAuth handler, or register them on a separate
+server for local use.
 
 ## Verification
 
@@ -404,10 +427,12 @@ released or merged into `master` until its final CI checks pass.
 
 ## Tasks compatibility
 
-Go generation rejects visible `execution.task_support: TASK_SUPPORT_OPTIONAL`
-or `TASK_SUPPORT_REQUIRED` declarations instead of silently running task-only
-operations synchronously. Omitted or `TASK_SUPPORT_NONE` declarations remain
-synchronous. These protobuf declarations describe MCP 2025-11-25 Tasks,
+Go generation rejects visible `execution.task_support: TASK_SUPPORT_REQUIRED`
+declarations instead of silently running task-only operations synchronously.
+Omitted, `TASK_SUPPORT_NONE` and `TASK_SUPPORT_OPTIONAL` declarations generate
+ordinary synchronous tools: `OPTIONAL` only permits task invocation, so a Go
+server that does not advertise `execution.taskSupport` still satisfies it and
+protobuf files shared with Tasks-capable targets keep generating for Go. These protobuf declarations describe MCP 2025-11-25 Tasks,
 which the pinned official Go SDK cannot implement through its public
 registration API: `tools/call` loses the task request field before receiving
 middleware, and built-in methods cannot be replaced by custom methods.

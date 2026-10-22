@@ -65,10 +65,12 @@ truth for supported features, layout, commands, and working rules.
 Go `<File>` names use the exported CamelCase proto basename (for example,
 `resources.proto` → `Resources`), scoped to `go_package`, not directory paths.
 Path-derived names remain deprecated aliases; migrate before relocating files.
-Generation rejects Go name collisions and unsupported task-support declarations
-(`TASK_SUPPORT_OPTIONAL` / `REQUIRED`); omitted/`NONE` is synchronous.
+Generation rejects Go name collisions and `TASK_SUPPORT_REQUIRED`;
+omitted/`NONE`/`OPTIONAL` run synchronously without advertising Tasks.
 Generated OAuth HTTP handlers return HTTP 403 `insufficient_scope` challenges
 before tool dispatch. SDK clients use `OAuthHandler` for scope step-up/retry.
+Tools with `required_scopes` always return `permission denied` without a bearer
+token (stdio, in-memory, HTTP without OAuth); serve them through the OAuth handler.
 
 ## Resources and Prompts (message-level)
 
@@ -130,9 +132,12 @@ session-owner authentication requirements.
 
 Built-in RS256 JWKS validation uses a five-minute cache. Refreshes share one
 in-flight fetch outside the cache mutex, with independent waiter cancellation
-and exponential failed-fetch backoff (one second to one minute). Fresh known
-keys remain usable; expired keys always fail closed until refresh succeeds.
-Do not add a stale-key fallback or bypass issuer/audience/expiration checks.
+and exponential failed-fetch backoff (one second to one minute). Past the TTL,
+known keys are served while the cache revalidates in the background and stay
+usable for `JWKSVerifierConfig.MaxStale` (one hour by default, negative for
+strict expiry at the TTL) after the last successful fetch; unknown keys never
+use a stale cache. Do not widen that window implicitly or bypass
+issuer/audience/expiration checks.
 
 Because generated resource/prompt code was historically only checked as text
 goldens, keep it **compiled**: `internal/examplemcp` registers the generated

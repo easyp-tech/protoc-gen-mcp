@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -50,8 +51,14 @@ func NewOAuthResourceHandler(server *mcp.Server, config OAuthResourceServer) (ht
 	if path == "" {
 		path = "/mcp"
 	}
-	if path[0] != '/' || path == ProtectedResourceMetadataPath || path == "/" {
+	if path[0] != '/' || strings.HasPrefix(path, "/.well-known/") || path == "/" {
 		return nil, fmt.Errorf("mcpruntime: invalid MCP path %q", path)
+	}
+	// RFC 9728 places metadata for a resource with a path component at the
+	// well-known prefix followed by that path; clients try it before the root.
+	metadataPath := ProtectedResourceMetadataPath
+	if resourcePath := strings.TrimRight(resourceURL.Path, "/"); resourcePath != "" {
+		metadataPath += resourcePath
 	}
 
 	metadata := &oauthex.ProtectedResourceMetadata{
@@ -63,7 +70,7 @@ func NewOAuthResourceHandler(server *mcp.Server, config OAuthResourceServer) (ht
 		func(*http.Request) *mcp.Server { return server },
 		&mcp.StreamableHTTPOptions{Stateless: true},
 	)
-	metadataURL := resourceURL.Scheme + "://" + resourceURL.Host + ProtectedResourceMetadataPath
+	metadataURL := (&url.URL{Scheme: resourceURL.Scheme, Host: resourceURL.Host, Path: metadataPath}).String()
 	// Let the SDK validate bearer tokens and expiration before inspecting the
 	// body. Scope checks run at the HTTP boundary so clients can authorize and
 	// retry an operation without the business handler running first.
@@ -71,8 +78,7 @@ func NewOAuthResourceHandler(server *mcp.Server, config OAuthResourceServer) (ht
 		ResourceMetadataURL: metadataURL,
 	})(requireOAuthScopes(server, config.Scopes, metadataURL, handler))
 
-	mux := http.NewServeMux()
-	mux.Handle(ProtectedResourceMetadataPath, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	metadataHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Keep discovery current when other generated files register tools after
 		// the HTTP handler is built. Tool scopes must not become global gates.
 		current := *metadata
@@ -80,7 +86,21 @@ func NewOAuthResourceHandler(server *mcp.Server, config OAuthResourceServer) (ht
 		slices.Sort(current.ScopesSupported)
 		current.ScopesSupported = slices.Compact(current.ScopesSupported)
 		auth.ProtectedResourceMetadataHandler(&current).ServeHTTP(w, r)
-	}))
+	})
+	mux := http.NewServeMux()
+	// The root location stays for clients that only probe it.
+	mux.Handle(ProtectedResourceMetadataPath, metadataHandler)
+	if metadataPath != ProtectedResourceMetadataPath {
+		// Match the unescaped path exactly instead of turning an arbitrary
+		// resource path into a ServeMux pattern.
+		mux.Handle(ProtectedResourceMetadataPath+"/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != metadataPath {
+				http.NotFound(w, r)
+				return
+			}
+			metadataHandler.ServeHTTP(w, r)
+		}))
+	}
 	mux.Handle(path, protected)
 	return http.NewCrossOriginProtection().Handler(mux), nil
 }
