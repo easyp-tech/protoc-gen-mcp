@@ -23,6 +23,10 @@ import (
 type JWKSVerifierConfig struct {
 	JWKSURL, Issuer, Audience string
 	HTTPClient                *http.Client // Optional trusted client, useful for test CAs.
+	// MaxStale bounds how long known keys from the last successful fetch stay
+	// usable while the JWKS endpoint is unreachable. Zero means one hour; a
+	// negative value disables stale use and fails closed at the cache TTL.
+	MaxStale time.Duration
 }
 
 const (
@@ -31,12 +35,14 @@ const (
 	jwksUnknownKeyInterval = time.Minute
 	jwksRetryMin           = time.Second
 	jwksRetryMax           = time.Minute
+	jwksDefaultMaxStale    = time.Hour
 )
 
 type cachedJWKS struct {
 	mu                    sync.Mutex
 	keys                  map[string]*rsa.PublicKey
 	expires               time.Time
+	hardExpires           time.Time
 	lastUnknownKeyRefresh time.Time
 	refreshing            chan struct{}
 	retryAt               time.Time
@@ -52,6 +58,18 @@ func (c *cachedJWKS) timeNow() time.Time {
 		return c.now()
 	}
 	return time.Now()
+}
+
+// trustWindow is how long keys from one successful fetch may authenticate.
+func (c *cachedJWKS) trustWindow() time.Duration {
+	switch maxStale := c.config.MaxStale; {
+	case maxStale < 0:
+		return jwksCacheTTL
+	case maxStale == 0:
+		return jwksDefaultMaxStale
+	default:
+		return max(maxStale, jwksCacheTTL)
+	}
 }
 
 // NewJWKSVerifier returns an OAuth bearer TokenVerifier for RS256 access JWTs.
@@ -135,11 +153,15 @@ func (c *cachedJWKS) key(ctx context.Context, kid string) (*rsa.PublicKey, error
 		c.mu.Lock()
 		now := c.timeNow()
 		fresh := c.keys != nil && now.Before(c.expires)
-		if fresh {
-			if pub, ok := c.keys[kid]; ok {
-				c.mu.Unlock()
-				return pub, nil
+		// Known keys stay usable until the trust window closes. Past the cache
+		// TTL they are revalidated in the background, so neither a slow nor an
+		// unavailable IdP blocks requests signed with a key we already hold.
+		if pub, ok := c.keys[kid]; ok && now.Before(c.hardExpires) {
+			if !fresh && c.refreshing == nil && !now.Before(c.retryAt) {
+				c.startRefreshLocked(ctx)
 			}
+			c.mu.Unlock()
+			return pub, nil
 		}
 		// Coalesce refreshes without holding the cache mutex across network IO.
 		// A waiting request can cancel independently of the refresh's caller.
@@ -152,8 +174,8 @@ func (c *cachedJWKS) key(ctx context.Context, kid string) (*rsa.PublicKey, error
 				continue
 			}
 		}
-		// Fail closed after expiry. Retained keys are never used beyond their
-		// TTL; failed refreshes are cached with bounded exponential backoff.
+		// Fail closed for unknown keys after expiry and for every key after the
+		// trust window; failed refreshes are cached with bounded backoff.
 		if now.Before(c.retryAt) {
 			err := c.refreshErr
 			c.mu.Unlock()
@@ -168,15 +190,20 @@ func (c *cachedJWKS) key(ctx context.Context, kid string) (*rsa.PublicKey, error
 			}
 			c.lastUnknownKeyRefresh = now
 		}
-		done := make(chan struct{})
-		c.refreshing = done
+		c.startRefreshLocked(ctx)
 		c.mu.Unlock()
-
-		// A client disconnect must not cancel the shared provider fetch or poison
-		// the cache's failure backoff for unrelated requests. fetch supplies its
-		// own bounded timeout; every caller, including this one, waits via ctx.
-		go c.refresh(context.WithoutCancel(ctx), done)
+		// Every caller, including the one that started the refresh, waits via ctx.
 	}
+}
+
+// startRefreshLocked must be called with c.mu held and no refresh in flight.
+func (c *cachedJWKS) startRefreshLocked(ctx context.Context) {
+	done := make(chan struct{})
+	c.refreshing = done
+	// A client disconnect must not cancel the shared provider fetch or poison
+	// the cache's failure backoff for unrelated requests. fetch supplies its
+	// own bounded timeout.
+	go c.refresh(context.WithoutCancel(ctx), done)
 }
 
 func (c *cachedJWKS) refresh(ctx context.Context, done chan struct{}) {
@@ -195,6 +222,7 @@ func (c *cachedJWKS) refresh(ctx context.Context, done chan struct{}) {
 	} else {
 		c.keys = keys
 		c.expires = now.Add(jwksCacheTTL)
+		c.hardExpires = now.Add(c.trustWindow())
 		c.retryAt = time.Time{}
 		c.retryDelay = 0
 		c.refreshErr = nil

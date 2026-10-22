@@ -36,9 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   independent of directory layout. Prior descriptor-path names remain deprecated
   aliases/wrappers; generation rejects collisions with other generated names
   and protobuf declarations. Migrate to canonical names before moving files.
-- Go generation rejects unsupported `TASK_SUPPORT_OPTIONAL` / `REQUIRED`
-  declarations instead of silently dropping task semantics. Synchronous
-  `NONE`/omitted declarations remain supported. Neither the legacy Tasks API
+- Go generation rejects `TASK_SUPPORT_REQUIRED` declarations instead of
+  silently running task-only operations synchronously. Omitted, `NONE` and
+  `OPTIONAL` declarations generate synchronous tools without advertising
+  `execution.taskSupport`, so protobuf files shared with Tasks-capable targets
+  still generate for Go. Neither the legacy Tasks API
   nor the separate MCP 2026-07-28 Tasks extension is advertised.
 
 ### Removed
@@ -61,9 +63,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - JWKS refreshes share one in-flight request and no longer hold the cache mutex
   during network I/O. Failed refreshes back off exponentially from one second
-  to one minute; successful refreshes reset the delay. Fresh known keys remain
-  usable during refresh, but expired keys **fail closed** until a refresh
-  succeeds. The five-minute cache TTL and unknown-key refresh throttling remain.
+  to one minute; successful refreshes reset the delay. Past the five-minute
+  TTL, known keys are served immediately while the cache revalidates in the
+  background, and stay usable for `JWKSVerifierConfig.MaxStale` (one hour by
+  default) after the last successful fetch, then **fail closed**. Unknown keys
+  never use a stale cache; negative `MaxStale` restores strict expiry at the
+  TTL. Unknown-key refresh throttling remains.
 - MCP Apps servers retain the SDK logging capability, and Apps capability
   inference parses MIME parameters consistently with validation.
 - Duplicate-tool registries use weak server references and cleanup, so they do
@@ -79,6 +84,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tool dispatch, enabling the official SDK client's OAuth step-up/retry flow.
   Authentication precedes bounded body parsing; legacy batches authorize as
   a whole and callback guards remain for other transports.
+- Protected-resource metadata for a `resource_url` with a path is also served
+  at the RFC 9728 location (`/.well-known/oauth-protected-resource/<path>`),
+  and `WWW-Authenticate` challenges point there; the root location remains.
+  OAuth `mcp_path` values under `/.well-known/` are rejected.
 
 ## [0.7.0] - 2026-07-11
 

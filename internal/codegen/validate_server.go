@@ -76,7 +76,7 @@ func validateServerModel(model FileModel) error {
 					return fmt.Errorf("file %s: JWKS verification requires issuer and audience", model.ProtoPath)
 				}
 			}
-			if path := oauth.GetMcpPath(); path != "" && (!strings.HasPrefix(path, "/") || strings.Contains(path, "?") || path == "/" || path == "/.well-known/oauth-protected-resource") {
+			if path := oauth.GetMcpPath(); path != "" && (!strings.HasPrefix(path, "/") || strings.Contains(path, "?") || path == "/" || strings.HasPrefix(path, "/.well-known/")) {
 				return fmt.Errorf("file %s: invalid OAuth mcp_path %q", model.ProtoPath, oauth.GetMcpPath())
 			}
 		}

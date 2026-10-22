@@ -56,13 +56,17 @@ func TestRunnableShowcaseAllFeatures(t *testing.T) {
 	srv := httptest.NewServer(handler)
 	defer srv.Close()
 
-	metadata := httptest.NewRecorder()
-	handler.ServeHTTP(metadata, httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil))
-	if metadata.Code != http.StatusOK {
-		t.Fatalf("OAuth metadata returned %d", metadata.Code)
-	}
-	if !bytes.Contains(metadata.Body.Bytes(), []byte("https://auth.example.com")) {
-		t.Fatalf("OAuth discovery missed authorized server: %s", metadata.Body.String())
+	// resource_url is https://mcp.example.com/mcp: RFC 9728 path-scoped
+	// metadata comes first, the root location stays for older clients.
+	for _, path := range []string{"/.well-known/oauth-protected-resource/mcp", "/.well-known/oauth-protected-resource"} {
+		metadata := httptest.NewRecorder()
+		handler.ServeHTTP(metadata, httptest.NewRequest(http.MethodGet, path, nil))
+		if metadata.Code != http.StatusOK {
+			t.Fatalf("OAuth metadata at %s returned %d", path, metadata.Code)
+		}
+		if !bytes.Contains(metadata.Body.Bytes(), []byte("https://auth.example.com")) {
+			t.Fatalf("OAuth discovery at %s missed authorized server: %s", path, metadata.Body.String())
+		}
 	}
 
 	anon := httptest.NewRecorder()
@@ -70,7 +74,7 @@ func TestRunnableShowcaseAllFeatures(t *testing.T) {
 	if anon.Code != http.StatusUnauthorized {
 		t.Fatalf("anonymous OAuth status %d", anon.Code)
 	}
-	if !strings.Contains(anon.Header().Get("WWW-Authenticate"), "resource_metadata=") {
+	if !strings.Contains(anon.Header().Get("WWW-Authenticate"), `resource_metadata="https://mcp.example.com/.well-known/oauth-protected-resource/mcp"`) {
 		t.Fatalf("missing OAuth resource metadata challenge: %s", anon.Header().Get("WWW-Authenticate"))
 	}
 

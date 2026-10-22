@@ -89,6 +89,7 @@ func TestValidateServerOAuthRejectsInvalidRuntimeConfiguration(t *testing.T) {
 		{"custom path", "https://auth.example.com", "/custom/mcp", ""},
 		{"root path", "https://auth.example.com", "/", "invalid OAuth mcp_path"},
 		{"metadata path", "https://auth.example.com", "/.well-known/oauth-protected-resource", "invalid OAuth mcp_path"},
+		{"path-scoped metadata path", "https://auth.example.com", "/.well-known/oauth-protected-resource/mcp", "invalid OAuth mcp_path"},
 		{"relative path", "https://auth.example.com", "mcp", "invalid OAuth mcp_path"},
 		{"query path", "https://auth.example.com", "/mcp?x=1", "invalid OAuth mcp_path"},
 		{"HTTP issuer", "http://auth.example.com", "", "issuer must be an absolute HTTPS URL"},
