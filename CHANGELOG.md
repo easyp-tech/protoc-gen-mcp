@@ -7,6 +7,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking (Go):** generated bindings now use the official
+  `github.com/modelcontextprotocol/go-sdk v1.8.0` and `*mcp.Server`; the
+  self-contained `mcpruntime` wire server, transports and sessions are removed.
+  Regenerate Go bindings and update server wiring before upgrading. Go 1.26+
+  is required. Python, JVM and TypeScript targets retain their existing SDKs.
+- Replace `mcpruntime.NewServer` with `mcp.NewServer`, `ServeStdio` with
+  `server.Run(ctx, &mcp.StdioTransport{})`, and `ServeIO` with
+  `server.Run(ctx, &mcp.IOTransport{Reader: reader, Writer: writer})`.
+  `IOTransport` requires an `io.ReadCloser` and `io.WriteCloser`.
+- Replace the old `NewStreamableHTTPHandler` / `ServeStreamableHTTP` /
+  `StreamableHTTPOptions` with SDK `mcp.NewStreamableHTTPHandler` /
+  `mcp.StreamableHTTPOptions` and `net/http` serving. The generated
+  `New<File>MCPHTTPHandler`, `mcpruntime.NewConfiguredHTTPHandler` and
+  `mcpruntime.NewOAuthResourceHandler` deliberately serve **stateless** HTTP,
+  including MCP 2026-07-28. They do not preserve the 0.7.0 session-ID, GET
+  listen-stream or `Last-Event-ID` resumption contract.
+- `Session`, `WithSession`, `SessionFromContext`, `Session.SendNotification`
+  and `Server.HandleRaw` have no compatibility shim. Use SDK requests/sessions,
+  typed notification APIs and SDK client transports. Stateless HTTP can still
+  deliver request-associated SSE notifications, including the new protocol's
+  `subscriptions/listen`; legacy stateful HTTP is available through direct
+  SDK configuration. See the [migration guide](docs/mcp-apps-oauth.md#migrating-go-applications-from-070)
+  for concrete API/type replacements, stateful setup and authentication rules.
+- File-scoped Go APIs now use CamelCase proto basenames within `go_package`,
+  independent of directory layout. Prior descriptor-path names remain deprecated
+  aliases/wrappers; generation rejects collisions with other generated names
+  and protobuf declarations. Migrate to canonical names before moving files.
+- Go generation rejects `TASK_SUPPORT_REQUIRED` declarations instead of
+  silently running task-only operations synchronously. Omitted, `NONE` and
+  `OPTIONAL` declarations generate synchronous tools without advertising
+  `execution.taskSupport`, so protobuf files shared with Tasks-capable targets
+  still generate for Go. Neither the legacy Tasks API
+  nor the separate MCP 2026-07-28 Tasks extension is advertised.
+
+### Removed
+
+- Unused public `mcpruntime.Ptr` helper. SDK resource `Annotations.Priority`
+  is scalar; generated optional tool annotation pointers use `proto.Bool`.
+
+### Added
+
+- Protobuf-defined Go server/HTTP factories, MCP Apps UI metadata and embedded
+  resources, raw text/blob resource fields, OAuth resource-server discovery,
+  RS256 JWKS verification and per-tool required scopes.
+- Pinned/latest official Go SDK CI gate compiling checked-in generated fixtures
+  and actual Go golden contents, with prompt/resource/Apps/annotation/factory
+  smoke tests, isolated dependencies and weekly/manual drift checks.
+- Executable Tasks SDK-boundary and raw-wire regressions for both negotiated
+  protocol versions; these detect future upstream integration opportunities.
+
+### Fixed
+
+- JWKS refreshes share one in-flight request and no longer hold the cache mutex
+  during network I/O. Failed refreshes back off exponentially from one second
+  to one minute; successful refreshes reset the delay. Past the five-minute
+  TTL, known keys are served immediately while the cache revalidates in the
+  background, and stay usable for `JWKSVerifierConfig.MaxStale` (one hour by
+  default) after the last successful fetch, then **fail closed**. Unknown keys
+  never use a stale cache; negative `MaxStale` restores strict expiry at the
+  TTL. Unknown-key refresh throttling remains.
+- MCP Apps servers retain the SDK logging capability, and Apps capability
+  inference parses MIME parameters consistently with validation.
+- Duplicate-tool registries use weak server references and cleanup, so they do
+  not retain unreachable SDK servers or their handlers.
+- Generation rejects root/reserved OAuth MCP paths and non-HTTPS issuers
+  before producing server wiring.
+- Go development guidance now uses SDK server, prompt, resource and transport
+  types instead of removed `mcpruntime` APIs.
+- OAuth discovery includes registered generated tools' required scopes as well
+  as global scopes, without making tool-only scopes mandatory for every request.
+  Missing global/per-tool scopes now return HTTP 403 `insufficient_scope`
+  challenges with request-specific scopes and resource metadata before any
+  tool dispatch, enabling the official SDK client's OAuth step-up/retry flow.
+  Authentication precedes bounded body parsing; legacy batches authorize as
+  a whole and callback guards remain for other transports.
+- Protected-resource metadata for a `resource_url` with a path is also served
+  at the RFC 9728 location (`/.well-known/oauth-protected-resource/<path>`),
+  and `WWW-Authenticate` challenges point there; the root location remains.
+  OAuth `mcp_path` values under `/.well-known/` are rejected.
+
 ## [0.7.0] - 2026-07-11
 
 ### Added

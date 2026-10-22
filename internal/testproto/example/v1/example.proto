@@ -26,6 +26,11 @@ service ExampleAPI {
     option (mcp.options.v1.method) = {
       title: "Create report"
       description: "Create a report for a city."
+      app_ui: {
+        resource_uri: "ui://example/report"
+        visibility: "model"
+        visibility: "app"
+      }
     };
   }
 

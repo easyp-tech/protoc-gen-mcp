@@ -2141,10 +2141,11 @@ const file_internal_testproto_example_v1_example_proto_rawDesc = "" +
 	"\x1eReport completed successfully.\x129\n" +
 	"\x14REPORT_STATUS_FAILED\x10\x02\x1a\x1f\xf2\xb7,\x1b\n" +
 	"\x19Report generation failed.\x1a1\xea\xb7,-\n" +
-	"\rReport Status\x12\x1cCurrent state of the report.2\x83\a\n" +
+	"\rReport Status\x12\x1cCurrent state of the report.2\xa6\a\n" +
 	"\n" +
-	"ExampleAPI\x12\xa9\x01\n" +
-	"\fCreateReport\x122.internal.testproto.example.v1.CreateReportRequest\x1a3.internal.testproto.example.v1.CreateReportResponse\"0ҷ,,\x12\rCreate report\x1a\x1bCreate a report for a city.\x12\x81\x01\n" +
+	"ExampleAPI\x12\xcc\x01\n" +
+	"\fCreateReport\x122.internal.testproto.example.v1.CreateReportRequest\x1a3.internal.testproto.example.v1.CreateReportResponse\"Sҷ,O\x12\rCreate report\x1a\x1bCreate a report for a city.j!\n" +
+	"\x13ui://example/report\x12\x05model\x12\x03app\x12\x81\x01\n" +
 	"\x04Ping\x12*.internal.testproto.example.v1.PingRequest\x1a+.internal.testproto.example.v1.PingResponse\" ҷ,\x1c\n" +
 	"\x06Health\x12\fHealth checkR\x04\b\x01\x18\x01\x12\xe3\x01\n" +
 	"\x16DescribeAdvancedShapes\x12<.internal.testproto.example.v1.DescribeAdvancedShapesRequest\x1a=.internal.testproto.example.v1.DescribeAdvancedShapesResponse\"Lҷ,H\x12\x18Describe advanced shapes\x1a,Exercise maps and well-known protobuf types.\x12\xd4\x01\n" +

@@ -9,7 +9,7 @@ architecture unless explicitly revised.
 
 ## Stack
 
-- Go 1.24+
+- Go 1.26+
 - Python 3.10+ for generated-runtime verification and example servers
 - Python runtime tests bootstrap an isolated virtualenv through
   `internal/pythontest`; they must not depend on globally installed Python
@@ -18,10 +18,12 @@ architecture unless explicitly revised.
 - `easyp v0.15.2-rc1` for repository linting and code generation workflows
 - `google.golang.org/protobuf` for code generation, reflection, and ProtoJSON
 - `google.protobuf` for Python generated modules and ProtoJSON conversion
-- `mcpruntime` (in-repo, self-contained) as the Go MCP runtime; the Go target no
-  longer depends on `github.com/modelcontextprotocol/go-sdk`. Transports:
-  stdio (`ServeStdio` / `ServeIO`) and Streamable HTTP
-  (`NewStreamableHTTPHandler` / `ServeStreamableHTTP`, MCP spec 2025-11-25)
+- `github.com/modelcontextprotocol/go-sdk v1.8.0` is the Go target's
+  official MCP server runtime, protocol negotiation and transports (stdio and
+  stateless Streamable HTTP, including MCP 2026-07-28).
+- `mcpruntime` contains protobuf/ProtoJSON/JSON Schema adapters, MCP Apps
+  metadata/resource registration, and OAuth resource-server wiring. The
+  self-hosted MCP wire runtime has been removed.
 - `mcp>=1.27,<2` as the official Python MCP SDK target
 - `io.modelcontextprotocol.sdk:mcp` as the official Java MCP SDK target
 - `io.modelcontextprotocol:kotlin-sdk-server` as the official Kotlin MCP SDK
@@ -43,8 +45,8 @@ architecture unless explicitly revised.
 - `cmd/example-mcp-server`: runnable MCP server for manual agent/client checks
   (`-transport=stdio|http`)
 - `cmd/example-python-mcp-server`: runnable stdio MCP server for Python SDK parity checks
-- `mcpruntime`: public runtime helpers used by generated code (stdio + Streamable
-  HTTP transports, sessions, schema validation, tool/prompt/resource registration)
+- `mcpruntime`: protobuf, ProtoJSON and JSON Schema adapters, MCP Apps UI
+  metadata/resources, and OAuth resource-server integration over the Go SDK
 - `.github/workflows`: GitHub Actions CI and release workflows
 - `.goreleaser.yaml`: release packaging for the plugin binary
 - `examples`: standalone Go/Python/JVM integration projects; example
@@ -214,10 +216,34 @@ architecture unless explicitly revised.
 - Generated TypeScript files expose
   `register<Service>Tools(server, impl, namespace?)`
 - Runtime exposes only the minimal registration options used by generated code
-- Go runtime transports: `ServeStdio` / `ServeIO` (newline-delimited JSON-RPC)
-  and Streamable HTTP via `NewStreamableHTTPHandler` /
-  `ServeStreamableHTTP` (sessions, Origin checks, optional SSE, Last-Event-ID
-  resumability). Legacy HTTP+SSE (2024-11-05) is not implemented
+- Go protobuf file option `(mcp.options.v1.server)` generates a typed
+  `New<File>MCPServer` constructor and optional configured
+  `New<File>MCPHTTPHandler`. Never put bearer tokens, client secrets or
+  identity-provider internals into public protobuf options.
+- File-scoped Go public names use the exported CamelCase proto basename,
+  excluding directories and `.proto` (for example, `server_config.proto`
+  generates `ServerConfigMCPHandlers` and `NewServerConfigMCPServer`). The
+  resolved `go_package` supplies the namespace. Canonical and compatibility
+  names are checked for collisions across generated files and protobuf symbols
+  before rendering. Previous descriptor-path names remain deprecated type
+  aliases and function wrappers; they reflect the current descriptor path, so
+  callers should migrate to basename APIs before relocating a proto.
+- Go MCP Apps resources support static `source_file` (Go embed) and
+  `app_ui` CSP/permissions metadata, alongside `content_field` for dynamic
+  text/blob resources. Static `source_file` resources require no Go handler.
+- Generated OAuth HTTP handlers enforce server-wide and per-tool
+  `required_scopes` before dispatch, returning HTTP 403 `insufficient_scope`
+  challenges for missing scopes. SDK client `OAuthHandler` can perform step-up
+  and retry. Callback scope guards remain in place for other transports;
+  missing tokens are denied.
+- RS256 JWKS verification requires HTTPS JWKS, issuer and audience; custom
+  `auth.TokenVerifier` remains supported for opaque or provider-specific tokens.
+- Go generation rejects `TASK_SUPPORT_OPTIONAL` and `TASK_SUPPORT_REQUIRED`
+  execution annotations because the official Go SDK cannot implement the MCP
+  2025-11-25 Tasks lifecycle. Omitted/`TASK_SUPPORT_NONE` stay synchronous.
+- Go runtime transports: SDK `StdioTransport` / `NewStreamableHTTPHandler`
+  (stateless HTTP by default, with SDK-managed protocol negotiation and
+  cancellation). Legacy transport implementation is removed
 - Generated MCP tool names must not contain dots; namespace prefixes and method
   names are joined with underscores, and any dots in configured segments are
   normalized to underscores
@@ -228,8 +254,8 @@ architecture unless explicitly revised.
 ## Current Status
 
 - Implemented:
-- Go `mcpruntime` Streamable HTTP transport (POST/GET/DELETE, multi-session,
-  Origin validation, optional SSE, Last-Event-ID resumability) alongside stdio
+- Official Go SDK stdio and stateless Streamable HTTP serving plus MCP Apps
+  UI metadata/resources, SDK protobuf registration and OAuth bearer middleware
 - `cmd/protoc-gen-mcp` plugin scaffold and generated `*.mcp.go` bindings
   - typed plugin option parsing for `lang=go|python|kotlin|java|typescript` and
     `python_runtime=google.protobuf|betterproto|grpclib`, plus Python-only
@@ -542,6 +568,12 @@ architecture unless explicitly revised.
   - `python /abs/path/to/protoc-gen-mcp/cmd/example-python-mcp-server/main.py`
 - Run built example MCP server binary: `./example-mcp-server`
 - Run tests: `go test ./...`
+- Check checked-in Go golden output and runtime compatibility with the pinned
+  SDK: `python3 scripts/check-go-sdk-compatibility.py --sdk pinned`
+- Check the latest published stable SDK without changing root `go.mod` or
+  `go.sum`: `python3 scripts/check-go-sdk-compatibility.py --sdk latest`
+- Test the Go SDK compatibility runner:
+  `python3 -m unittest discover -s scripts -p 'test_go_sdk_compatibility.py'`
 - Run Java stdio example tests:
   - `go test ./internal/examplemcp -run 'TestJava.*OverStdio' -count=1`
 - Run Kotlin stdio example tests:

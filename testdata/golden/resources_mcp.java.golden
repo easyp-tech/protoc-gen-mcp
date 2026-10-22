@@ -45,6 +45,11 @@ public final class ResourcesMcp {
         Object readUserProfile(String user_id);
         java.util.List<Object> listDocuments();
         Object readDocument(String project_id, String document_id);
+        Object skillDocument();
+        java.util.List<Object> listPlainTexts();
+        Object readPlainText(String name);
+        Object rawBinary();
+        Object appPage();
     }
 
     public static void registerResourcesResources(

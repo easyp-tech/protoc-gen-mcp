@@ -65,6 +65,11 @@ export interface ResourcesResourceHandler {
   readUserProfile(user_id: string): Promise<unknown>;
   listDocuments(): Promise<Array<{ name: string; uri: string; description?: string }>>;
   readDocument(project_id: string, document_id: string): Promise<unknown>;
+  skillDocument(): Promise<unknown>;
+  listPlainTexts(): Promise<Array<{ name: string; uri: string; description?: string }>>;
+  readPlainText(name: string): Promise<unknown>;
+  rawBinary(): Promise<unknown>;
+  appPage(): Promise<unknown>;
 }
 
 export function registerResourcesResources(

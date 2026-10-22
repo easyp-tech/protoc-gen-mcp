@@ -1,0 +1,47 @@
+// Package config.v1 verifies generated server constructors and OAuth policy.
+syntax = "proto3";
+
+package internal.testproto.config.v1;
+
+option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/testproto/config/v1;configv1";
+
+import "mcp/options/v1/options.proto";
+
+option (mcp.options.v1.server) = {
+  name: "secure-example"
+  version: "v2.0.0"
+  oauth: {
+    resource_url: "https://mcp.example.com/mcp"
+    authorization_servers: "https://auth.example.com"
+    scopes: "reports:read"
+    issuer: "https://auth.example.com"
+    jwks_uri: "https://auth.example.com/keys.json"
+    audience: "https://mcp.example.com/mcp"
+  }
+};
+
+// SecureAPI exposes a scoped endpoint via generated MCP.
+service SecureAPI {
+  option (mcp.options.v1.service) = { namespace: "secure" };
+
+  // CheckAccess requires an authenticated JWT with the right access scope.
+  rpc CheckAccess(CheckAccessRequest) returns (CheckAccessResponse) {
+    option (mcp.options.v1.method) = {
+      name: "check_access"
+      title: "Access check"
+      required_scopes: "reports:write"
+    };
+  }
+}
+
+// CheckAccessRequest is a minimal access request.
+message CheckAccessRequest {
+  // Public identifier used for the test.
+  string label = 1;
+}
+
+// CheckAccessResponse indicates that authorization succeeded.
+message CheckAccessResponse {
+  // Whether the caller is allowed to see the resource.
+  bool allowed = 1;
+}

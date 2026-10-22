@@ -22,8 +22,49 @@ declarations.
 | **Tools** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
 | **Prompts** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
 | **Resources** | ✅ Full | ⚠️ Interface | ⚠️ Interface | ⚠️ Interface | ⚠️ Interface |
+| **Protobuf server factory** | ✅ | 📋 Planned | 📋 Planned | 📋 Planned | 📋 Planned |
+| **MCP Apps UI / CSP** | ✅ | 📋 Planned | 📋 Planned | 📋 Planned | 📋 Planned |
+| **Markdown, HTML, binary resources** | ✅ | 📋 Planned | 📋 Planned | 📋 Planned | 📋 Planned |
+| **OAuth/JWKS and tool scopes** | ✅ | 📋 Planned | 📋 Planned | 📋 Planned | 📋 Planned |
 
-## MVP
+**Language parity:** the current status and proposed delivery sequence for
+TypeScript, Python, Kotlin, and Java are documented in the
+[cross-language roadmap](docs/cross-language-roadmap.md). "Interface" means
+that a target emits handler declarations but does **not** yet implement
+full resource registration and reading.
+
+## Quickstart: run the full Go showcase
+
+The [protobuf-first showcase](examples/11_protobuf_first_mcp/README.md)
+runs one server with generated tools, prompts, JSON/text/blob resources,
+embedded `SKILL.md`, an MCP Apps UI resource, CSP/permissions, and OAuth
+resource-server configuration.
+
+With **Go 1.26+**, from the repository root:
+
+```bash
+# Terminal A: explicitly enable local development-only OAuth tokens.
+go run ./examples/11_protobuf_first_mcp -transport=http -demo-auth
+
+# Terminal B: use the official MCP Go SDK client.
+go run ./examples/11_protobuf_first_mcp/client -token=demo-read
+go run ./examples/11_protobuf_first_mcp/client -token=demo-write
+
+# End-to-end tests, without external IdP or frontend toolchain.
+go test ./examples/11_protobuf_first_mcp/...
+```
+
+A read-only token cannot invoke the write-scoped tool; a write token can.
+MCP Apps UI and SKILL.md are embedded by the generator. The included client
+retrieves their MCP resources but is **not** a browser/iframe host.
+
+`-demo-auth` is intentionally insecure and loopback-only; never expose
+these tokens publicly. Sample issuer/JWKS URLs in the protobuf fixture are
+placeholders, **not** an identity provider. See the
+[full guide](examples/11_protobuf_first_mcp/README.md) and
+[Go MCP Apps/OAuth reference](docs/mcp-apps-oauth.md).
+
+## Architecture and current scope
 
 - protobuf is the source of truth
 - generator emits typed Go, Python, Kotlin, Java, and TypeScript MCP bindings
@@ -64,6 +105,8 @@ easyp --cfg easyp.yaml lint -p mcp -r .
 easyp --cfg easyp.yaml generate -p mcp -r .
 easyp --cfg easyp.test.yaml lint -p internal/testproto -r .
 easyp --cfg easyp.test.yaml generate -p internal/testproto -r .
+easyp --cfg easyp.showcase.yaml generate -p examples/11_protobuf_first_mcp/proto -r .
+go test ./examples/11_protobuf_first_mcp/...
 gradle --no-daemon -p examples/jvm :java-server:compileJava :kotlin-server:compileKotlin
 gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist
 go test ./internal/examplemcp -run 'Test(Java|Kotlin).*OverStdio' -count=1
@@ -74,6 +117,12 @@ go test ./internal/examplemcp -run 'Test(Java|Kotlin).*OverStdio' -count=1
 go test ./examples -run 'TestStandalonePython(Protobuf)?ExampleOverStdio' -count=1
 go test ./examples -run 'TestStandalone(TypeScript|JavaScript)ExampleOverStdio' -count=1
 go test ./...
+
+# Compile checked-in Go golden output and exercise SDK behavior against both
+# the pinned SDK and the latest published stable SDK (without changing go.mod).
+python3 scripts/check-go-sdk-compatibility.py --sdk pinned
+python3 scripts/check-go-sdk-compatibility.py --sdk latest
+python3 -m unittest discover -s scripts -p 'test_go_sdk_compatibility.py'
 goreleaser check
 ```
 
@@ -96,6 +145,13 @@ not publish separate Java, Kotlin, TypeScript, or JavaScript runtime artifacts;
 downstream projects compile generated source against their language SDK
 dependencies.
 
+The separate [Go SDK compatibility gate](.github/workflows/go-sdk-smoke.yml)
+compiles checked-in Go fixtures and golden sources, then runs annotation,
+stdio, generated-server and OAuth HTTP checks against the pinned SDK and the
+latest published stable SDK. It runs on pull requests, `master` pushes, weekly
+and on manual dispatch. Resolving the latest SDK uses isolated dependency files
+and does not update the repository's `go.mod` or `go.sum`.
+
 ## TypeScript And JavaScript Support
 
 TypeScript support is implemented for Node stdio servers and verified through
@@ -104,7 +160,7 @@ project layouts are shown in
 [`examples/8_typescript_standalone`](examples/8_typescript_standalone/) and
 [`examples/9_javascript_standalone`](examples/9_javascript_standalone/).
 
-- Node prerequisites for the in-repo walkthrough are Go 1.24+, Node.js, npm,
+- Node prerequisites for the in-repo walkthrough are Go 1.26+, Node.js, npm,
   `easyp v0.15.2-rc1`, and the npm dependencies pinned by the examples.
 - The Node generator mode is `lang=typescript`.
 - The tested stack is `@modelcontextprotocol/sdk@1.29.0`,
@@ -133,7 +189,7 @@ project layouts are shown in
 [`examples/6_java_standalone`](examples/6_java_standalone/) and
 [`examples/7_kotlin_standalone`](examples/7_kotlin_standalone/).
 
-- JVM prerequisites for the in-repo walkthrough are Go 1.24+, JDK 17+, and
+- JVM prerequisites for the in-repo walkthrough are Go 1.26+, JDK 17+, and
   Gradle 9.2+.
 - The JVM generator modes are `lang=java` and `lang=kotlin`.
 - The Java path compiles generated protobuf Java output plus a generated
@@ -162,7 +218,7 @@ The repository also includes a runnable MCP server for manual client checks:
 # stdio (default)
 go run ./cmd/example-mcp-server
 
-# Streamable HTTP (MCP spec 2025-11-25), localhost only by default
+# Streamable HTTP with official SDK, localhost only by default
 go run ./cmd/example-mcp-server -transport=http -addr=127.0.0.1:8080 -path=/mcp
 
 python ./cmd/example-python-mcp-server/main.py
@@ -177,36 +233,91 @@ The example server currently exposes:
 - `example_DescribeAdvancedShapes`
 - `example_DescribeScalarShapes`
 
-### Go Streamable HTTP (`mcpruntime`)
+### Markdown, UI assets and raw MCP resources
 
-Go servers can expose the same generated tools over **Streamable HTTP** instead
-of (or in addition to) stdio:
+The Go target can expose `SKILL.md`, plain text, HTML and binary resources
+directly from protobuf. For dynamic bodies, set
+`(mcp.options.v1.resource).mime_type` and `content_field` to a singular
+`string` or `bytes` field. For static files, use `source_file` instead;
+the generator emits `go:embed` and needs no handwritten resource handler. The generator registers both static and templated
+resources with the official SDK and emits the selected field without ProtoJSON
+wrapping. Without `content_field`, resources use ProtoJSON and must declare a
+JSON-compatible MIME. See [MCP Apps and OAuth](docs/mcp-apps-oauth.md) for a
+complete `SKILL.md` example and UI resource wiring.
+
+### Protobuf-defined Go servers, apps and OAuth
+
+The Go generator now accepts a file-level `(mcp.options.v1.server)` option
+for `name`, `version`, MCP Apps capabilities, and OAuth resource-server
+configuration. It emits a typed `New<File>MCPServer(ctx, handlers)` factory
+plus `New<File>MCPHTTPHandler(server, verifier)`. OAuth may verify RS256
+access JWTs directly through a configured HTTPS JWKS endpoint and
+issuer/audience, or call an application-provided verifier. Per-RPC
+`required_scopes` provide additional authorization. Missing global or per-tool
+scopes return an HTTP 403 `insufficient_scope` challenge before dispatch;
+SDK clients can use `OAuthHandler` to obtain additional authorization and retry.
+
+Go generation rejects `execution.task_support: TASK_SUPPORT_REQUIRED`: the
+official Go SDK does not implement the MCP 2025-11-25 Tasks lifecycle. Omitted,
+`TASK_SUPPORT_NONE` and `TASK_SUPPORT_OPTIONAL` declarations keep ordinary
+synchronous tool calls without advertising `execution.taskSupport`.
+
+`<File>` is the exported CamelCase proto basename: `server_config.proto`
+generates `ServerConfigMCPHandlers`, `NewServerConfigMCPServer`, and
+`NewServerConfigMCPHTTPHandler` in its `go_package`. Prompt/resource handlers
+and registration functions use the same basename. Moving the proto to another
+directory preserves these names. Colliding names in one Go package fail
+generation; choose distinct basenames or Go packages. Previous descriptor-path
+names remain deprecated aliases and wrappers; migrate to the basename APIs
+before relocating a file.
+
+For a compiled frontend, declare `source_file` in a static resource with
+`mime_type: "text/html;profile=mcp-app"`; it is embedded in Go and registered
+without a handwritten read handler. The protobuf `app_ui` annotation supports
+resource CSP and browser permissions. Asset paths are relative to the
+generated Go package. The frontend build and the external OAuth identity
+provider remain application-owned.
+
+See [Protobuf-first MCP server, Apps and OAuth](docs/mcp-apps-oauth.md) for
+working options, generated APIs, and security boundaries.
+
+### Go Streamable HTTP (official Go SDK)
+
+**Upgrading from 0.7.0:** this is a breaking Go API and HTTP behavior change.
+Regenerate Go bindings and follow the
+[migration guide](docs/mcp-apps-oauth.md#migrating-go-applications-from-070)
+for removed APIs, type replacements and the SDK stateful alternative.
+
+Generated Go registration accepts `*mcp.Server` from
+`github.com/modelcontextprotocol/go-sdk/mcp`. The SDK owns transport,
+session semantics, protocol negotiation and notifications; `mcpruntime`
+retains protobuf/JSON Schema conversion and generated adapters.
 
 ```go
+server := mcp.NewServer(&mcp.Implementation{Name: "my-mcp", Version: "v1"}, nil)
+handler := mcp.NewStreamableHTTPHandler(
+    func(*http.Request) *mcp.Server { return server },
+    &mcp.StreamableHTTPOptions{Stateless: true},
+)
 mux := http.NewServeMux()
-mux.Handle("/mcp", mcpruntime.NewStreamableHTTPHandler(server, mcpruntime.StreamableHTTPOptions{
-    AllowedOrigins: []string{"http://localhost:3000"},
-}))
-// Prefer binding to 127.0.0.1 for local deployments (DNS-rebinding mitigation).
-http.ListenAndServe("127.0.0.1:8080", mux)
+mux.Handle("/mcp", http.NewCrossOriginProtection().Handler(handler))
+_ = http.ListenAndServe("127.0.0.1:8080", mux)
 ```
 
-Or:
-
-```go
-mcpruntime.ServeStreamableHTTP(ctx, "127.0.0.1:8080", server, mcpruntime.StreamableHTTPOptions{
-    Path: "/mcp",
-})
-```
-
-Behavior highlights:
-
-- Single MCP endpoint: `POST` (JSON-RPC), `GET` (SSE listen), `DELETE` (session end)
-- Multi-client sessions via `MCP-Session-Id` on `initialize`
-- Origin validation (localhost Origins allowed by default when the allowlist is empty)
-- Optional SSE POST responses with `PreferSSE: true`
-- `Last-Event-ID` replay for GET streams (in-memory buffer)
-- Legacy HTTP+SSE (2024-11-05) is **not** implemented
+Stateless HTTP negotiates the newest supported protocol, including
+MCP 2026-07-28, while retaining SDK-managed compatibility with older clients.
+The generated `New<File>MCPHTTPHandler` and runtime HTTP helpers deliberately
+use this mode: no persistent `MCP-Session-Id`, legacy GET listen stream or
+`Last-Event-ID` replay. Request-associated SSE notifications remain possible;
+new-protocol clients can use `subscriptions/listen` for list changes. Applications
+that need legacy stateful sessions must configure the SDK directly, including
+authentication and any event store; see the
+[HTTP contract](docs/mcp-apps-oauth.md#http-contract-stateless-helpers-and-stateful-sdk-servers).
+This low-level snippet is an **unprotected** endpoint. For public
+servers, prefer protobuf `server.oauth` and the generated
+`New<File>MCPHTTPHandler` so OAuth middleware and discovery are applied.
+See the [runnable showcase](examples/11_protobuf_first_mcp/README.md)
+and [security reference](docs/mcp-apps-oauth.md).
 
 ## Testing With MCP Inspector
 
@@ -273,6 +384,7 @@ out the
 - [3_file_manager](examples/3_file_manager/) - Destructive tools and schema-based string parameter constraints.
 - [4_crm_system](examples/4_crm_system/) - A full mock system with FieldMask partial updates, custom icons mapping, schemas nested types, and advanced array filters.
 - [5_python_standalone](examples/5_python_standalone/) - A Python-only user-style project with its own `pyproject.toml`, `easyp.yaml`, generated bindings, and stdio server.
+- [11_protobuf_first_mcp](examples/11_protobuf_first_mcp/README.md) - Complete Go showcase: generated server, UI embedding, prompts, raw resources, OAuth and scoped tools.
 - [10_python_protobuf_standalone](examples/10_python_protobuf_standalone/) - A Python-only user-style project that opts into `python_handler=dataclass+protobuf` and implements the raw `*_mcp_pb.py` sidecar with `*_pb2` classes.
 - [6_java_standalone](examples/6_java_standalone/) - A Java user-style project with its own Gradle build, `easyp.yaml`, protobuf contract, and generated MCP sidecar.
 - [7_kotlin_standalone](examples/7_kotlin_standalone/) - A Kotlin user-style project with its own Gradle build, `easyp.yaml`, protobuf contract, and generated MCP sidecar.
