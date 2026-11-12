@@ -11,9 +11,13 @@
 
 
 `protoc-gen-mcp` generates Go, Python, Kotlin, Java, and TypeScript MCP
+
+`protoc-gen-mcp` generates Go, Python, Kotlin, Java, and TypeScript MCP
 bindings from protobuf definitions — covering **tools**, **prompts**, and
-**resources**. JavaScript users consume the compiled TypeScript output and
-declarations.
+**resources**. Protobuf is the source of truth: RPCs become tools, annotated
+messages become prompts and resources, and the generated code validates
+ProtoJSON payloads against generated JSON Schema before calling your typed
+handlers. JavaScript projects consume the compiled TypeScript output.
 
 ## Supported MCP Primitives
 
@@ -30,14 +34,17 @@ declarations.
 "Interface" means that a target emits handler declarations but does **not**
 yet implement full resource registration and reading.
 
+Each target uses the official MCP SDK of its language: the Go MCP SDK,
+the Python `mcp` SDK with `google.protobuf`, `io.modelcontextprotocol.sdk:mcp`
+for Java, `io.modelcontextprotocol:kotlin-sdk-server` for Kotlin, and
+`@modelcontextprotocol/sdk` with Protobuf-ES and Ajv for TypeScript.
+
 ## Quickstart: run the full Go showcase
 
 The [protobuf-first showcase](examples/11_protobuf_first_mcp/README.md)
 runs one server with generated tools, prompts, JSON/text/blob resources,
 embedded `SKILL.md`, an MCP Apps UI resource, CSP/permissions, and OAuth
-resource-server configuration.
-
-With **Go 1.26+**, from the repository root:
+resource-server configuration. With **Go 1.26+**, from the repository root:
 
 ```bash
 # Terminal A: explicitly enable local development-only OAuth tokens.
@@ -46,380 +53,46 @@ go run ./examples/11_protobuf_first_mcp -transport=http -demo-auth
 # Terminal B: use the official MCP Go SDK client.
 go run ./examples/11_protobuf_first_mcp/client -token=demo-read
 go run ./examples/11_protobuf_first_mcp/client -token=demo-write
-
-# End-to-end tests, without external IdP or frontend toolchain.
-go test ./examples/11_protobuf_first_mcp/...
 ```
 
 A read-only token cannot invoke the write-scoped tool; a write token can.
-MCP Apps UI and SKILL.md are embedded by the generator. The included client
-retrieves their MCP resources but is **not** a browser/iframe host.
+`-demo-auth` is intentionally insecure and loopback-only; never expose these
+tokens publicly. Sample issuer/JWKS URLs in the protobuf fixture are
+placeholders, **not** an identity provider.
 
-`-demo-auth` is intentionally insecure and loopback-only; never expose
-these tokens publicly. Sample issuer/JWKS URLs in the protobuf fixture are
-placeholders, **not** an identity provider. See the
-[full guide](examples/11_protobuf_first_mcp/README.md).
-
-## Architecture and current scope
-
-- protobuf is the source of truth
-- generator emits typed Go, Python, Kotlin, Java, and TypeScript MCP bindings
-- **Tools**: generated from `service` RPC methods with `(mcp.options.v1.method)`
-- **Prompts**: generated from `message` types with `(mcp.options.v1.prompt)`
-- **Resources**: generated from `message` types with `(mcp.options.v1.resource)`
-  — static (fixed URI) and template (parameterized URI) resources
-- Go runtime uses the official Go MCP SDK
-- Python runtime targets the official MCP Python SDK with `google.protobuf`
-- Kotlin runtime targets the official `io.modelcontextprotocol:kotlin-sdk-server`
-  SDK
-- Java runtime targets the official `io.modelcontextprotocol.sdk:mcp` SDK
-- TypeScript runtime targets the official `@modelcontextprotocol/sdk` SDK,
-  Protobuf-ES, and Ajv-backed raw JSON Schema validation
-- generated Python handlers default to dataclasses and explicit `oneof`
-  wrapper types from `*_mcp.py`; `python_handler=protobuf` opts into raw
-  `*_pb2` handler request/response classes with the same registration helper;
-  `python_handler=dataclass+protobuf` generates both surfaces side by side
-- generated Kotlin handlers implement `<Service>ToolHandler` and are registered
-  through `register<Service>Tools(server: Server, impl: <Service>ToolHandler, namespace: String? = null)`
-- generated Java handlers implement nested `<Service>ToolHandler` interfaces
-  inside a generated `<ProtoFile>Mcp` sidecar and are registered through
-  `register<Service>Tools(McpServerTransportProvider transportProvider, <Service>ToolHandler impl, String namespace)`
-- generated TypeScript handlers implement `<Service>ToolHandler` and are
-  registered through `register<Service>Tools(server, impl, namespace?)`
-- Direct lang=javascript generation is intentionally deferred; JavaScript
-  projects use compiled TypeScript target `.js` files plus `.d.ts` declarations
-- request and response JSON follows ProtoJSON rules
-- runtime validation is driven by generated JSON Schema
-
-## Repository Workflows
-
-Use `easyp` for repository generation and checks.
-The repository is currently aligned to `easyp v0.15.2-rc1`.
-
-```bash
-easyp --cfg easyp.yaml lint -p mcp -r .
-easyp --cfg easyp.yaml generate -p mcp -r .
-easyp --cfg easyp.test.yaml lint -p internal/testproto -r .
-easyp --cfg easyp.test.yaml generate -p internal/testproto -r .
-easyp --cfg easyp.showcase.yaml generate -p examples/11_protobuf_first_mcp/proto -r .
-go test ./examples/11_protobuf_first_mcp/...
-gradle --no-daemon -p examples/jvm :java-server:compileJava :kotlin-server:compileKotlin
-gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist
-go test ./internal/examplemcp -run 'Test(Java|Kotlin).*OverStdio' -count=1
-(cd examples/node/sdk-spike && npm ci && npm run typecheck && npm run build)
-(cd examples/10_python_protobuf_standalone && make lint && make clean generate)
-(cd examples/8_typescript_standalone && make lint && make clean build)
-(cd examples/9_javascript_standalone && make clean build)
-go test ./examples -run 'TestStandalonePython(Protobuf)?ExampleOverStdio' -count=1
-go test ./examples -run 'TestStandalone(TypeScript|JavaScript)ExampleOverStdio' -count=1
-go test ./...
-goreleaser check
-```
-
-`easyp.yaml` is the main config for shipped protobuf APIs. `easyp.test.yaml`
-is the development and test config for repository fixtures.
-
-`mcp/options/v1/options.proto` carries its own explicit `go_package`, so
-consumers do not need a special Easyp `go_package_prefix` override just to use
-the MCP options package.
-
-CI is implemented in [tests.yml](.github/workflows/tests.yml)
-and runs config validation, Easyp lint, Easyp generation, a generated-file
-freshness check, JVM compile/install gates, JVM stdio parity checks, Node
-compile/build gates, generated Node stdio checks through `go test ./...`, and
-standalone Python/Node example tests. Releases are implemented in
-[release.yml](.github/workflows/release.yml)
-and use [`.goreleaser.yaml`](.goreleaser.yaml)
-to publish tagged builds of the `protoc-gen-mcp` binary. This repository does
-not publish separate Java, Kotlin, TypeScript, or JavaScript runtime artifacts;
-downstream projects compile generated source against their language SDK
-dependencies.
-
-## TypeScript And JavaScript Support
-
-TypeScript support is implemented for Node stdio servers and verified through
-the official MCP TypeScript SDK, Protobuf-ES, and Ajv. User-owned standalone
-project layouts are shown in
-[`examples/8_typescript_standalone`](examples/8_typescript_standalone/) and
-[`examples/9_javascript_standalone`](examples/9_javascript_standalone/).
-
-- Node prerequisites for the in-repo walkthrough are Go 1.26+, Node.js, npm,
-  `easyp v0.15.2-rc1`, and the npm dependencies pinned by the examples.
-- The Node generator mode is `lang=typescript`.
-- The tested stack is `@modelcontextprotocol/sdk@1.29.0`,
-  `@bufbuild/protobuf@2.12.0`, `@bufbuild/protoc-gen-es`, and `ajv@8.20.0`.
-- Protobuf message classes are generated by Protobuf-ES as `_pb.ts` files with
-  NodeNext-compatible `.js` import specifiers.
-- `protoc-gen-mcp` generates `*_mcp.ts` sidecars that install low-level
-  `tools/list` and `tools/call` handlers on the official SDK `Server`.
-- Generated TypeScript preserves the shared raw JSON Schema and compiles it
-  with Ajv, then maps request/response payloads through Protobuf-ES ProtoJSON.
-- JavaScript consumption uses the compiled `.js` output and generated `.d.ts`
-  declarations from the TypeScript target. Direct lang=javascript generation
-  is intentionally deferred until compiled TypeScript output proves
-  insufficient for common JavaScript projects.
-
-Use the standalone TypeScript example when you want a full user-project
-generation flow. Use the JavaScript example when you want to inspect how a
-plain `.js` server imports compiled generated output without a separate
-renderer.
-
-## JVM Support
-
-JVM support is implemented and CI-verified through the runnable
-[`examples/jvm`](examples/jvm/README.md) workspace. User-owned standalone
-project layouts are shown in
-[`examples/6_java_standalone`](examples/6_java_standalone/) and
-[`examples/7_kotlin_standalone`](examples/7_kotlin_standalone/).
-
-- JVM prerequisites for the in-repo walkthrough are Go 1.26+, JDK 17+, and
-  Gradle 9.2+.
-- The JVM generator modes are `lang=java` and `lang=kotlin`.
-- The Java path compiles generated protobuf Java output plus a generated
-  `lang=java` MCP sidecar against the official
-  `io.modelcontextprotocol.sdk:mcp` SDK.
-- The Kotlin path follows the tested dual-generation flow from
-  `examples/jvm/kotlin-server/build.gradle.kts`: Java protobuf output, Kotlin
-  protobuf output, and then the `lang=kotlin` MCP sidecar are all required.
-- The canonical runnable JVM verification path uses `installDist` plus the
-  installed scripts under `examples/jvm/*/build/install/.../bin/*`, matching
-  `internal/examplemcp/jvm_stdio_test.go` and CI.
-- Standalone JVM protos can be Java/Kotlin-native and omit `go_package`; the
-  generator synthesizes internal protogen metadata for `lang=java` and
-  `lang=kotlin`.
-
-Use the root README for the language matrix and repository workflow, inspect
-the standalone Java/Kotlin directories for user-project shape, and use
-[examples/jvm/README.md](examples/jvm/README.md) for the cross-language JVM
-verification workspace.
-
-## Test MCP Server
-
-The repository also includes a runnable MCP server for manual client checks:
-
-```bash
-# stdio (default)
-go run ./cmd/example-mcp-server
-
-# Streamable HTTP with official SDK, localhost only by default
-go run ./cmd/example-mcp-server -transport=http -addr=127.0.0.1:8080 -path=/mcp
-
-python ./cmd/example-python-mcp-server/main.py
-```
-
-It serves the generated tools from `internal/testproto/example/v1` and is used
-by the stdio smoke tests in `internal/examplemcp/stdio_test.go`.
-The example server currently exposes:
-
-- `example_CreateReport`
-- `example_Health`
-- `example_DescribeAdvancedShapes`
-- `example_DescribeScalarShapes`
-
-### Markdown, UI assets and raw MCP resources
-
-The Go target can expose `SKILL.md`, plain text, HTML and binary resources
-directly from protobuf. For dynamic bodies, set
-`(mcp.options.v1.resource).mime_type` and `content_field` to a singular
-`string` or `bytes` field. For static files, use `source_file` instead;
-the generator emits `go:embed` and needs no handwritten resource handler. The generator registers both static and templated
-resources with the official SDK and emits the selected field without ProtoJSON
-wrapping. Without `content_field`, resources use ProtoJSON and must declare a
-JSON-compatible MIME. The [showcase](examples/11_protobuf_first_mcp/README.md)
-has a complete `SKILL.md` example and UI resource wiring.
-
-### Protobuf-defined Go servers, apps and OAuth
-
-The Go generator now accepts a file-level `(mcp.options.v1.server)` option
-for `name`, `version`, MCP Apps capabilities, and OAuth resource-server
-configuration. It emits a typed `New<File>MCPServer(ctx, handlers)` factory
-plus `New<File>MCPHTTPHandler(server, verifier)`. OAuth may verify RS256
-access JWTs directly through a configured HTTPS JWKS endpoint and
-issuer/audience, or call an application-provided verifier. Per-RPC
-`required_scopes` provide additional authorization. Missing global or per-tool
-scopes return an HTTP 403 `insufficient_scope` challenge before dispatch;
-SDK clients can use `OAuthHandler` to obtain additional authorization and retry.
-
-Go generation rejects `execution.task_support: TASK_SUPPORT_REQUIRED`: the
-official Go SDK does not implement the MCP 2025-11-25 Tasks lifecycle. Omitted,
-`TASK_SUPPORT_NONE` and `TASK_SUPPORT_OPTIONAL` declarations keep ordinary
-synchronous tool calls without advertising `execution.taskSupport`.
-
-`<File>` is the exported CamelCase proto basename: `server_config.proto`
-generates `ServerConfigMCPHandlers`, `NewServerConfigMCPServer`, and
-`NewServerConfigMCPHTTPHandler` in its `go_package`. Prompt/resource handlers
-and registration functions use the same basename. Moving the proto to another
-directory preserves these names. Colliding names in one Go package fail
-generation; choose distinct basenames or Go packages. Previous descriptor-path
-names remain deprecated aliases and wrappers; migrate to the basename APIs
-before relocating a file.
-
-For a compiled frontend, declare `source_file` in a static resource with
-`mime_type: "text/html;profile=mcp-app"`; it is embedded in Go and registered
-without a handwritten read handler. The protobuf `app_ui` annotation supports
-resource CSP and browser permissions. Asset paths are relative to the
-generated Go package. The frontend build and the external OAuth identity
-provider remain application-owned.
-
-See the [showcase](examples/11_protobuf_first_mcp/README.md) for working
-options, generated APIs, and security boundaries.
-
-### Go Streamable HTTP (official Go SDK)
-
-**Upgrading from 0.7.0:** this is a breaking Go API and HTTP behavior change.
-Regenerate Go bindings; the [changelog](CHANGELOG.md) lists removed APIs and
-their SDK replacements.
-
-Generated Go registration accepts `*mcp.Server` from
-`github.com/modelcontextprotocol/go-sdk/mcp`. The SDK owns transport,
-session semantics, protocol negotiation and notifications; `mcpruntime`
-retains protobuf/JSON Schema conversion and generated adapters.
-
-```go
-server := mcp.NewServer(&mcp.Implementation{Name: "my-mcp", Version: "v1"}, nil)
-handler := mcp.NewStreamableHTTPHandler(
-    func(*http.Request) *mcp.Server { return server },
-    &mcp.StreamableHTTPOptions{Stateless: true},
-)
-mux := http.NewServeMux()
-mux.Handle("/mcp", http.NewCrossOriginProtection().Handler(handler))
-_ = http.ListenAndServe("127.0.0.1:8080", mux)
-```
-
-Stateless HTTP negotiates the newest supported protocol, including
-MCP 2026-07-28, while retaining SDK-managed compatibility with older clients.
-The generated `New<File>MCPHTTPHandler` and runtime HTTP helpers deliberately
-use this mode: no persistent `MCP-Session-Id`, legacy GET listen stream or
-`Last-Event-ID` replay. Request-associated SSE notifications remain possible;
-new-protocol clients can use `subscriptions/listen` for list changes. Applications
-that need legacy stateful sessions must configure the SDK directly, including
-authentication and any event store.
-This low-level snippet is an **unprotected** endpoint. For public
-servers, prefer protobuf `server.oauth` and the generated
-`New<File>MCPHTTPHandler` so OAuth middleware and discovery are applied.
-See the [runnable showcase](examples/11_protobuf_first_mcp/README.md).
-
-## Testing With MCP Inspector
-
-Use the official
-[MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector) for
-interactive stdio checks while developing a server. The Inspector runs through
-`npx` and starts the MCP server command you pass after the Inspector package.
-
-For the Go example server:
-
-```bash
-npx -y @modelcontextprotocol/inspector go run ./cmd/example-mcp-server
-```
-
-For the Python example server:
-
-```bash
-npx -y @modelcontextprotocol/inspector python ./cmd/example-python-mcp-server/main.py
-```
-
-For the standalone raw protobuf Python example, create the example virtualenv
-first and then point the Inspector at the local server:
-
-```bash
-(cd examples/10_python_protobuf_standalone && make setup)
-(cd examples/10_python_protobuf_standalone && npx -y @modelcontextprotocol/inspector .venv/bin/python server.py)
-```
-
-For installed JVM examples, build the scripts first and then point the
-Inspector at the installed application:
-
-```bash
-gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist
-npx -y @modelcontextprotocol/inspector ./examples/jvm/java-server/build/install/java-server/bin/java-server
-npx -y @modelcontextprotocol/inspector ./examples/jvm/kotlin-server/build/install/kotlin-server/bin/kotlin-server
-```
-
-For standalone Node examples, build first and then point the Inspector at the
-Node server entrypoint:
-
-```bash
-(cd examples/8_typescript_standalone && make build)
-npx -y @modelcontextprotocol/inspector node ./examples/8_typescript_standalone/dist/server.js
-
-(cd examples/9_javascript_standalone && make build)
-npx -y @modelcontextprotocol/inspector node ./examples/9_javascript_standalone/src/server.js
-```
-
-When the Inspector UI opens, connect to the server, open the Tools tab, run
-List Tools, then call a generated tool such as `example_Health` or
-`example_CreateReport`. This is the fastest manual check that generated tool
-names, schemas, annotations, ProtoJSON inputs, structured outputs, and server
-stdio wiring are visible to an MCP client.
-
-## Examples
-
-We provide several standalone, runnable examples demonstrating generated MCP
-tools, protobuf `options`, validation constraints, and integration with the
-official Go, Python, Kotlin, Java, TypeScript, and JavaScript SDK paths. Check
-out the
-[examples/](examples/) directory for:
-- [1_helloworld](examples/1_helloworld/) - Minimal Quickstart setup.
-- [2_weather_api](examples/2_weather_api/) - Read-only queries, validation limits, Oneofs.
-- [3_file_manager](examples/3_file_manager/) - Destructive tools and schema-based string parameter constraints.
-- [4_crm_system](examples/4_crm_system/) - A full mock system with FieldMask partial updates, custom icons mapping, schemas nested types, and advanced array filters.
-- [5_python_standalone](examples/5_python_standalone/) - A Python-only user-style project with its own `pyproject.toml`, `easyp.yaml`, generated bindings, and stdio server.
-- [11_protobuf_first_mcp](examples/11_protobuf_first_mcp/README.md) - Complete Go showcase: generated server, UI embedding, prompts, raw resources, OAuth and scoped tools.
-- [10_python_protobuf_standalone](examples/10_python_protobuf_standalone/) - A Python-only user-style project that opts into `python_handler=dataclass+protobuf` and implements the raw `*_mcp_pb.py` sidecar with `*_pb2` classes.
-- [6_java_standalone](examples/6_java_standalone/) - A Java user-style project with its own Gradle build, `easyp.yaml`, protobuf contract, and generated MCP sidecar.
-- [7_kotlin_standalone](examples/7_kotlin_standalone/) - A Kotlin user-style project with its own Gradle build, `easyp.yaml`, protobuf contract, and generated MCP sidecar.
-- [8_typescript_standalone](examples/8_typescript_standalone/) - A TypeScript user-style project with its own npm package, `tsconfig.json`, `easyp.yaml`, Protobuf-ES output, generated MCP sidecar, and stdio server.
-- [9_javascript_standalone](examples/9_javascript_standalone/) - A JavaScript consumption proof that imports compiled generated `.js` output and `.d.ts` metadata from the TypeScript standalone project.
-- [jvm](examples/jvm/README.md) - A Java/Kotlin official SDK workspace with
-  Gradle-managed protobuf generation, `lang=java` / `lang=kotlin` sidecars,
-  `installDist` scripts, and stdio verification.
-
-## Agent Skill
-
-Install the [skills.sh](https://skills.sh/) agent skill to let your AI coding
-assistant build MCP servers with protoc-gen-mcp:
-
-```bash
-npx skills add easyp-tech/protoc-gen-mcp-skill
-```
-
-The skill source lives in a separate repository:
-[easyp-tech/protoc-gen-mcp-skill](https://github.com/easyp-tech/protoc-gen-mcp-skill).
-
-The skill teaches agents the full workflow: define proto → configure easyp →
-generate → implement handler → serve. It covers proto options, requiredness
-policy, ProtoJSON contract, and common patterns.
+To inspect any generated server interactively, point the official
+[MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector) at its
+command, for example
+`npx -y @modelcontextprotocol/inspector go run ./examples/1_helloworld`.
 
 ## Generation With Easyp
 
-The intended workflow is `easyp`, not manual `protoc` invocation. For mixed
-Go/Python/JVM/Node projects, `easyp` can drive `protoc-gen-go`, the standard
-Python protobuf generator, Protobuf-ES, and `protoc-gen-mcp` from one config.
-
-Before running generation, make sure `protoc-gen-go` is installed and available
-in `PATH` if your config uses the standard Go plugin:
+The intended workflow is [easyp](https://github.com/easyp-tech/easyp), not
+manual `protoc` invocation. One config can drive `protoc-gen-go`, the standard
+Python generator, Protobuf-ES and `protoc-gen-mcp`. If your config uses the
+standard Go plugin, install it first:
 
 ```bash
 go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
 ```
 
-Example `easyp.yaml`:
+Example `easyp.yaml` with every target enabled (keep only the ones you need):
 
 ```yaml
-lint:
-  use:
-    - PACKAGE_DEFINED
-    - PACKAGE_VERSION_SUFFIX
-    - RPC_NO_CLIENT_STREAMING
-    - RPC_NO_SERVER_STREAMING
+deps:
+  - github.com/easyp-tech/protoc-gen-mcp
 
 generate:
   inputs:
     - directory:
-        path: mcp
+        path: proto
         root: "."
   plugins:
     - name: go
+      out: .
+      opts:
+        paths: source_relative
+    - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@latest"]
       out: .
       opts:
         paths: source_relative
@@ -429,29 +102,13 @@ generate:
     - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@latest"]
       out: .
       opts:
-        paths: source_relative
-    - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@latest"]
-      out: .
-      opts:
-        paths: source_relative
         lang: python
-        python_runtime: google.protobuf
-        # Optional: use raw *_pb2 handler request/response classes instead of
-        # the default generated dataclass API.
-        # python_handler: protobuf
-        # Optional: generate both surfaces in one pass. This keeps *_mcp.py as
-        # the dataclass sidecar and adds *_mcp_pb.py for raw *_pb2 handlers.
-        # python_handler: dataclass+protobuf
+        # python_handler: protobuf            # raw *_pb2 handlers
+        # python_handler: dataclass+protobuf  # both, raw ones in *_mcp_pb.py
     - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@latest"]
       out: .
       opts:
-        paths: source_relative
-        lang: java
-    - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@latest"]
-      out: .
-      opts:
-        paths: source_relative
-        lang: kotlin
+        lang: java # or kotlin
     - command: ["./node_modules/.bin/protoc-gen-es"]
       with_imports: true
       out: src/generated
@@ -461,458 +118,66 @@ generate:
     - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@latest"]
       out: src/generated
       opts:
-        paths: source_relative
         lang: typescript
 ```
 
-Typical commands:
-
 ```bash
-easyp --cfg easyp.yaml validate-config
-easyp --cfg easyp.yaml lint -p mcp -r .
-easyp --cfg easyp.yaml generate -p mcp -r .
+easyp --cfg easyp.yaml mod download
+easyp --cfg easyp.yaml generate -p proto -r .
 ```
 
-That generates language-specific protobuf output plus MCP sidecars such as
-`*.pb.go`, `*_pb2.py`, `*.mcp.go`, `*_mcp.py`, Protobuf-ES `_pb.ts`, and
-TypeScript `*_mcp.ts` files. The Python target currently supports only
-`python_runtime=google.protobuf`; handler mode defaults to
-`python_handler=dataclass`, and `python_handler=protobuf` opts into raw
-`*_pb2` handlers. `python_handler=dataclass+protobuf` generates both surfaces
-in one pass: `*_mcp.py` remains the dataclass sidecar and `*_mcp_pb.py` exposes
-the raw protobuf handler sidecar. Generated Python output also emits a small
-`mcp/__init__.py` bridge so `mcp.options.*` protobuf modules can coexist with
-the official `mcp` SDK package in one import tree. No special Easyp override is
-required for `mcp.options.v1`, because the package declares `go_package`
-directly in `options.proto`. For reproducible builds, prefer pinning a specific
-tag instead of `@latest`.
-
-For JVM consumers, the language selectors are `lang=java` and `lang=kotlin`.
-The Java path generates a Java sidecar alongside protobuf Java output. The
-Kotlin path must follow the same rule as the in-repo Gradle example: Java
-protobuf output, Kotlin protobuf output, and the `lang=kotlin` MCP sidecar are
-all part of the working build graph. User-authored JVM protos do not need a
-Go `go_package` option just to satisfy `protoc-gen-mcp`. See
-[examples/6_java_standalone](examples/6_java_standalone/),
-[examples/7_kotlin_standalone](examples/7_kotlin_standalone/), and
-[examples/jvm/README.md](examples/jvm/README.md) for runnable layouts.
-
-For TypeScript consumers, generate Protobuf-ES `_pb.ts` files first and then run
-`protoc-gen-mcp` with `lang=typescript` into the same generated-source tree.
-Use `import_extension=js` so emitted imports work under Node ESM and
-`moduleResolution: NodeNext`. The generated MCP sidecar imports the official
-`@modelcontextprotocol/sdk` low-level `Server`, preserves raw JSON Schemas,
-validates them through Ajv, and maps payloads through Protobuf-ES ProtoJSON.
-See [examples/8_typescript_standalone](examples/8_typescript_standalone/) for a
-complete standalone project with pinned npm dependencies and checked-in
-generated sources.
-
-For JavaScript consumers, do not use `lang=javascript`; direct
-lang=javascript generation is intentionally deferred. Compile the TypeScript
-target and import the emitted `.js` files from JavaScript. The generated `.d.ts`
-files provide editor and `// @ts-check` metadata. See
-[examples/9_javascript_standalone](examples/9_javascript_standalone/) for the
-tested consumption path.
-
-For Python-only projects, omit the Go plugins and keep only the standard
-`python` plugin plus `protoc-gen-mcp` with `lang=python`. User-authored Python
-protos do not need a `go_package` option just to satisfy the generator; the
-plugin synthesizes internal Go package metadata before building the descriptor
-model. See [examples/5_python_standalone](examples/5_python_standalone/) for a
-complete default dataclass-mode Python project with its own virtualenv setup.
-
-The default Python handler mode is `python_handler=dataclass`: implement
-against the dataclasses from `*_mcp.py`, not raw protobuf classes from
-`*_pb2.py`. The generated Python runtime maps MCP JSON -> ProtoJSON -> `pb2` ->
-dataclasses before calling your handler, then maps your dataclass response back
-through protobuf serialization and output-schema validation.
-
-If you already have server logic written against standard protobuf classes, add
-`python_handler: protobuf` to the Python MCP plugin options. In that mode the
-same generated registration helper accepts handlers typed with raw `*_pb2`
-messages, while schemas, ProtoJSON parsing, validation, annotations, and
-structured output stay generator-owned:
-
-```python
-import mcp.server.lowlevel
-from proto import tasks_mcp, tasks_pb2
-
-
-class TaskStore(tasks_mcp.TaskAPIToolHandler):
-    def create_task(
-        self,
-        _ctx: tasks_mcp.ToolRequestContext,
-        req: tasks_pb2.CreateTaskRequest,
-    ) -> tasks_pb2.CreateTaskResponse:
-        ...
-
-
-server = mcp.server.lowlevel.Server("tasks-server")
-tasks_mcp.register_task_api_tools(server, TaskStore())
-```
-
-See
-[examples/10_python_protobuf_standalone](examples/10_python_protobuf_standalone/)
-for the raw `*_pb2` standalone layout.
-
-If you want both handler surfaces from one generator invocation, use
-`python_handler: dataclass+protobuf`. The dataclass API is emitted to the
-normal `*_mcp.py` module, and the raw protobuf API is emitted to `*_mcp_pb.py`
-with the same protocol and registration names inside that module:
-
-```python
-from proto import tasks_mcp, tasks_mcp_pb, tasks_pb2
-
-# Dataclass implementation uses tasks_mcp.TaskAPIToolHandler.
-# Raw protobuf implementation uses tasks_mcp_pb.TaskAPIToolHandler.
-tasks_mcp_pb.register_task_api_tools(server, RawTaskStore())
-```
-
-For optional fields and `oneof` groups, the handler-facing absence sentinel is
-`UNSET`, not `None`. JSON `null` for a schema-optional field is mapped to
-`UNSET` on input, and handlers should return `UNSET` when a field should remain
-unset in the serialized protobuf output.
-
-If your Python package imports other `.proto` files that must also resolve as
-Python modules at runtime, make sure the standard Python generator emits those
-imports too. In `easyp`, that typically means enabling `with_imports: true` on
-the Python plugin for that package.
-
-Generated `ToolAnnotations` are forwarded as declared in protobuf options. The
-generator does not synthesize extra hint values that were not set in source
-proto. Some MCP clients, including `@modelcontextprotocol/inspector`, display
-omitted hints using their own client-side defaults. If you want UI badges to
-stay unambiguous, set hints like `destructive_hint: false` explicitly instead
-of relying on omission.
-
-Example Python handler:
-
-```python
-import mcp.server.lowlevel
-from weather_mcp import (
-    GetCurrentWeatherRequest,
-    GetCurrentWeatherRequestLocationCityVariant,
-    GetCurrentWeatherResponse,
-    register_weather_api_tools,
-)
-
-
-class WeatherAPI:
-    def get_current_weather(self, _ctx, req: GetCurrentWeatherRequest) -> GetCurrentWeatherResponse:
-        if not isinstance(req.location, GetCurrentWeatherRequestLocationCityVariant):
-            raise ValueError("city lookup is required")
-        return GetCurrentWeatherResponse(condition="Sunny", temperature=22.5)
-
-
-server = mcp.server.lowlevel.Server("weather-mcp-server", version="1.0.0")
-register_weather_api_tools(server, WeatherAPI())
-```
-
-Generated tool names never contain dots. The runtime joins the optional service
-namespace and RPC tool name with underscores, so a service namespace
-`weather.v1` and RPC `GetForecast` become tool name `weather_v1_GetForecast`.
-
-Generated JSON Schemas use a proto3-driven requiredness policy: a singular field
-WITHOUT the `optional` keyword is required. A singular field WITH the `optional` keyword 
-is optional. `repeated`, `map`, and `oneof` fields are always optional.
-Fields that are not required by that generated MCP schema accept explicit JSON `null`, so
-MCP clients that pre-validate cached `inputSchema` do not reject otherwise
-valid tool calls before they reach the server.
-
-Generated schemas also emit examples for complex ProtoJSON forms. The `examples` option
-in fields can be strictly typed through `ExampleValue` structured messages (e.g. integer,
-string, array, and object representations). The generator synthesizes fallback examples
-for maps, recursive messages, `Any`, special float encodings, and other advanced shapes
-to make agent-side tool invocation more discoverable.
-
-## Supported ProtoJSON Contract
-
-The generator publishes MCP `inputSchema` and `outputSchema` that follow
-ProtoJSON rather than plain protobuf reflection semantics.
-
-- `int64` / `uint64` / `fixed64` / `sfixed64` / `sint64` are JSON strings
-- `int32` / `uint32` / `fixed32` / `sfixed32` / `sint32` are JSON integers
-- `float` / `double` accept JSON numbers and ProtoJSON special strings
-  `NaN`, `Infinity`, `-Infinity`
-- `bytes` use base64 strings
-- enums use enum names
-- `Timestamp` uses RFC 3339 strings
-- `Duration` uses protobuf duration strings such as `"3600s"`
-- `FieldMask` uses ProtoJSON field-mask strings
-- `Struct`, `Value`, and `ListValue` map to arbitrary JSON values
-- `Any` uses ProtoJSON object form with `@type`
-- recursive messages are emitted through `$defs` / `$ref`
-- top-level and nested `oneof` groups are expressed through JSON Schema
-  constraints
-
-Requiredness policy: field requiredness in the generated MCP JSON Schema is
-determined entirely by proto3 syntax.
-- A singular field WITHOUT the `optional` keyword is required.
-- A singular field WITH the `optional` keyword is optional.
-- `repeated`, `map`, and `oneof` fields are always optional.
-Fields that are not schema-required accept explicit JSON `null`.
-
-## Complete Proto Example
-
-This example shows the current supported surface, including service, method,
-and field options, all plain scalar families, maps, `oneof`, recursive
-messages, ProtoJSON-special forms, selected well-known types, constraints, and
-hidden RPCs.
-
-```proto
-syntax = "proto3";
-
-package weather.v1;
-
-option go_package = "github.com/acme/weather-mcp/weather/v1;weatherv1";
-
-import "mcp/options/v1/options.proto";
-import "google/protobuf/any.proto";
-import "google/protobuf/duration.proto";
-import "google/protobuf/empty.proto";
-import "google/protobuf/field_mask.proto";
-import "google/protobuf/struct.proto";
-import "google/protobuf/timestamp.proto";
-import "google/protobuf/wrappers.proto";
-
-service WeatherAPI {
-  option (mcp.options.v1.service) = {
-    namespace: "weather"
-    description: "Weather tools exported as MCP tools."
-    icons: [{
-      src: "https://example.com/weather-icon.png"
-      mime_type: "image/png"
-    }]
-  };
-
-  // Forecast returns a weather report.
-  rpc Forecast(GetForecastRequest) returns (GetForecastResponse) {
-    option (mcp.options.v1.method) = {
-      name: "GetForecast"
-      title: "Get forecast"
-      description: "Fetch the forecast for a city."
-      annotations: {
-        read_only_hint: true
-      }
-    };
-  }
-
-  // Health returns an empty acknowledgement.
-  rpc Health(google.protobuf.Empty) returns (HealthResponse) {
-    option (mcp.options.v1.method) = {
-      title: "Health check"
-      description: "Verify that the MCP server is alive."
-    };
-  }
-
-  // InternalDebug is omitted from generated tools.
-  rpc InternalDebug(InternalDebugRequest) returns (InternalDebugResponse) {
-    option (mcp.options.v1.method) = {
-      hidden: true
-    };
-  }
-}
-
-message GetForecastRequest {
-  option (mcp.options.v1.message) = {
-    title: "Forecast Request"
-    description: "Parameters to fetch the weather forecast."
-  };
-
-  // city is the primary lookup key and required by proto3 omission of `optional`.
-  string city = 1 [(mcp.options.v1.field) = {
-    description: "City name accepted by the upstream weather provider."
-    examples: [{ string_value: "Paris" }]
-    min_length: 2
-    max_length: 100
-  }];
-
-  // units uses real proto3 optional presence.
-  optional string units = 2 [(mcp.options.v1.field) = {
-    default_value: { string_value: "metric" }
-  }];
-
-  // tags stays optional in generated MCP schema because it is repeated.
-  repeated string tags = 3 [(mcp.options.v1.field) = {
-    examples: [{ array_value: { items: [{ string_value: "urgent" }] } }]
-    max_items: 5
-    unique_items: true
-  }];
-
-  // labels demonstrates map<string, string>.
-  map<string, string> labels = 4;
-
-  // page demonstrates numeric integer boundaries.
-  int32 page = 10 [(mcp.options.v1.field) = {
-    minimum: 1
-    default_value: { integer_value: 1 }
-  }];
-  
-  // temperature_floor demonstrates float bounds.
-  float temperature_floor = 20 [(mcp.options.v1.field) = {
-    minimum: -50.0
-    maximum: 60.0
-  }];
-
-  // details is automatically implicitly required by proto3.
-  ForecastDetails details = 23;
-
-  google.protobuf.Timestamp observed_at = 24;
-  google.protobuf.Duration ttl = 25;
-  google.protobuf.FieldMask mask = 26;
-  google.protobuf.Struct filters = 27;
-
-  // Any is treated generically.
-  google.protobuf.Any detail_any = 39;
-
-  RecursiveNode tree = 40;
-
-  oneof selector {
-    option (mcp.options.v1.oneof) = {
-      description: "Select how to find the city."
-      required: true
-    };
-    string city_alias = 41;
-    int64 city_id = 42;
-    ForecastDetails city_details = 43;
-  }
-}
-
-message GetForecastResponse {
-  string report_id = 1 [(mcp.options.v1.field) = { read_only: true }];
-  int64 total_count = 2;
-  ForecastMode mode = 3;
-  ForecastDetails details = 4;
-  repeated string warnings = 5;
-  google.protobuf.Empty ack = 6;
-}
-
-message HealthResponse {
-  google.protobuf.Empty ack = 1;
-}
-
-message InternalDebugRequest {
-  string token = 1;
-}
-
-message InternalDebugResponse {}
-
-message ForecastDetails {
-  string label = 1;
-}
-
-message RecursiveNode {
-  string name = 1;
-  RecursiveNode child = 2;
-  repeated RecursiveNode children = 3;
-}
-
-enum ForecastMode {
-  option (mcp.options.v1.enum) = {
-    title: "Forecast Mode"
-    description: "Scope of the forecast request."
-  };
-  
-  FORECAST_MODE_NONE = 0 [(mcp.options.v1.enum_value) = { hidden: true }];
-  FORECAST_MODE_DAILY = 1;
-  FORECAST_MODE_HOURLY = 2;
-}
-```
-
-## Metadata Options
-
-Import `mcp/options/v1/options.proto` in your `.proto` files to override
-generation behavior.
-
-### Service Options
-Used via: `option (mcp.options.v1.service) = { ... };`
-
-- `namespace`: Prepended to every generated tool name for this service (e.g. `weather_GetForecast`).
-- `description`: Overrides the service description inferred from proto comments.
-- `icons`: Defines default `[Icon]` mapping for all tools generated from this service.
-
-### Method Options
-Used via: `option (mcp.options.v1.method) = { ... };`
-
-- `name`: Overrides the RPC segment of the generated tool name.
-- `title`: Sets a human-readable title.
-- `description`: Overrides the RPC description inferred from proto comments.
-- `hidden`: Suppresses tool generation for this RPC method completely.
-- `annotations`: Provides `ToolAnnotations` hints for agents (like `read_only_hint`, `destructive_hint`, `idempotent_hint`, `open_world_hint`).
-  Omitted hints are left omitted in generated output; some clients render their
-  own defaults for missing values.
-- `icons`: Provides an array of `Icon` metadata for the tool, overriding the service default.
-- `execution`: Defines `ExecutionOptions` like `task_support`.
-
-### Field Options
-Used via: `[(mcp.options.v1.field) = { ... }]`
-
-- `description`: Overrides descriptions from proto comments.
-- `examples`: Adds explicitly typed `ExampleValue` examples in the schema.
-- `default_value`: Sets an explicit default using an `ExampleValue`.
-- **String constraints:** `pattern` (Regex), `format` (e.g. `email`, `date-time`), `min_length`, `max_length`.
-- **Number constraints:** `minimum`, `maximum`, `exclusive_minimum`, `exclusive_maximum`, `multiple_of`.
-- **Array constraints:** `min_items`, `max_items`, `unique_items`.
-- `read_only`: Marks a field as read-only.
-
-### Other Structures
-- **Message Options (`mcp.options.v1.message`)**: `title`, `description`, `examples`.
-- **Enum Options (`mcp.options.v1.enum`)**: `title`, `description`.
-- **EnumValue Options (`mcp.options.v1.enum_value`)**: `description`, `hidden` (often used to hide sentinel zeroes).
-- **Oneof Options (`mcp.options.v1.oneof`)**: `description`, `required`.
-
-### Prompt Options
-Used via: `option (mcp.options.v1.prompt) = { ... };` on a message.
-
-- `name`: Override the prompt name (default: snake_case of message name).
-- `title`: Human-readable title.
-- `description`: Description shown to clients.
-- `icons`: Icons for the prompt.
-
-Message fields become prompt arguments. Singular fields are required; `optional`
-and `repeated` fields become optional arguments.
-
-### Resource Options
-Used via: `option (mcp.options.v1.resource) = { ... };` on a message.
-
-- `uri`: Static URI for fixed resources (mutually exclusive with `uri_template`).
-- `uri_template`: Parameterized URI template with `{param}` placeholders
-  (mutually exclusive with `uri`).
-- `name`: Human-readable display name.
-- `description`: Description of the resource.
-- `mime_type`: MIME type of the resource content (default: `application/json`).
-- `annotations`: `ResourceAnnotations` with `audience` and `priority` hints.
-- `icons`: Icons for the resource.
-
-Static resources generate `Read<Message>(ctx)` handlers.
-Template resources generate `List<Message>s(ctx)` + `Read<Message>(ctx, params...)` handlers.
-
-Comments are also used as metadata:
-
-- plain comment lines become descriptions
-- `Example: ...` adds one schema example (though `FieldOptions.examples` offers stronger typing).
-- `Examples: ... | ...` adds multiple schema examples.
-- `Examples in JSON: ...` uses the raw JSON string as an inline example.
-
-## Generated API And Server Integration
-
-After `easyp --cfg easyp.yaml generate -p mcp -r .`, the generated package
-exposes a typed handler interface plus a registration helper:
-
-```go
-type WeatherAPIToolHandler interface {
-	Forecast(ctx context.Context, req *weatherv1.GetForecastRequest) (*weatherv1.GetForecastResponse, error)
-	Health(ctx context.Context, req *emptypb.Empty) (*weatherv1.HealthResponse, error)
-}
-
-func RegisterWeatherAPITools(
-	server *mcp.Server,
-	impl WeatherAPIToolHandler,
-	opts ...mcpruntime.RegisterOption,
-) error
-```
-
-Typical server wiring looks like this:
+Pin a release tag instead of `@latest` for reproducible builds. Protos used only
+for Python, JVM or TypeScript do not need a `go_package` option; the plugin
+synthesizes the metadata it needs. `mcp.options.v1` declares its own
+`go_package`, so no Easyp override is required.
+
+Language notes:
+
+- **Python** supports `python_runtime=google.protobuf`. The default
+  `python_handler=dataclass` hands your code dataclasses from `*_mcp.py`, with
+  `UNSET` (not `None`) for absent optional fields and explicit `oneof` wrapper
+  variants. `python_handler=protobuf` uses raw `*_pb2` messages instead, and
+  `dataclass+protobuf` emits both. Generation also writes a small
+  `mcp/__init__.py` bridge so `mcp.options.*` modules coexist with the official
+  `mcp` SDK package. Enable `with_imports: true` on the Python plugin when your
+  protos import other packages.
+- **Java** (`lang=java`) generates one `<ProtoFile>Mcp` sidecar per proto next
+  to protobuf Java output. **Kotlin** (`lang=kotlin`) needs Java protobuf
+  output, Kotlin protobuf output, and the MCP sidecar together.
+- **TypeScript** (`lang=typescript`) expects Protobuf-ES `_pb.ts` files in the
+  same tree, generated with `import_extension=js` for Node ESM and
+  `moduleResolution: NodeNext`. **JavaScript** projects import the compiled
+  `.js` output and `.d.ts` declarations; there is no `lang=javascript`.
+
+## Generated API
+
+Every target exposes a typed handler interface per service and a registration
+helper. Tool names are `{namespace}_{method}`; dots in either segment become
+underscores, so namespace `weather.v1` and RPC `GetForecast` become
+`weather_v1_GetForecast`.
+
+| Target | Handler | Registration |
+|---|---|---|
+| Go | `<Service>ToolHandler` | `Register<Service>Tools(server *mcp.Server, impl, opts...) error` |
+| Python | `<Service>ToolHandler` protocol | `register_<service>_tools(server, impl, *, namespace=None)` |
+| Kotlin | `<Service>ToolHandler` | `register<Service>Tools(server, impl, namespace: String? = null)` |
+| Java | `<ProtoFile>Mcp.<Service>ToolHandler` | `<ProtoFile>Mcp.register<Service>Tools(transportProvider, impl, namespace)` |
+| TypeScript | `<Service>ToolHandler` | `register<Service>Tools(server, impl, namespace?)` |
+
+Prompts and resources are declared on messages, so their Go registration is
+file-scoped: `Register<File>Prompts(server, impl, opts...)` and
+`Register<File>Resources(ctx, server, impl, opts...)`, where `<File>` is the
+CamelCase proto basename. A static resource (`uri`) needs `Read<Msg>(ctx)`; a
+template resource (`uri_template`) needs `List<Msg>s(ctx)` and
+`Read<Msg>(ctx, params...)` with percent-decoded template values.
+
+At runtime the generated code validates arguments against the input schema,
+unmarshals them with ProtoJSON, calls your handler, marshals the response with
+ProtoJSON, validates it against the output schema, and returns it as both
+`structuredContent` and text content. Handler errors become tool results with
+`isError: true`.
+
+Minimal Go server:
 
 ```go
 package main
@@ -923,132 +188,180 @@ import (
 
 	weatherv1 "github.com/acme/weather/gen/weather/v1"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 type handler struct{}
 
-func (handler) Forecast(
-	_ context.Context,
-	req *weatherv1.GetForecastRequest,
-) (*weatherv1.GetForecastResponse, error) {
-	return &weatherv1.GetForecastResponse{
-		ReportId:   "forecast-1",
-		TotalCount: 42,
-		Mode:       weatherv1.ForecastMode_FORECAST_MODE_DAILY,
-		Details: &weatherv1.ForecastDetails{
-			Label: req.GetDetails().GetLabel(),
-		},
-		Warnings: []string{"none"},
-		Ack:      &emptypb.Empty{},
-	}, nil
-}
-
-func (handler) Health(
-	_ context.Context,
-	_ *emptypb.Empty,
-) (*weatherv1.HealthResponse, error) {
-	return &weatherv1.HealthResponse{
-		Ack: &emptypb.Empty{},
-	}, nil
+func (handler) Forecast(_ context.Context, req *weatherv1.GetForecastRequest) (*weatherv1.GetForecastResponse, error) {
+	return &weatherv1.GetForecastResponse{ReportId: "forecast-1"}, nil
 }
 
 func main() {
-	server := mcp.NewServer(&mcp.Implementation{
-		Name:    "weather-mcp",
-		Version: "v0.1.0",
-	}, nil)
-
+	server := mcp.NewServer(&mcp.Implementation{Name: "weather-mcp", Version: "v0.1.0"}, nil)
 	if err := weatherv1.RegisterWeatherAPITools(server, handler{}); err != nil {
 		log.Fatal(err)
 	}
-
 	if err := server.Run(context.Background(), &mcp.StdioTransport{}); err != nil {
 		log.Fatal(err)
 	}
 }
 ```
 
-Generated runtime behavior:
+The [examples](examples/README.md) show the same wiring for Python, Java,
+Kotlin and TypeScript.
 
-- request arguments are validated against generated JSON Schema first
-- request JSON is unmarshaled with `protojson.Unmarshal`
-- handler receives typed protobuf messages
-- response protobuf is marshaled with `protojson.Marshal`
-- `structuredContent` carries the canonical ProtoJSON object
-- text content mirrors the same payload for clients that still rely on text
+### Go: HTTP, protobuf-defined servers, Apps and OAuth
 
-For a service like the example above:
+Generated registration accepts `*mcp.Server` from the official Go SDK, which
+owns transports, sessions and protocol negotiation. A plain Streamable HTTP
+endpoint:
 
-- `Forecast` is exposed as tool `weather_GetForecast`
-- `Health` is exposed as tool `weather_Health`
-- `InternalDebug` is omitted because `hidden = true`
-
-The TypeScript target follows the same public shape with Protobuf-ES message
-types:
-
-```ts
-import { create } from "@bufbuild/protobuf";
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  ForecastResponseSchema,
-  HealthResponseSchema,
-} from "./gen/weather/v1/weather_pb.js";
-import {
-  type WeatherAPIToolHandler,
-  registerWeatherAPITools,
-} from "./gen/weather/v1/weather_mcp.js";
-
-const handler: WeatherAPIToolHandler = {
-  async forecast(_ctx, req) {
-    return create(ForecastResponseSchema, {
-      reportId: "forecast-1",
-      details: req.details,
-    });
-  },
-  async health() {
-    return create(HealthResponseSchema);
-  },
-};
-
-const server = new Server(
-  { name: "weather-mcp", version: "0.1.0" },
-  { capabilities: { tools: {} } },
-);
-registerWeatherAPITools(server, handler, "weather");
-await server.connect(new StdioServerTransport());
+```go
+handler := mcp.NewStreamableHTTPHandler(
+	func(*http.Request) *mcp.Server { return server },
+	&mcp.StreamableHTTPOptions{Stateless: true},
+)
+mux := http.NewServeMux()
+mux.Handle("/mcp", http.NewCrossOriginProtection().Handler(handler))
+_ = http.ListenAndServe("127.0.0.1:8080", mux)
 ```
 
-JavaScript projects import the compiled `weather_mcp.js` and `weather_pb.js`
-files from the TypeScript build output instead of generating a separate
-JavaScript sidecar.
+That endpoint is **unprotected**. For public servers, declare the file-level
+`(mcp.options.v1.server)` option instead: it carries name, version, MCP Apps
+capabilities and OAuth resource-server settings, and the generator emits a
+typed `New<File>MCPServer(ctx, handlers)` factory plus
+`New<File>MCPHTTPHandler(server, verifier)`. OAuth verifies RS256 access JWTs
+against a configured HTTPS JWKS endpoint, issuer and audience, or calls your
+own `auth.TokenVerifier`. Per-RPC `required_scopes` add authorization; a
+missing scope returns HTTP 403 `insufficient_scope` before dispatch, so SDK
+clients can step up and retry. Never put bearer tokens or client secrets in
+protobuf options.
 
-## Status
+Resources can also carry raw bodies: set `mime_type` and `content_field` to a
+singular `string` or `bytes` field for dynamic text or blobs, or `source_file`
+for a static file that the generator embeds with `go:embed` (no handler
+needed). A static resource with `mime_type: "text/html;profile=mcp-app"` and
+`app_ui` CSP/permissions becomes an MCP Apps UI. Go rejects
+`execution.task_support: TASK_SUPPORT_REQUIRED` because the Go SDK does not
+implement the Tasks lifecycle; other values stay synchronous. The
+[showcase](examples/11_protobuf_first_mcp/README.md) exercises all of this.
 
-This repository implements three MCP server primitives:
+## Schema Contract
 
-- **Tools** — full support across 5 languages (Go, Python, Kotlin, Java, TypeScript)
-- **Prompts** — full support across 5 languages
-- **Resources** — full Go support; Python, Kotlin, Java, TypeScript generate
-  typed handler interfaces with stub registration (full implementation planned)
-- unary RPC only
-- proto3 only
-- supported protobuf features: scalar, enum, nested message, repeated,
-  `oneof`, `optional`, maps, recursive message schemas via `$defs`/`$ref`, and
-  these well-known types:
-  `google.protobuf.Any`, `Empty`, `Timestamp`, `Duration`, `FieldMask`,
-  `Struct`, `Value`, `ListValue`, `BoolValue`, `StringValue`, `BytesValue`,
-  `Int32Value`, `UInt32Value`, `Int64Value`, `UInt64Value`, `FloatValue`,
-  and `DoubleValue`
-- generated MCP schema requiredness is proto3-driven: a singular field WITHOUT
-  the `optional` keyword is required. A singular field WITH the `optional` keyword
-  is optional. `repeated`, `map`, and `oneof` fields are always optional.
-- fields that are not required by that generated MCP schema accept explicit
-  JSON `null` to match ProtoJSON parser behavior for unset values
-- unsupported and required to fail fast:
-  non-unary protobuf RPC methods and unsupported `google.protobuf` message
-  types
+Generated `inputSchema` and `outputSchema` follow ProtoJSON:
+
+- `int64`, `uint64`, `fixed64`, `sfixed64`, `sint64` are JSON strings; 32-bit
+  integers are JSON integers
+- `float` / `double` accept numbers and the strings `NaN`, `Infinity`,
+  `-Infinity`
+- `bytes` are base64 strings and enums use value names
+- `Timestamp` is an RFC 3339 string, `Duration` a string such as `"3600s"`,
+  `FieldMask` a field-mask string
+- `Struct`, `Value` and `ListValue` accept arbitrary JSON; `Any` uses the object
+  form with `@type`
+- recursive messages use `$defs` / `$ref`; `oneof` groups become JSON Schema
+  constraints
+
+Requiredness is proto3-driven: a singular field without `optional` is required;
+`optional`, `repeated`, `map` and `oneof` fields are not, and they accept
+explicit JSON `null` so clients that pre-validate cached schemas stay
+compatible with ProtoJSON unset semantics. Field options do not change
+requiredness.
+
+Supported scope: proto3 only, unary RPCs only, and the well-known types `Any`,
+`Empty`, `Timestamp`, `Duration`, `FieldMask`, `Struct`, `Value`, `ListValue`
+and all scalar wrappers. Streaming RPCs and other `google.protobuf` messages
+fail at generation time.
+
+## Metadata Options
+
+Import `mcp/options/v1/options.proto` to control generation. The proto file
+documents every field; this is the summary.
+
+- **Service** `option (mcp.options.v1.service)`: `namespace`, `description`,
+  default `icons`.
+- **Method** `option (mcp.options.v1.method)`: `name`, `title`, `description`,
+  `hidden`, `annotations` (`read_only_hint`, `destructive_hint`,
+  `idempotent_hint`, `open_world_hint`), `icons`, `execution.task_support`.
+  Omitted hints stay omitted; some clients render their own defaults, so set
+  hints such as `destructive_hint: false` explicitly when it matters.
+- **Field** `[(mcp.options.v1.field)]`: `description`, typed `examples`,
+  `default_value`, string constraints (`pattern`, `format`, `min_length`,
+  `max_length`), number constraints (`minimum`, `maximum`,
+  `exclusive_minimum`, `exclusive_maximum`, `multiple_of`), array constraints
+  (`min_items`, `max_items`, `unique_items`), `read_only`.
+- **Message** `option (mcp.options.v1.message)`: `title`, `description`,
+  `examples`. **Enum** / **enum value**: `title`, `description`, `hidden`
+  (typically for `_NONE` sentinels). **Oneof**: `description`, `required`.
+- **Prompt** `option (mcp.options.v1.prompt)` on a message: `name`, `title`,
+  `description`, `icons`. Fields become prompt arguments; `optional` ones are
+  not required.
+- **Resource** `option (mcp.options.v1.resource)` on a message: exactly one of
+  `uri` or `uri_template` (`{param}` placeholders), `name`, `description`,
+  `mime_type` (default `application/json`), `annotations` (`audience`,
+  `priority`), `icons`, plus `content_field`, `source_file` and `app_ui` for Go.
+
+Comments are metadata too: plain lines become descriptions, `Example: <json>`
+adds one schema example and `Examples: a | b` adds several. Typed `examples`
+in field options take precedence.
+
+```proto
+service WeatherAPI {
+  option (mcp.options.v1.service) = { namespace: "weather" };
+
+  // Forecast returns a weather report.
+  rpc Forecast(GetForecastRequest) returns (GetForecastResponse) {
+    option (mcp.options.v1.method) = {
+      name: "GetForecast"
+      title: "Get forecast"
+      annotations: { read_only_hint: true }
+    };
+  }
+}
+
+message GetForecastRequest {
+  // city is required because it is singular and not `optional`.
+  string city = 1 [(mcp.options.v1.field) = {
+    examples: [{ string_value: "Paris" }]
+    min_length: 2
+  }];
+  optional string units = 2 [(mcp.options.v1.field) = {
+    default_value: { string_value: "metric" }
+  }];
+  oneof selector {
+    option (mcp.options.v1.oneof) = { required: true };
+    string city_alias = 3;
+    int64 city_id = 4;
+  }
+}
+```
+
+## Agent Skill
+
+Install the [skills.sh](https://skills.sh/) agent skill to let your AI coding
+assistant build MCP servers with protoc-gen-mcp:
+
+```bash
+npx skills add easyp-tech/protoc-gen-mcp-skill
+```
+
+The skill lives in
+[easyp-tech/protoc-gen-mcp-skill](https://github.com/easyp-tech/protoc-gen-mcp-skill).
+
+## Development
+
+```bash
+go build ./cmd/protoc-gen-mcp
+(cd internal/codegen/testdata/node && npm ci)   # TypeScript test harness
+go test ./...
+```
+
+JVM tests need JDK 17+ and Gradle 9.2+ and skip otherwise. Fixtures and
+examples are regenerated with `easyp` (`easyp.test.yaml`, `easyp.showcase.yaml`,
+`examples/Makefile`); [AGENTS.md](AGENTS.md) lists every command and the
+repository layout. Releases publish the `protoc-gen-mcp` binary through
+[GoReleaser](.goreleaser.yaml); downstream projects compile generated sources
+against their language SDKs.
 
 ## License
 
