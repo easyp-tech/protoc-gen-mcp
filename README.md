@@ -27,11 +27,8 @@ declarations.
 | **Markdown, HTML, binary resources** | ✅ | 📋 Planned | 📋 Planned | 📋 Planned | 📋 Planned |
 | **OAuth/JWKS and tool scopes** | ✅ | 📋 Planned | 📋 Planned | 📋 Planned | 📋 Planned |
 
-**Language parity:** the current status and proposed delivery sequence for
-TypeScript, Python, Kotlin, and Java are documented in the
-[cross-language roadmap](docs/cross-language-roadmap.md). "Interface" means
-that a target emits handler declarations but does **not** yet implement
-full resource registration and reading.
+"Interface" means that a target emits handler declarations but does **not**
+yet implement full resource registration and reading.
 
 ## Quickstart: run the full Go showcase
 
@@ -61,8 +58,7 @@ retrieves their MCP resources but is **not** a browser/iframe host.
 `-demo-auth` is intentionally insecure and loopback-only; never expose
 these tokens publicly. Sample issuer/JWKS URLs in the protobuf fixture are
 placeholders, **not** an identity provider. See the
-[full guide](examples/11_protobuf_first_mcp/README.md) and
-[Go MCP Apps/OAuth reference](docs/mcp-apps-oauth.md).
+[full guide](examples/11_protobuf_first_mcp/README.md).
 
 ## Architecture and current scope
 
@@ -242,8 +238,8 @@ directly from protobuf. For dynamic bodies, set
 the generator emits `go:embed` and needs no handwritten resource handler. The generator registers both static and templated
 resources with the official SDK and emits the selected field without ProtoJSON
 wrapping. Without `content_field`, resources use ProtoJSON and must declare a
-JSON-compatible MIME. See [MCP Apps and OAuth](docs/mcp-apps-oauth.md) for a
-complete `SKILL.md` example and UI resource wiring.
+JSON-compatible MIME. The [showcase](examples/11_protobuf_first_mcp/README.md)
+has a complete `SKILL.md` example and UI resource wiring.
 
 ### Protobuf-defined Go servers, apps and OAuth
 
@@ -278,15 +274,14 @@ resource CSP and browser permissions. Asset paths are relative to the
 generated Go package. The frontend build and the external OAuth identity
 provider remain application-owned.
 
-See [Protobuf-first MCP server, Apps and OAuth](docs/mcp-apps-oauth.md) for
-working options, generated APIs, and security boundaries.
+See the [showcase](examples/11_protobuf_first_mcp/README.md) for working
+options, generated APIs, and security boundaries.
 
 ### Go Streamable HTTP (official Go SDK)
 
 **Upgrading from 0.7.0:** this is a breaking Go API and HTTP behavior change.
-Regenerate Go bindings and follow the
-[migration guide](docs/mcp-apps-oauth.md#migrating-go-applications-from-070)
-for removed APIs, type replacements and the SDK stateful alternative.
+Regenerate Go bindings; the [changelog](CHANGELOG.md) lists removed APIs and
+their SDK replacements.
 
 Generated Go registration accepts `*mcp.Server` from
 `github.com/modelcontextprotocol/go-sdk/mcp`. The SDK owns transport,
@@ -311,13 +306,11 @@ use this mode: no persistent `MCP-Session-Id`, legacy GET listen stream or
 `Last-Event-ID` replay. Request-associated SSE notifications remain possible;
 new-protocol clients can use `subscriptions/listen` for list changes. Applications
 that need legacy stateful sessions must configure the SDK directly, including
-authentication and any event store; see the
-[HTTP contract](docs/mcp-apps-oauth.md#http-contract-stateless-helpers-and-stateful-sdk-servers).
+authentication and any event store.
 This low-level snippet is an **unprotected** endpoint. For public
 servers, prefer protobuf `server.oauth` and the generated
 `New<File>MCPHTTPHandler` so OAuth middleware and discovery are applied.
-See the [runnable showcase](examples/11_protobuf_first_mcp/README.md)
-and [security reference](docs/mcp-apps-oauth.md).
+See the [runnable showcase](examples/11_protobuf_first_mcp/README.md).
 
 ## Testing With MCP Inspector
 
