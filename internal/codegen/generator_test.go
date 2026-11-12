@@ -934,8 +934,8 @@ func TestGenerate_TypeScriptStreamingRPCFailsBeforeOutput(t *testing.T) {
 }
 
 func TestGenerateJavaExampleHandlerCompileSmoke(t *testing.T) {
-	if _, err := exec.LookPath("javac"); err != nil {
-		t.Skipf("javac not found in PATH: %v", err)
+	if err := jvmToolRuns("javac"); err != nil {
+		t.Skipf("javac is not usable: %v", err)
 	}
 
 	plugin := newExampleProtogenPlugin(t)
@@ -1967,4 +1967,16 @@ func TestWriteExampleGoldenFiles(t *testing.T) {
 		}
 		t.Logf("wrote %s (%d bytes)", target, len(got))
 	}
+}
+
+// jvmToolRuns checks that a JDK tool actually starts. macOS ships /usr/bin
+// java and javac stubs that are found in PATH but fail without a JDK.
+func jvmToolRuns(name string) error {
+	if _, err := exec.LookPath(name); err != nil {
+		return err
+	}
+	if out, err := exec.Command(name, "-version").CombinedOutput(); err != nil {
+		return fmt.Errorf("%s -version: %v: %s", name, err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }

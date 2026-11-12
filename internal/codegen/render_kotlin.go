@@ -187,11 +187,11 @@ func renderKotlinResources(generated *protogen.GeneratedFile, model JVMFileModel
 		if resource.IsTemplate {
 			generated.P("    suspend fun list", resource.ProtoName, "s(): List<io.modelcontextprotocol.kotlin.sdk.types.Resource>")
 			paramList := ""
-			for i, param := range resource.Params {
+			for i, identifier := range kotlinParamIdentifiers(resource.Params) {
 				if i > 0 {
 					paramList += ", "
 				}
-				paramList += param.Name + ": String"
+				paramList += identifier + ": String"
 			}
 			generated.P("    suspend fun read", resource.ProtoName, "(", paramList, "): Any")
 		} else {

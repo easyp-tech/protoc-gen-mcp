@@ -177,7 +177,7 @@ func (builder *schemaBuilder) generateMessageSchema(message *protogen.Message) (
 	if len(messageMetadata.TypedExamples) > 0 {
 		schema.Examples = messageMetadata.TypedExamples
 	} else {
-		schema.Examples = materializeExamples(messageMetadata.Examples)
+		schema.Examples = MaterializeExamples(messageMetadata.Examples)
 	}
 
 	for _, field := range message.Fields {
@@ -261,7 +261,7 @@ func (builder *schemaBuilder) generateFieldSchema(field *protogen.Field) (*jsons
 		if len(fieldMetadata.TypedExamples) > 0 {
 			arrayExamples = fieldMetadata.TypedExamples
 		} else {
-			arrayExamples = materializeExamples(fieldMetadata.Examples)
+			arrayExamples = MaterializeExamples(fieldMetadata.Examples)
 		}
 		if len(arrayExamples) == 0 {
 			arrayExamples = builder.autoFieldExamples(field)
@@ -283,7 +283,7 @@ func (builder *schemaBuilder) generateFieldSchema(field *protogen.Field) (*jsons
 	// TypedExamples take priority over string-based examples from comments.
 	if len(fieldMetadata.TypedExamples) > 0 {
 		fieldSchema.Examples = fieldMetadata.TypedExamples
-	} else if explicitExamples := materializeExamples(fieldMetadata.Examples); len(explicitExamples) > 0 {
+	} else if explicitExamples := MaterializeExamples(fieldMetadata.Examples); len(explicitExamples) > 0 {
 		fieldSchema.Examples = explicitExamples
 	} else if autoExamples := builder.autoFieldExamples(field); len(autoExamples) > 0 {
 		fieldSchema.Examples = autoExamples
@@ -308,7 +308,7 @@ func (builder *schemaBuilder) generateMapFieldSchema(field *protogen.Field) (*js
 		return nil, err
 	}
 
-	examples := materializeExamples(fieldMetadata.Examples)
+	examples := MaterializeExamples(fieldMetadata.Examples)
 	if len(examples) == 0 {
 		if autoExample, ok := builder.autoMapExample(field, make(map[protoreflect.FullName]int)); ok {
 			examples = []any{autoExample}
@@ -1141,7 +1141,9 @@ func disallowAdditionalProperties() *jsonschema.Schema {
 	}
 }
 
-func materializeExamples(examples []string) []any {
+// MaterializeExamples parses comment-derived examples as JSON literals and
+// keeps any example that is not valid JSON as a plain string.
+func MaterializeExamples(examples []string) []any {
 	if len(examples) == 0 {
 		return nil
 	}

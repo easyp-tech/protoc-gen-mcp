@@ -24,6 +24,8 @@ type ToolAnnotations struct {
 type Icon struct {
 	URL      string
 	MIMEType string
+	Sizes    []string
+	Theme    string
 }
 
 // ToolSpec describes a generated typed protobuf-backed MCP tool.

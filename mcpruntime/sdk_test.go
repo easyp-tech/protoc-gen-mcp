@@ -130,3 +130,31 @@ func TestAppValidation(t *testing.T) {
 		t.Fatal("app extension not advertised")
 	}
 }
+
+func TestSDKProtoToolIconsKeepSizesAndTheme(t *testing.T) {
+	server := mcp.NewServer(&mcp.Implementation{Name: "sdk-test", Version: "v0.0.1"}, nil)
+	err := RegisterSDKProtoTool(server, ToolSpec[*emptypb.Empty, *emptypb.Empty]{
+		Name:             "hello",
+		InputSchemaJSON:  `{"type":"object"}`,
+		OutputSchemaJSON: `{"type":"object"}`,
+		Icons:            []Icon{{URL: "https://example.com/i.svg", MIMEType: "image/svg+xml", Sizes: []string{"any"}, Theme: "dark"}},
+		NewRequest:       func() *emptypb.Empty { return &emptypb.Empty{} },
+		NewResponse:      func() *emptypb.Empty { return &emptypb.Empty{} },
+		Handler: func(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
+			return &emptypb.Empty{}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("register SDK proto tool: %v", err)
+	}
+
+	tools, err := testSDKServerClient(t, server).ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("tools/list: %v", err)
+	}
+	icons := tools.Tools[0].Icons
+	if len(icons) != 1 || icons[0].Source != "https://example.com/i.svg" || icons[0].MIMEType != "image/svg+xml" ||
+		len(icons[0].Sizes) != 1 || icons[0].Sizes[0] != "any" || icons[0].Theme != mcp.IconThemeDark {
+		t.Fatalf("icons = %+v, want src, MIME type, sizes and dark theme", icons)
+	}
+}
