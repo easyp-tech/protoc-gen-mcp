@@ -44,10 +44,10 @@ dist/
 
 # Example server binaries
 examples/1_helloworld/helloworld-server
-examples/jvm/.gradle/
-examples/jvm/*/build/
-examples/node/**/node_modules/
-examples/node/**/dist/
+internal/examplemcp/jvm/.gradle/
+internal/examplemcp/jvm/*/build/
+internal/codegen/testdata/node/node_modules/
+internal/codegen/testdata/node/dist/
 examples/6_java_standalone/.gradle/
 examples/6_java_standalone/build/
 examples/7_kotlin_standalone/.gradle/

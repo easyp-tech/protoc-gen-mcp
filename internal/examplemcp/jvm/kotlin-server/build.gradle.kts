@@ -26,7 +26,7 @@ application {
     mainClass.set("internal.examplemcp.kotlin.ExampleKotlinServerKt")
 }
 
-val repoRoot = rootProject.projectDir.resolve("../..").canonicalFile
+val repoRoot = rootProject.projectDir.resolve("../../..").canonicalFile
 val protocGenMcpBinary = rootProject.layout.buildDirectory.file("tools/protoc-gen-mcp")
 val stagedProtoDir = layout.buildDirectory.dir("staged-proto")
 val stageProtoSources = tasks.register<Sync>("stageProtoSources") {

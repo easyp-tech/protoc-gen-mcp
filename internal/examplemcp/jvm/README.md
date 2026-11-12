@@ -13,7 +13,7 @@ here.
 
 ## Prerequisites
 
-- Go 1.24+
+- Go 1.26+
 - JDK 17+
 - Gradle 9.2+
 
@@ -32,7 +32,7 @@ Gradle build uses the Maven artifact `com.google.protobuf:protoc:4.34.1`.
 Compile both JVM targets from the repository root:
 
 ```bash
-gradle --no-daemon -p examples/jvm :java-server:compileJava :kotlin-server:compileKotlin
+gradle --no-daemon -p internal/examplemcp/jvm :java-server:compileJava :kotlin-server:compileKotlin
 ```
 
 The Java subproject passes `lang=java` to `protoc-gen-mcp` and compiles the
@@ -52,13 +52,13 @@ All three are required for the tested Kotlin build graph.
 Build installable stdio scripts for both targets:
 
 ```bash
-gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist
+gradle --no-daemon -p internal/examplemcp/jvm :java-server:installDist :kotlin-server:installDist
 ```
 
 This produces the tested script entrypoints:
 
-- `examples/jvm/java-server/build/install/java-server/bin/java-server`
-- `examples/jvm/kotlin-server/build/install/kotlin-server/bin/kotlin-server`
+- `internal/examplemcp/jvm/java-server/build/install/java-server/bin/java-server`
+- `internal/examplemcp/jvm/kotlin-server/build/install/kotlin-server/bin/kotlin-server`
 
 Use these installed scripts as the canonical stdio launch path for manual
 checks. They match the repository's automated runtime proof.
@@ -68,13 +68,13 @@ checks. They match the repository's automated runtime proof.
 From the repository root, start the installed Java server:
 
 ```bash
-examples/jvm/java-server/build/install/java-server/bin/java-server
+internal/examplemcp/jvm/java-server/build/install/java-server/bin/java-server
 ```
 
 Start the installed Kotlin server:
 
 ```bash
-examples/jvm/kotlin-server/build/install/kotlin-server/bin/kotlin-server
+internal/examplemcp/jvm/kotlin-server/build/install/kotlin-server/bin/kotlin-server
 ```
 
 The example servers register generated tools through the current public JVM
@@ -101,7 +101,7 @@ The tests validate:
 For the full repository-level JVM truth path, run:
 
 ```bash
-gradle --no-daemon -p examples/jvm :java-server:compileJava :kotlin-server:compileKotlin
-gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist
+gradle --no-daemon -p internal/examplemcp/jvm :java-server:compileJava :kotlin-server:compileKotlin
+gradle --no-daemon -p internal/examplemcp/jvm :java-server:installDist :kotlin-server:installDist
 go test ./internal/examplemcp -run 'Test(Java|Kotlin).*OverStdio' -count=1
 ```

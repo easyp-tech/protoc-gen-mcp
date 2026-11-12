@@ -1,5 +1,5 @@
 {
-  "name": "protoc-gen-mcp-sdk-spike",
+  "name": "protoc-gen-mcp-ts-harness",
   "version": "0.0.0",
   "private": true,
   "type": "module",

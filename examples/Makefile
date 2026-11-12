@@ -1,7 +1,7 @@
 .PHONY: clean-build-artifacts generate lint
 
 clean-build-artifacts:
-	rm -rf jvm/*/build 6_java_standalone/build 7_kotlin_standalone/build
+	rm -rf 6_java_standalone/build 7_kotlin_standalone/build
 	rm -rf 8_typescript_standalone/dist
 
 generate:

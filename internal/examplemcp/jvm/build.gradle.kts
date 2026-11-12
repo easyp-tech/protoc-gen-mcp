@@ -5,7 +5,7 @@ plugins {
     id("org.jetbrains.kotlin.jvm") version "2.3.10" apply false
 }
 
-val repoRoot = rootDir.resolve("../..").canonicalFile
+val repoRoot = rootDir.resolve("../../..").canonicalFile
 val jvmBuildRoot = repoRoot.parentFile.resolve(".protoc-gen-mcp-jvm-build").canonicalFile
 val protocGenMcpBinary = layout.buildDirectory.file("tools/protoc-gen-mcp")
 

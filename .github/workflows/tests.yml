@@ -36,7 +36,7 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: examples/node/sdk-spike/package-lock.json
+          cache-dependency-path: internal/codegen/testdata/node/package-lock.json
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -77,15 +77,15 @@ jobs:
         run: git diff --exit-code
 
       - name: Install Node dependencies
-        working-directory: examples/node/sdk-spike
+        working-directory: internal/codegen/testdata/node
         run: npm ci
 
-      - name: Typecheck generated TypeScript SDK spike
-        working-directory: examples/node/sdk-spike
+      - name: Typecheck TypeScript test harness
+        working-directory: internal/codegen/testdata/node
         run: npm run typecheck
 
-      - name: Build generated TypeScript SDK spike
-        working-directory: examples/node/sdk-spike
+      - name: Build TypeScript test harness
+        working-directory: internal/codegen/testdata/node
         run: npm run build
 
       - name: Run generated Node stdio tests
@@ -93,8 +93,8 @@ jobs:
 
       - name: Build JVM examples
         run: |
-          gradle --no-daemon -p examples/jvm :java-server:compileJava :kotlin-server:compileKotlin
-          gradle --no-daemon -p examples/jvm :java-server:installDist :kotlin-server:installDist
+          gradle --no-daemon -p internal/examplemcp/jvm :java-server:compileJava :kotlin-server:compileKotlin
+          gradle --no-daemon -p internal/examplemcp/jvm :java-server:installDist :kotlin-server:installDist
 
       - name: Run JVM stdio tests
         run: |
@@ -130,10 +130,10 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: examples/node/sdk-spike/package-lock.json
+          cache-dependency-path: internal/codegen/testdata/node/package-lock.json
 
       - name: Install Node dependencies
-        working-directory: examples/node/sdk-spike
+        working-directory: internal/codegen/testdata/node
         run: npm ci
 
       - name: Enforce 80% coverage for product packages
