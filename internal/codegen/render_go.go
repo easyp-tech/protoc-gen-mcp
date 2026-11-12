@@ -264,8 +264,8 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 				generated.P("List", resource.ProtoName, "s(ctx ", contextIdent, ") ([]", mcpResourceIdent, ", error)")
 				// Read method with URI template params.
 				paramList := "ctx " + contextIdent
-				for _, param := range resource.Params {
-					paramList += ", " + param.Name + " string"
+				for _, identifier := range goParamIdentifiers(resource.Params) {
+					paramList += ", " + identifier + " string"
 				}
 				generated.P("Read", resource.ProtoName, "(", paramList, ") (*", outputType, ", error)")
 			} else {
@@ -330,14 +330,12 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 				generated.P("if err != nil {")
 				generated.P("return nil, err")
 				generated.P("}")
-				// Extract each param.
-				for _, param := range resource.Params {
-					generated.P(param.Name, " := params[", quote(param.Name), "]")
-				}
-				// Call impl.
+				// Pass params straight from the map: template names are not
+				// declared as locals, so they cannot clash with Go keywords or
+				// with the handler's own identifiers.
 				paramArgs := "ctx"
 				for _, param := range resource.Params {
-					paramArgs += ", " + param.Name
+					paramArgs += ", params[" + quote(param.Name) + "]"
 				}
 				generated.P("result, err := impl.Read", resource.ProtoName, "(", paramArgs, ")")
 				generated.P("if err != nil {")

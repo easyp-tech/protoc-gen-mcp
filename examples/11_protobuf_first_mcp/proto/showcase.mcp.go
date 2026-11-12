@@ -164,8 +164,7 @@ func RegisterShowcaseResources(ctx context.Context, server *mcp.Server, impl Sho
 			if err != nil {
 				return nil, err
 			}
-			id := params["id"]
-			result, err := impl.ReadNoteText(ctx, id)
+			result, err := impl.ReadNoteText(ctx, params["id"])
 			if err != nil {
 				return nil, err
 			}
