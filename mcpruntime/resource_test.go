@@ -200,3 +200,30 @@ func TestMarshalResourceContent_RawValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractURIParams_PercentDecodesValues(t *testing.T) {
+	tests := []struct {
+		uri  string
+		want string
+	}{
+		{"users://john%20doe/profile", "john doe"},
+		{"users://a%2Fb/profile", "a/b"},
+		{"users://%D0%BC%D0%B8%D1%80/profile", "мир"},
+		{"users://a+b/profile", "a+b"},
+	}
+	for _, tt := range tests {
+		params, err := ExtractURIParams(tt.uri, "users://{user_id}/profile")
+		if err != nil {
+			t.Fatalf("ExtractURIParams(%q): %v", tt.uri, err)
+		}
+		if got := params["user_id"]; got != tt.want {
+			t.Errorf("ExtractURIParams(%q) user_id = %q, want %q", tt.uri, got, tt.want)
+		}
+	}
+}
+
+func TestExtractURIParams_RejectsMalformedEscape(t *testing.T) {
+	if _, err := ExtractURIParams("users://bad%zz/profile", "users://{user_id}/profile"); err == nil {
+		t.Fatal("expected error for malformed percent-escape")
+	}
+}
