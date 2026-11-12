@@ -36,8 +36,12 @@ func TestGeneratedSchemasMatchProtoJSONContract(t *testing.T) {
 		if !slices.Equal(schema.Required, []string{"city", "count", "details"}) {
 			t.Fatalf("input required = %v, want [city count details]", schema.Required)
 		}
-		if len(schema.Examples) != 1 || exampleString(t, schema.Examples[0]) != `{"city":"Paris","count":2,"details":{"label":"today"}}` {
-			t.Fatalf("input examples = %v, want fixture example", schema.Examples)
+		if len(schema.Examples) != 1 {
+			t.Fatalf("input examples = %v, want one fixture example", schema.Examples)
+		}
+		if example := exampleObject(t, schema.Examples[0]); example["city"] != "Paris" || example["count"] != float64(2) ||
+			exampleObject(t, example["details"])["label"] != "today" {
+			t.Fatalf("input examples = %v, want parsed fixture example", schema.Examples)
 		}
 
 		details := schema.Properties["details"]
