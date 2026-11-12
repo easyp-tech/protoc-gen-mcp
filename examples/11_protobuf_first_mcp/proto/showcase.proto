@@ -1,0 +1,169 @@
+syntax = "proto3";
+
+package showcase.v1;
+
+option go_package = "github.com/easyp-tech/protoc-gen-mcp/examples/11_protobuf_first_mcp/proto;showcasev1";
+
+import "mcp/options/v1/options.proto";
+
+// A single protobuf file configures the MCP server, OAuth metadata, and UI.
+option (mcp.options.v1.server) = {
+  name: "protobuf-first-showcase"
+  version: "v1.0.0"
+  // Apps capability is inferred from app_ui and the HTML resource.
+  oauth: {
+    resource_url: "https://mcp.example.com/mcp"
+    authorization_servers: "https://auth.example.com"
+    scopes: "showcase:read"
+    issuer: "https://auth.example.com"
+    jwks_uri: "https://auth.example.com/.well-known/jwks.json"
+    audience: "https://mcp.example.com/mcp"
+    mcp_path: "/mcp"
+  }
+};
+
+// ShowcaseAPI demonstrates generated tools with and without extra scopes.
+service ShowcaseAPI {
+  option (mcp.options.v1.service) = {
+    namespace: "showcase"
+    description: "Inspect and publish demonstration reports."
+  };
+
+  // GetOverview is an unprivileged tool linked to an MCP Apps HTML view.
+  rpc GetOverview(GetOverviewRequest) returns (GetOverviewResponse) {
+    option (mcp.options.v1.method) = {
+      name: "get_overview"
+      title: "Get overview"
+      description: "Return a report summary and link to its MCP Apps dashboard."
+      annotations: { read_only_hint: true }
+      app_ui: {
+        resource_uri: "ui://showcase/dashboard"
+        visibility: "model"
+        visibility: "app"
+      }
+    };
+  }
+
+  // PublishReport requires an additional scope beyond the server-wide read scope.
+  rpc PublishReport(PublishReportRequest) returns (PublishReportResponse) {
+    option (mcp.options.v1.method) = {
+      name: "publish_report"
+      title: "Publish report"
+      description: "Create a demonstration report in volatile memory."
+      required_scopes: "showcase:write"
+    };
+  }
+}
+
+// GetOverviewRequest identifies the requested report topic.
+message GetOverviewRequest {
+  // Topic that should appear in the overview.
+  string topic = 1;
+}
+
+// GetOverviewResponse returns a structured report summary.
+message GetOverviewResponse {
+  // Echoes the queried topic.
+  string topic = 1;
+  // Human-readable summary of demonstration state.
+  string summary = 2;
+  // Number of reports published during the current process.
+  int32 report_count = 3;
+}
+
+// PublishReportRequest contains the report data.
+message PublishReportRequest {
+  // Title of the new report.
+  string title = 1;
+  // Plain-text report body.
+  string body = 2;
+}
+
+// PublishReportResponse confirms the new report.
+message PublishReportResponse {
+  // Identifier created by the demonstration handler.
+  string report_id = 1;
+  // Status of the operation.
+  string status = 2;
+}
+
+// GuidancePrompt illustrates typed protobuf-backed prompts.
+message GuidancePrompt {
+  option (mcp.options.v1.prompt) = {
+    name: "showcase_guide"
+    title: "Showcase guide"
+    description: "Suggest how to explore this MCP server."
+  };
+  // Focus topic for the generated prompt.
+  string topic = 1;
+}
+
+// ServerStatus illustrates a dynamic ProtoJSON MCP resource.
+message ServerStatus {
+  option (mcp.options.v1.resource) = {
+    uri: "showcase://status"
+    name: "server_status"
+    description: "Volatile server status in JSON."
+    mime_type: "application/json"
+  };
+  // Whether the in-memory server is available.
+  bool ready = 1;
+  // Number of reports published in this process.
+  int32 report_count = 2;
+}
+
+// NoteText illustrates a dynamic text/plain resource URI template.
+message NoteText {
+  option (mcp.options.v1.resource) = {
+    uri_template: "showcase://notes/{id}"
+    name: "note_text"
+    description: "Read a named plain-text note."
+    mime_type: "text/plain"
+    content_field: "text"
+  };
+  // Text returned without a JSON envelope.
+  string text = 1;
+}
+
+// BinaryAttachment illustrates the MCP binary blob wire representation.
+message BinaryAttachment {
+  option (mcp.options.v1.resource) = {
+    uri: "showcase://attachment"
+    name: "binary_attachment"
+    description: "Small binary attachment served as an MCP blob."
+    mime_type: "application/octet-stream"
+    content_field: "data"
+  };
+  // Raw bytes of the example attachment.
+  bytes data = 1;
+}
+
+// EmbeddedSkill is a real SKILL.md automatically embedded by the generator.
+message EmbeddedSkill {
+  option (mcp.options.v1.resource) = {
+    uri: "showcase://SKILL.md"
+    name: "showcase_skill"
+    description: "Instructions exposed as Markdown rather than JSON."
+    mime_type: "text/markdown"
+    source_file: "assets/SKILL.md"
+  };
+}
+
+// Dashboard is a self-contained HTML UI asset embedded by the generator.
+message Dashboard {
+  option (mcp.options.v1.resource) = {
+    uri: "ui://showcase/dashboard"
+    name: "showcase_dashboard"
+    description: "Static MCP Apps HTML resource."
+    mime_type: "text/html;profile=mcp-app"
+    source_file: "assets/dashboard.html"
+    app_ui: {
+      csp: {
+        connect_domains: "https://api.example.com"
+        resource_domains: "https://cdn.example.com"
+      }
+      permissions: { clipboard_write: true }
+      prefers_border: true
+    }
+  };
+}

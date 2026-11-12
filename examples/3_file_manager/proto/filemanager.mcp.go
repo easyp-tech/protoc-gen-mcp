@@ -7,6 +7,7 @@ import (
 	context "context"
 	errors "errors"
 	mcpruntime "github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
+	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	proto "google.golang.org/protobuf/proto"
 )
 
@@ -17,11 +18,11 @@ type FileManagerAPIToolHandler interface {
 }
 
 // RegisterFileManagerAPITools registers generated MCP tools for FileManagerAPI.
-func RegisterFileManagerAPITools(server *mcpruntime.Server, impl FileManagerAPIToolHandler, opts ...mcpruntime.RegisterOption) error {
+func RegisterFileManagerAPITools(server *mcp.Server, impl FileManagerAPIToolHandler, opts ...mcpruntime.RegisterOption) error {
 	if impl == nil {
 		return errors.New("RegisterFileManagerAPITools: impl is nil")
 	}
-	if err := mcpruntime.RegisterProtoTool(server, mcpruntime.ToolSpec[*ReadFileRequest, *ReadFileResponse]{
+	if err := mcpruntime.RegisterSDKProtoTool(server, mcpruntime.ToolSpec[*ReadFileRequest, *ReadFileResponse]{
 		Name:             "ReadFile",
 		Title:            "",
 		Description:      "Reads the content of a file.",
@@ -36,7 +37,7 @@ func RegisterFileManagerAPITools(server *mcpruntime.Server, impl FileManagerAPIT
 	}, opts...); err != nil {
 		return err
 	}
-	if err := mcpruntime.RegisterProtoTool(server, mcpruntime.ToolSpec[*DeleteFileRequest, *DeleteFileResponse]{
+	if err := mcpruntime.RegisterSDKProtoTool(server, mcpruntime.ToolSpec[*DeleteFileRequest, *DeleteFileResponse]{
 		Name:             "DeleteFile",
 		Title:            "",
 		Description:      "Permanently deletes a file.",

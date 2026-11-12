@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/easyp-tech/protoc-gen-mcp/internal/schema"
+	mcpoptionsv1 "github.com/easyp-tech/protoc-gen-mcp/mcp/options/v1"
 	"github.com/google/jsonschema-go/jsonschema"
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -17,7 +18,12 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 		return FileModel{}, fmt.Errorf("only proto3 files are supported in MVP: %s", file.Desc.Path())
 	}
 
+	serverConfig, err := getServerConfig(file)
+	if err != nil {
+		return FileModel{}, err
+	}
 	model := FileModel{
+		ServerConfig:            serverConfig,
 		ProtoPath:               file.Desc.Path(),
 		GeneratedFilenamePrefix: file.GeneratedFilenamePrefix,
 		Options:                 opts,
@@ -47,6 +53,18 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 			}
 			if !include {
 				continue
+			}
+			// The official Go SDK cannot accept the 2025-11-25 task opt-in
+			// or return its task lifecycle. OPTIONAL lets clients call the tool
+			// normally, so it is advertised without execution.taskSupport and
+			// runs synchronously. Silently dropping REQUIRED would run a
+			// task-only operation synchronously, so it is rejected.
+			if opts.Language == LanguageGo {
+				switch methodMetadata.TaskSupport {
+				case mcpoptionsv1.TaskSupport_TASK_SUPPORT_NONE, mcpoptionsv1.TaskSupport_TASK_SUPPORT_OPTIONAL:
+				default:
+					return FileModel{}, fmt.Errorf("method %s in %s: execution.task_support=%s is not supported by lang=go: the official Go MCP SDK does not implement the MCP 2025-11-25 Tasks lifecycle; omit execution.task_support or use TASK_SUPPORT_NONE or TASK_SUPPORT_OPTIONAL for synchronous execution", method.Desc.FullName(), file.Desc.Path(), methodMetadata.TaskSupport)
+				}
 			}
 
 			inputSchema, err := generateSchema(method.Input)
@@ -93,6 +111,8 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 				Annotations:      methodMetadata.Annotations,
 				Icons:            methodMetadata.Icons,
 				TaskSupport:      methodMetadata.TaskSupport,
+				AppUI:            methodMetadata.AppUI,
+				RequiredScopes:   methodMetadata.RequiredScopes,
 			}
 			if len(methodModel.Icons) == 0 {
 				methodModel.Icons = serviceModel.Icons
@@ -131,7 +151,11 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 		return FileModel{}, err
 	}
 	model.Resources = resources
-
+	if opts.Language == LanguageGo {
+		if err := validateServerModel(model); err != nil {
+			return FileModel{}, err
+		}
+	}
 	return model, nil
 }
 

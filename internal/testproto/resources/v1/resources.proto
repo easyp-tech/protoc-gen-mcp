@@ -6,6 +6,13 @@ option go_package = "github.com/easyp-tech/protoc-gen-mcp/internal/testproto/res
 
 import "mcp/options/v1/options.proto";
 
+// File-scoped server metadata drives the generated server/HTTP factories.
+option (mcp.options.v1.server) = {
+  name: "resource-fixture-server"
+  version: "v1.0.0"
+  apps: { enabled: true }
+};
+
 // ServerStatus is a static resource returning server health info.
 message ServerStatus {
   option (mcp.options.v1.resource) = {
@@ -66,6 +73,63 @@ message Document {
   string body = 2;
   // The document author.
   string author = 3;
+}
+
+// SkillDocument is served as raw Markdown instead of ProtoJSON.
+message SkillDocument {
+  option (mcp.options.v1.resource) = {
+    name: "skill_document"
+    uri: "skill://example/SKILL.md"
+    description: "Instructions for the example MCP skill"
+    mime_type: "text/markdown"
+    content_field: "markdown"
+  };
+  // Raw Markdown body read from the embedded SKILL.md file.
+  string markdown = 1;
+}
+
+// PlainText demonstrates parameterized text resources.
+message PlainText {
+  option (mcp.options.v1.resource) = {
+    name: "plain_text"
+    uri_template: "docs://example/{name}"
+    mime_type: "text/plain"
+    content_field: "body"
+  };
+  // Raw body of the dynamically selected plain-text document.
+  string body = 1;
+}
+
+// RawBinary demonstrates an MCP blob using a bytes content field.
+message RawBinary {
+  option (mcp.options.v1.resource) = {
+    name: "raw_binary"
+    uri: "blob://example/attachment"
+    mime_type: "application/octet-stream"
+    content_field: "data"
+  };
+  // Unmodified binary payload returned in MCP blob form.
+  bytes data = 1;
+}
+
+// AppPage is an MCP Apps HTML resource generated from a protobuf message.
+message AppPage {
+  option (mcp.options.v1.resource) = {
+    name: "report_ui"
+    uri: "ui://example/report"
+    mime_type: "text/html;profile=mcp-app"
+    source_file: "testdata/report.html"
+    app_ui: {
+      csp: {
+        connect_domains: "https://api.example.com"
+        resource_domains: "https://cdn.example.com"
+      }
+      permissions: { clipboard_write: true }
+      prefers_border: true
+    }
+  };
+  // Interactive HTML content delivered as an MCP Apps resource.
+  string html = 1;
 }
 
 // PlainData is NOT a resource — used to test that non-resource messages are ignored.

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Protobuf-first MCP Showcase</title>
+  <style>
+    :root { color-scheme: light dark; font: 16px/1.5 system-ui, sans-serif; }
+    body { margin: 0; padding: 2rem; background: Canvas; color: CanvasText; }
+    main { max-width: 720px; margin: auto; }
+    h1 { line-height: 1.2; }
+    code { background: color-mix(in srgb, CanvasText 8%, Canvas); padding: .15em .4em; border-radius: .25em; }
+    .info { border: 1px solid color-mix(in srgb, CanvasText 20%, Canvas); border-radius: .75rem; padding: 1.25rem; }
+    button { font: inherit; border-radius: .4rem; border: 1px solid CanvasText; padding: .5rem 1rem; cursor: pointer; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>MCP Apps — protobuf-first showcase</h1>
+  <div class="info">
+    <p>This page is embedded by the generated Go server and served as
+      <code>text/html;profile=mcp-app</code>.</p>
+    <p>The <code>showcase_get_overview</code> tool points to this resource through
+      <code>_meta.ui.resourceUri</code>.</p>
+    <p>Its CSP, clipboard permission request, and border preference come from
+      the <code>.proto</code> declaration.</p>
+    <button type="button" id="copy">Copy resource URI</button>
+    <p id="feedback" role="status" aria-live="polite"></p>
+  </div>
+  <p>This static page demonstrates UI delivery and browser permissions. It
+    does not import a JavaScript MCP Apps client or call tools from the iframe;
+    the included Go SDK client demonstrates the protocol interactions.</p>
+</main>
+<script>
+  document.querySelector("#copy").addEventListener("click", async () => {
+    const feedback = document.querySelector("#feedback");
+    try {
+      await navigator.clipboard.writeText("ui://showcase/dashboard");
+      feedback.textContent = "Resource URI copied.";
+    } catch {
+      feedback.textContent = "Clipboard permission is not available in this host.";
+    }
+  });
+</script>
+</body>
+</html>
