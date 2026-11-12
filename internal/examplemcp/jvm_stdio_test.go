@@ -52,8 +52,8 @@ func ensureJVMExamplesInstalled(t *testing.T, root string) {
 	t.Helper()
 
 	ensureJVMExamplesInstalledOnce.Do(func() {
-		javaScript := filepath.Join(root, "examples/jvm/java-server/build/install/java-server/bin/java-server")
-		kotlinScript := filepath.Join(root, "examples/jvm/kotlin-server/build/install/kotlin-server/bin/kotlin-server")
+		javaScript := filepath.Join(root, "internal/examplemcp/jvm/java-server/build/install/java-server/bin/java-server")
+		kotlinScript := filepath.Join(root, "internal/examplemcp/jvm/kotlin-server/build/install/kotlin-server/bin/kotlin-server")
 		if fileExists(javaScript) && fileExists(kotlinScript) {
 			if err := jvmToolRuns("java"); err != nil {
 				ensureJVMExamplesInstalledSkip = fmt.Sprintf("java is not usable (%v); skipping JVM stdio tests", err)
@@ -72,7 +72,7 @@ func ensureJVMExamplesInstalled(t *testing.T, root string) {
 		cmd := exec.Command(
 			"gradle",
 			"--no-daemon",
-			"-p", filepath.Join(root, "examples/jvm"),
+			"-p", filepath.Join(root, "internal/examplemcp/jvm"),
 			":java-server:installDist",
 			":kotlin-server:installDist",
 		)
@@ -92,7 +92,7 @@ func ensureJVMExamplesInstalled(t *testing.T, root string) {
 }
 
 func installedJVMServerCommand(root, target string) *exec.Cmd {
-	script := filepath.Join(root, "examples/jvm", target, "build/install", target, "bin", target)
+	script := filepath.Join(root, "internal/examplemcp/jvm", target, "build/install", target, "bin", target)
 	cmd := exec.Command(script)
 	cmd.Dir = root
 	return cmd

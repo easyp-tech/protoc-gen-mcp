@@ -44,7 +44,7 @@ func TestTypeScriptRuntimeContract(t *testing.T) {
 
 	tempProject, err := os.MkdirTemp(spikeDir, ".tmp-typescript-runtime-*")
 	if err != nil {
-		t.Fatalf("create temporary TypeScript runtime project under sdk-spike: %v", err)
+		t.Fatalf("create temporary TypeScript runtime project under testdata/node: %v", err)
 	}
 	t.Cleanup(func() {
 		if err := os.RemoveAll(tempProject); err != nil {
@@ -113,7 +113,7 @@ func TestTypeScriptRuntimeContract_MultipleSidecarsShareServerRegistry(t *testin
 
 	tempProject, err := os.MkdirTemp(spikeDir, ".tmp-typescript-multi-sidecar-runtime-*")
 	if err != nil {
-		t.Fatalf("create temporary TypeScript multi-sidecar runtime project under sdk-spike: %v", err)
+		t.Fatalf("create temporary TypeScript multi-sidecar runtime project under testdata/node: %v", err)
 	}
 	t.Cleanup(func() {
 		if err := os.RemoveAll(tempProject); err != nil {
@@ -304,7 +304,7 @@ func TestTypeScriptRuntimeContract_AdvancedProtoJSON(t *testing.T) {
 
 	tempProject, err := os.MkdirTemp(spikeDir, ".tmp-typescript-advanced-runtime-*")
 	if err != nil {
-		t.Fatalf("create temporary TypeScript advanced runtime project under sdk-spike: %v", err)
+		t.Fatalf("create temporary TypeScript advanced runtime project under testdata/node: %v", err)
 	}
 	t.Cleanup(func() {
 		if err := os.RemoveAll(tempProject); err != nil {

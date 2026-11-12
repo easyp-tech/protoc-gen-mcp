@@ -26,9 +26,9 @@ descriptor-path names are retained as deprecated aliases and wrappers.
 
 The generated HTTP handler deliberately uses stateless sessions: it does not
 provide the 0.7.0 runtime's session IDs, legacy GET listen stream or replay.
-Request-associated SSE notifications remain SDK-supported. See the
-[Go migration and HTTP contract](../../docs/mcp-apps-oauth.md#migrating-go-applications-from-070)
-before moving an existing stateful application to this example's setup.
+Request-associated SSE notifications remain SDK-supported. Check the
+[changelog](../../CHANGELOG.md) before moving an existing stateful application
+to this example's setup.
 
 ## Run it
 
@@ -124,9 +124,6 @@ This intentionally uses the **local repository's**
 `mcp/options/v1/options.proto`, not the older released protobuf options
 from the pinned standalone `examples/easyp.yaml`.
 
-For additional details on the protobuf metadata and emitted SDK APIs, see
-[the Go MCP Apps/OAuth guide](../../docs/mcp-apps-oauth.md).
-
 ## What the UI example does (and does not)
 
 `Dashboard` declares a `ui://showcase/dashboard` resource in
@@ -157,6 +154,3 @@ and do not embed credentials in protobuf options or static UI assets.
 The server factory registers objects **from this protobuf file**. For a
 multi-file application, explicitly register additional generated handlers
 on the returned `*mcp.Server`.
-
-The complete rollout plan for equivalent Python, TypeScript, Java and Kotlin
-generators is in [the cross-language roadmap](../../docs/cross-language-roadmap.md).

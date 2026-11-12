@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
@@ -200,13 +201,8 @@ func (c *stdioClient) callTool(name string, arguments map[string]any) (callToolR
 }
 
 func TestServerOverStdio(t *testing.T) {
-	if _, err := exec.LookPath("go"); err != nil {
-		t.Fatalf("go not found in PATH: %v", err)
-	}
-
-	root := repoRoot(t)
-	cmd := exec.Command("go", "run", filepath.Join(root, "cmd/example-mcp-server"))
-	cmd.Dir = root
+	cmd := exec.Command(os.Args[0])
+	cmd.Env = append(os.Environ(), serveStdioEnv+"=1")
 	runServerOverStdioContract(t, cmd)
 }
 
@@ -456,7 +452,7 @@ func repoRoot(t *testing.T) string {
 func pythonExampleServerCommand(t *testing.T, root string) *exec.Cmd {
 	t.Helper()
 
-	cmd := exec.Command(pythontest.Python(t), filepath.Join(root, "cmd/example-python-mcp-server/main.py"))
+	cmd := exec.Command(pythontest.Python(t), "-m", "internal.examplemcp.python_server")
 	cmd.Dir = root
 	cmd.Env = pythontest.Env(t,
 		"PYTHONPATH="+root,

@@ -39,7 +39,7 @@ func TestTypeScriptGeneratedPublicAPICompilesUnderNodeNext(t *testing.T) {
 
 	tempProject, err := os.MkdirTemp(spikeDir, ".tmp-typescript-compile-*")
 	if err != nil {
-		t.Fatalf("create temporary TypeScript compile project under sdk-spike: %v", err)
+		t.Fatalf("create temporary TypeScript compile project under testdata/node: %v", err)
 	}
 	t.Cleanup(func() {
 		if err := os.RemoveAll(tempProject); err != nil {
@@ -77,15 +77,15 @@ func requireTypeScriptSDKSpike(t *testing.T) string {
 		t.Skipf("npm is required for TypeScript compile smoke: %v", err)
 	}
 
-	spikeDir, err := filepath.Abs(filepath.Join("..", "..", "examples", "node", "sdk-spike"))
+	spikeDir, err := filepath.Abs(filepath.Join("testdata", "node"))
 	if err != nil {
-		t.Fatalf("resolve examples/node/sdk-spike: %v", err)
+		t.Fatalf("resolve internal/codegen/testdata/node: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(spikeDir, "package.json")); err != nil {
-		t.Fatalf("examples/node/sdk-spike package.json is required: %v", err)
+		t.Fatalf("internal/codegen/testdata/node package.json is required: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(spikeDir, "node_modules", ".bin", "tsc")); err != nil {
-		t.Fatalf("local TypeScript compiler is required; run npm ci in examples/node/sdk-spike: %v", err)
+		t.Fatalf("local TypeScript compiler is required; run npm ci in internal/codegen/testdata/node: %v", err)
 	}
 	return spikeDir
 }
