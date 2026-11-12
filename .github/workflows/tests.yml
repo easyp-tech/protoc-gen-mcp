@@ -137,7 +137,18 @@ jobs:
         run: npm ci
 
       - name: Enforce 80% coverage for product packages
-        run: ./scripts/check-library-coverage.sh coverage.out
+        run: |
+          for pkg in ./mcpruntime ./internal/codegen; do
+            go test -count=1 -covermode=atomic -coverprofile=package.out "$pkg"
+            total="$(go tool cover -func=package.out | awk '/^total:/ {sub(/%/, "", $3); print $3}')"
+            echo "$pkg coverage: $total%"
+            if ! awk -v total="$total" 'BEGIN { exit !(total + 0 >= 80) }'; then
+              echo "coverage for $pkg is below 80%" >&2
+              exit 1
+            fi
+          done
+          go test -count=1 -covermode=atomic -coverprofile=coverage.out ./mcpruntime ./internal/codegen
+          go tool cover -func=coverage.out | tail -1
 
       - name: Publish coverage to Coveralls
         uses: coverallsapp/github-action@v2

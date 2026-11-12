@@ -113,12 +113,6 @@ go test ./internal/examplemcp -run 'Test(Java|Kotlin).*OverStdio' -count=1
 go test ./examples -run 'TestStandalonePython(Protobuf)?ExampleOverStdio' -count=1
 go test ./examples -run 'TestStandalone(TypeScript|JavaScript)ExampleOverStdio' -count=1
 go test ./...
-
-# Compile checked-in Go golden output and exercise SDK behavior against both
-# the pinned SDK and the latest published stable SDK (without changing go.mod).
-python3 scripts/check-go-sdk-compatibility.py --sdk pinned
-python3 scripts/check-go-sdk-compatibility.py --sdk latest
-python3 -m unittest discover -s scripts -p 'test_go_sdk_compatibility.py'
 goreleaser check
 ```
 
@@ -140,13 +134,6 @@ to publish tagged builds of the `protoc-gen-mcp` binary. This repository does
 not publish separate Java, Kotlin, TypeScript, or JavaScript runtime artifacts;
 downstream projects compile generated source against their language SDK
 dependencies.
-
-The separate [Go SDK compatibility gate](.github/workflows/go-sdk-smoke.yml)
-compiles checked-in Go fixtures and golden sources, then runs annotation,
-stdio, generated-server and OAuth HTTP checks against the pinned SDK and the
-latest published stable SDK. It runs on pull requests, `master` pushes, weekly
-and on manual dispatch. Resolving the latest SDK uses isolated dependency files
-and does not update the repository's `go.mod` or `go.sum`.
 
 ## TypeScript And JavaScript Support
 
