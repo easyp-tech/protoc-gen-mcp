@@ -95,7 +95,7 @@ func RegisterExampleAPITools(server *mcp.Server, impl ExampleAPIToolHandler, opt
 	if err := mcpruntime.RegisterSDKProtoTool(server, mcpruntime.ToolSpec[*HiddenThingRequest, *HiddenThingResponse]{
 		Name:             "HiddenThing",
 		Title:            "",
-		Description:      "HiddenThing is intentionally hidden from generated tools.\nNote: the `hidden` method option was removed in this iteration.",
+		Description:      "HiddenThing stays exposed as a tool and exercises the standard deprecated\noption; MethodOptions.hidden is covered by dedicated collector tests.",
 		Namespace:        "example",
 		InputSchemaJSON:  ExampleAPI_HiddenThing_ToolSpecInputSchemaJSON,
 		OutputSchemaJSON: ExampleAPI_HiddenThing_ToolSpecOutputSchemaJSON,

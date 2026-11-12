@@ -1145,7 +1145,7 @@ def register_example_api_tools(server: mcp.server.lowlevel.Server, impl: Example
     registry.add_tool(_RegisteredTool(
         name=_tool_name(resolved_namespace, "HiddenThing"),
         title="",
-        description="HiddenThing is intentionally hidden from generated tools.\nNote: the `hidden` method option was removed in this iteration.",
+        description="HiddenThing stays exposed as a tool and exercises the standard deprecated\noption; MethodOptions.hidden is covered by dedicated collector tests.",
         input_schema_json=EXAMPLE_API_HIDDEN_THING_INPUT_SCHEMA_JSON,
         output_schema_json=EXAMPLE_API_HIDDEN_THING_OUTPUT_SCHEMA_JSON,
         request_type=example_pb2.HiddenThingRequest,
