@@ -18,18 +18,6 @@ func TestStandaloneTypeScriptExampleOverStdio(t *testing.T) {
 	runStandaloneNodeNotebookExample(t, client, "Ship TypeScript support", "typescript")
 }
 
-func TestStandaloneJavaScriptExampleOverStdio(t *testing.T) {
-	root := repoRoot(t)
-	projectDir := filepath.Join(root, "examples/9_javascript_standalone")
-	buildStandaloneNodeExample(t, projectDir)
-
-	cmd := standaloneNodeExampleCommand(projectDir, "src/server.js")
-	client := newStdioClient(t, cmd)
-	client.initialize()
-
-	runStandaloneNodeNotebookExample(t, client, "Ship JavaScript consumption", "javascript")
-}
-
 func buildStandaloneNodeExample(t *testing.T, projectDir string) {
 	t.Helper()
 

@@ -58,9 +58,9 @@ Handlers implement generated dataclasses from `proto/notebook_mcp.py`. Raw
 This example uses the default dataclass mode. Keep this mode when you want
 handler-facing `UNSET`, explicit `oneof` wrappers, and generated mapper helpers
 from `*_mcp.py`. If an existing server already works directly with raw `*_pb2`
-classes, use
-[`../10_python_protobuf_standalone`](../10_python_protobuf_standalone/) and
-set `python_handler: protobuf` instead.
+classes, set `python_handler: protobuf` (handlers take `*_pb2` messages) or
+`python_handler: dataclass+protobuf` (both surfaces, the raw one in
+`*_mcp_pb.py`) in `easyp.yaml` instead.
 
 If you inspect this server in `@modelcontextprotocol/inspector`, note that the
 server forwards tool annotations exactly as declared in `proto/notebook.proto`.

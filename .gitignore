@@ -44,9 +44,6 @@ dist/
 
 # Example server binaries
 examples/1_helloworld/helloworld-server
-examples/2_weather_api/weather-server
-examples/3_file_manager/file-server
-examples/4_crm_system/crm-server
 examples/jvm/.gradle/
 examples/jvm/*/build/
 examples/node/**/node_modules/
