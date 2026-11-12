@@ -1,4 +1,5 @@
-// Package mcpruntime provides the runtime types and transports used by
-// protoc-gen-mcp generated Go bindings. It implements MCP server lifecycle,
-// tool, prompt, and resource registration, stdio transport, and Streamable HTTP.
+// Package mcpruntime provides protobuf-specific JSON Schema/ProtoJSON adapters,
+// generated MCP Apps metadata and OAuth resource-server helpers on top of the
+// official Model Context Protocol Go SDK. It does not implement the MCP wire
+// protocol, transports or sessions.
 package mcpruntime

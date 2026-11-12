@@ -223,6 +223,190 @@ func (x *Document) GetAuthor() string {
 	return ""
 }
 
+// SkillDocument is served as raw Markdown instead of ProtoJSON.
+type SkillDocument struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Raw Markdown body read from the embedded SKILL.md file.
+	Markdown      string `protobuf:"bytes,1,opt,name=markdown,proto3" json:"markdown,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SkillDocument) Reset() {
+	*x = SkillDocument{}
+	mi := &file_internal_testproto_resources_v1_resources_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SkillDocument) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SkillDocument) ProtoMessage() {}
+
+func (x *SkillDocument) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_testproto_resources_v1_resources_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SkillDocument.ProtoReflect.Descriptor instead.
+func (*SkillDocument) Descriptor() ([]byte, []int) {
+	return file_internal_testproto_resources_v1_resources_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *SkillDocument) GetMarkdown() string {
+	if x != nil {
+		return x.Markdown
+	}
+	return ""
+}
+
+// PlainText demonstrates parameterized text resources.
+type PlainText struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Raw body of the dynamically selected plain-text document.
+	Body          string `protobuf:"bytes,1,opt,name=body,proto3" json:"body,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PlainText) Reset() {
+	*x = PlainText{}
+	mi := &file_internal_testproto_resources_v1_resources_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PlainText) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PlainText) ProtoMessage() {}
+
+func (x *PlainText) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_testproto_resources_v1_resources_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PlainText.ProtoReflect.Descriptor instead.
+func (*PlainText) Descriptor() ([]byte, []int) {
+	return file_internal_testproto_resources_v1_resources_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *PlainText) GetBody() string {
+	if x != nil {
+		return x.Body
+	}
+	return ""
+}
+
+// RawBinary demonstrates an MCP blob using a bytes content field.
+type RawBinary struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Unmodified binary payload returned in MCP blob form.
+	Data          []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RawBinary) Reset() {
+	*x = RawBinary{}
+	mi := &file_internal_testproto_resources_v1_resources_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RawBinary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RawBinary) ProtoMessage() {}
+
+func (x *RawBinary) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_testproto_resources_v1_resources_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RawBinary.ProtoReflect.Descriptor instead.
+func (*RawBinary) Descriptor() ([]byte, []int) {
+	return file_internal_testproto_resources_v1_resources_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *RawBinary) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// AppPage is an MCP Apps HTML resource generated from a protobuf message.
+type AppPage struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Interactive HTML content delivered as an MCP Apps resource.
+	Html          string `protobuf:"bytes,1,opt,name=html,proto3" json:"html,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AppPage) Reset() {
+	*x = AppPage{}
+	mi := &file_internal_testproto_resources_v1_resources_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppPage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppPage) ProtoMessage() {}
+
+func (x *AppPage) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_testproto_resources_v1_resources_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AppPage.ProtoReflect.Descriptor instead.
+func (*AppPage) Descriptor() ([]byte, []int) {
+	return file_internal_testproto_resources_v1_resources_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *AppPage) GetHtml() string {
+	if x != nil {
+		return x.Html
+	}
+	return ""
+}
+
 // PlainData is NOT a resource — used to test that non-resource messages are ignored.
 type PlainData struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -236,7 +420,7 @@ type PlainData struct {
 
 func (x *PlainData) Reset() {
 	*x = PlainData{}
-	mi := &file_internal_testproto_resources_v1_resources_proto_msgTypes[3]
+	mi := &file_internal_testproto_resources_v1_resources_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -248,7 +432,7 @@ func (x *PlainData) String() string {
 func (*PlainData) ProtoMessage() {}
 
 func (x *PlainData) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_testproto_resources_v1_resources_proto_msgTypes[3]
+	mi := &file_internal_testproto_resources_v1_resources_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -261,7 +445,7 @@ func (x *PlainData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlainData.ProtoReflect.Descriptor instead.
 func (*PlainData) Descriptor() ([]byte, []int) {
-	return file_internal_testproto_resources_v1_resources_proto_rawDescGZIP(), []int{3}
+	return file_internal_testproto_resources_v1_resources_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *PlainData) GetKey() string {
@@ -299,10 +483,27 @@ const file_internal_testproto_resources_v1_resources_proto_rawDesc = "" +
 	"\bDocument\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12\x12\n" +
 	"\x04body\x18\x02 \x01(\tR\x04body\x12\x16\n" +
-	"\x06author\x18\x03 \x01(\tR\x06author:n\x8a\xb8,j\x12/projects://{project_id}/documents/{document_id}\x1a\bdocument\"\x10Project document*\x10application/json2\t\x11\x00\x00\x00\x00\x00\x00\xe0?\"3\n" +
+	"\x06author\x18\x03 \x01(\tR\x06author:n\x8a\xb8,j\x12/projects://{project_id}/documents/{document_id}\x1a\bdocument\"\x10Project document*\x10application/json2\t\x11\x00\x00\x00\x00\x00\x00\xe0?\"\x9c\x01\n" +
+	"\rSkillDocument\x12\x1a\n" +
+	"\bmarkdown\x18\x01 \x01(\tR\bmarkdown:o\x8a\xb8,k\n" +
+	"\x18skill://example/SKILL.md\x1a\x0eskill_document\"&Instructions for the example MCP skill*\rtext/markdownB\bmarkdown\"Z\n" +
+	"\tPlainText\x12\x12\n" +
+	"\x04body\x18\x01 \x01(\tR\x04body:9\x8a\xb8,5\x12\x15docs://example/{name}\x1a\n" +
+	"plain_text*\n" +
+	"text/plainB\x04body\"l\n" +
+	"\tRawBinary\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data:K\x8a\xb8,G\n" +
+	"\x19blob://example/attachment\x1a\n" +
+	"raw_binary*\x18application/octet-streamB\x04data\"\xb2\x01\n" +
+	"\aAppPage\x12\x12\n" +
+	"\x04html\x18\x01 \x01(\tR\x04html:\x92\x01\x8a\xb8,\x8d\x01\n" +
+	"\x13ui://example/report\x1a\treport_ui*\x19text/html;profile=mcp-appJ\x14testdata/report.htmlR:\n" +
+	"2\n" +
+	"\x17https://api.example.com\x12\x17https://cdn.example.com\x12\x02 \x01 \x01\"3\n" +
 	"\tPlainData\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05valueBRZPgithub.com/easyp-tech/protoc-gen-mcp/internal/testproto/resources/v1;resourcesv1b\x06proto3"
+	"\x05value\x18\x02 \x01(\tR\x05valueB{\x92\xb8,%\n" +
+	"\x17resource-fixture-server\x12\x06v1.0.0\x1a\x02\b\x01ZPgithub.com/easyp-tech/protoc-gen-mcp/internal/testproto/resources/v1;resourcesv1b\x06proto3"
 
 var (
 	file_internal_testproto_resources_v1_resources_proto_rawDescOnce sync.Once
@@ -316,12 +517,16 @@ func file_internal_testproto_resources_v1_resources_proto_rawDescGZIP() []byte {
 	return file_internal_testproto_resources_v1_resources_proto_rawDescData
 }
 
-var file_internal_testproto_resources_v1_resources_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_internal_testproto_resources_v1_resources_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_internal_testproto_resources_v1_resources_proto_goTypes = []any{
-	(*ServerStatus)(nil), // 0: internal.testproto.resources.v1.ServerStatus
-	(*UserProfile)(nil),  // 1: internal.testproto.resources.v1.UserProfile
-	(*Document)(nil),     // 2: internal.testproto.resources.v1.Document
-	(*PlainData)(nil),    // 3: internal.testproto.resources.v1.PlainData
+	(*ServerStatus)(nil),  // 0: internal.testproto.resources.v1.ServerStatus
+	(*UserProfile)(nil),   // 1: internal.testproto.resources.v1.UserProfile
+	(*Document)(nil),      // 2: internal.testproto.resources.v1.Document
+	(*SkillDocument)(nil), // 3: internal.testproto.resources.v1.SkillDocument
+	(*PlainText)(nil),     // 4: internal.testproto.resources.v1.PlainText
+	(*RawBinary)(nil),     // 5: internal.testproto.resources.v1.RawBinary
+	(*AppPage)(nil),       // 6: internal.testproto.resources.v1.AppPage
+	(*PlainData)(nil),     // 7: internal.testproto.resources.v1.PlainData
 }
 var file_internal_testproto_resources_v1_resources_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -342,7 +547,7 @@ func file_internal_testproto_resources_v1_resources_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_testproto_resources_v1_resources_proto_rawDesc), len(file_internal_testproto_resources_v1_resources_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

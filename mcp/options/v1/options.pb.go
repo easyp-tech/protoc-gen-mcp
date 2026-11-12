@@ -340,9 +340,14 @@ type MethodOptions struct {
 	//	option (mcp.options.v1.method) = {
 	//	  execution: { task_support: TASK_SUPPORT_OPTIONAL }
 	//	};
-	Execution     *ExecutionOptions `protobuf:"bytes,12,opt,name=execution,proto3" json:"execution,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Execution *ExecutionOptions `protobuf:"bytes,12,opt,name=execution,proto3" json:"execution,omitempty"`
+	// app_ui links the generated tool to a standard MCP Apps ui:// resource.
+	// Hosts without the UI extension continue using the normal tool output.
+	AppUi *AppUIOptions `protobuf:"bytes,13,opt,name=app_ui,json=appUi,proto3" json:"app_ui,omitempty"`
+	// required_scopes are verified by the generated MCP tool handler.
+	RequiredScopes []string `protobuf:"bytes,14,rep,name=required_scopes,json=requiredScopes,proto3" json:"required_scopes,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *MethodOptions) Reset() {
@@ -420,6 +425,76 @@ func (x *MethodOptions) GetIcons() []*Icon {
 func (x *MethodOptions) GetExecution() *ExecutionOptions {
 	if x != nil {
 		return x.Execution
+	}
+	return nil
+}
+
+func (x *MethodOptions) GetAppUi() *AppUIOptions {
+	if x != nil {
+		return x.AppUi
+	}
+	return nil
+}
+
+func (x *MethodOptions) GetRequiredScopes() []string {
+	if x != nil {
+		return x.RequiredScopes
+	}
+	return nil
+}
+
+// AppUIOptions carries the MCP Apps Tool._meta.ui metadata.
+type AppUIOptions struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The URI must use the ui:// scheme and be registered as an HTML app
+	// resource by the server (see mcpruntime.RegisterAppResource).
+	ResourceUri string `protobuf:"bytes,1,opt,name=resource_uri,json=resourceUri,proto3" json:"resource_uri,omitempty"`
+	// Client surface visibility. Values: "model", "app"; empty means default.
+	Visibility    []string `protobuf:"bytes,2,rep,name=visibility,proto3" json:"visibility,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AppUIOptions) Reset() {
+	*x = AppUIOptions{}
+	mi := &file_mcp_options_v1_options_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppUIOptions) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppUIOptions) ProtoMessage() {}
+
+func (x *AppUIOptions) ProtoReflect() protoreflect.Message {
+	mi := &file_mcp_options_v1_options_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AppUIOptions.ProtoReflect.Descriptor instead.
+func (*AppUIOptions) Descriptor() ([]byte, []int) {
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *AppUIOptions) GetResourceUri() string {
+	if x != nil {
+		return x.ResourceUri
+	}
+	return ""
+}
+
+func (x *AppUIOptions) GetVisibility() []string {
+	if x != nil {
+		return x.Visibility
 	}
 	return nil
 }
@@ -549,7 +624,7 @@ type FieldOptions struct {
 
 func (x *FieldOptions) Reset() {
 	*x = FieldOptions{}
-	mi := &file_mcp_options_v1_options_proto_msgTypes[2]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -561,7 +636,7 @@ func (x *FieldOptions) String() string {
 func (*FieldOptions) ProtoMessage() {}
 
 func (x *FieldOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_mcp_options_v1_options_proto_msgTypes[2]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -574,7 +649,7 @@ func (x *FieldOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FieldOptions.ProtoReflect.Descriptor instead.
 func (*FieldOptions) Descriptor() ([]byte, []int) {
-	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{2}
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *FieldOptions) GetDescription() string {
@@ -720,7 +795,7 @@ type ExampleValue struct {
 
 func (x *ExampleValue) Reset() {
 	*x = ExampleValue{}
-	mi := &file_mcp_options_v1_options_proto_msgTypes[3]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -732,7 +807,7 @@ func (x *ExampleValue) String() string {
 func (*ExampleValue) ProtoMessage() {}
 
 func (x *ExampleValue) ProtoReflect() protoreflect.Message {
-	mi := &file_mcp_options_v1_options_proto_msgTypes[3]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -745,7 +820,7 @@ func (x *ExampleValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExampleValue.ProtoReflect.Descriptor instead.
 func (*ExampleValue) Descriptor() ([]byte, []int) {
-	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{3}
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ExampleValue) GetKind() isExampleValue_Kind {
@@ -893,7 +968,7 @@ type ExampleObject struct {
 
 func (x *ExampleObject) Reset() {
 	*x = ExampleObject{}
-	mi := &file_mcp_options_v1_options_proto_msgTypes[4]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -905,7 +980,7 @@ func (x *ExampleObject) String() string {
 func (*ExampleObject) ProtoMessage() {}
 
 func (x *ExampleObject) ProtoReflect() protoreflect.Message {
-	mi := &file_mcp_options_v1_options_proto_msgTypes[4]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -918,7 +993,7 @@ func (x *ExampleObject) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExampleObject.ProtoReflect.Descriptor instead.
 func (*ExampleObject) Descriptor() ([]byte, []int) {
-	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{4}
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ExampleObject) GetProperties() map[string]*ExampleValue {
@@ -949,7 +1024,7 @@ type ExampleArray struct {
 
 func (x *ExampleArray) Reset() {
 	*x = ExampleArray{}
-	mi := &file_mcp_options_v1_options_proto_msgTypes[5]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -961,7 +1036,7 @@ func (x *ExampleArray) String() string {
 func (*ExampleArray) ProtoMessage() {}
 
 func (x *ExampleArray) ProtoReflect() protoreflect.Message {
-	mi := &file_mcp_options_v1_options_proto_msgTypes[5]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -974,7 +1049,7 @@ func (x *ExampleArray) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExampleArray.ProtoReflect.Descriptor instead.
 func (*ExampleArray) Descriptor() ([]byte, []int) {
-	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{5}
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ExampleArray) GetItems() []*ExampleValue {
@@ -1038,7 +1113,7 @@ type ToolAnnotations struct {
 
 func (x *ToolAnnotations) Reset() {
 	*x = ToolAnnotations{}
-	mi := &file_mcp_options_v1_options_proto_msgTypes[6]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1050,7 +1125,7 @@ func (x *ToolAnnotations) String() string {
 func (*ToolAnnotations) ProtoMessage() {}
 
 func (x *ToolAnnotations) ProtoReflect() protoreflect.Message {
-	mi := &file_mcp_options_v1_options_proto_msgTypes[6]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1063,7 +1138,7 @@ func (x *ToolAnnotations) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolAnnotations.ProtoReflect.Descriptor instead.
 func (*ToolAnnotations) Descriptor() ([]byte, []int) {
-	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{6}
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ToolAnnotations) GetReadOnlyHint() bool {
@@ -1134,7 +1209,7 @@ type Icon struct {
 
 func (x *Icon) Reset() {
 	*x = Icon{}
-	mi := &file_mcp_options_v1_options_proto_msgTypes[7]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1146,7 +1221,7 @@ func (x *Icon) String() string {
 func (*Icon) ProtoMessage() {}
 
 func (x *Icon) ProtoReflect() protoreflect.Message {
-	mi := &file_mcp_options_v1_options_proto_msgTypes[7]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1159,7 +1234,7 @@ func (x *Icon) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Icon.ProtoReflect.Descriptor instead.
 func (*Icon) Descriptor() ([]byte, []int) {
-	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{7}
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Icon) GetSrc() string {
@@ -1207,7 +1282,7 @@ type ExecutionOptions struct {
 
 func (x *ExecutionOptions) Reset() {
 	*x = ExecutionOptions{}
-	mi := &file_mcp_options_v1_options_proto_msgTypes[8]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1219,7 +1294,7 @@ func (x *ExecutionOptions) String() string {
 func (*ExecutionOptions) ProtoMessage() {}
 
 func (x *ExecutionOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_mcp_options_v1_options_proto_msgTypes[8]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1232,7 +1307,7 @@ func (x *ExecutionOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecutionOptions.ProtoReflect.Descriptor instead.
 func (*ExecutionOptions) Descriptor() ([]byte, []int) {
-	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{8}
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ExecutionOptions) GetTaskSupport() TaskSupport {
@@ -1275,7 +1350,7 @@ type OneofOptions struct {
 
 func (x *OneofOptions) Reset() {
 	*x = OneofOptions{}
-	mi := &file_mcp_options_v1_options_proto_msgTypes[9]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1287,7 +1362,7 @@ func (x *OneofOptions) String() string {
 func (*OneofOptions) ProtoMessage() {}
 
 func (x *OneofOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_mcp_options_v1_options_proto_msgTypes[9]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1300,7 +1375,7 @@ func (x *OneofOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OneofOptions.ProtoReflect.Descriptor instead.
 func (*OneofOptions) Descriptor() ([]byte, []int) {
-	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{9}
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *OneofOptions) GetDescription() string {
@@ -1362,7 +1437,7 @@ type MessageOptions struct {
 
 func (x *MessageOptions) Reset() {
 	*x = MessageOptions{}
-	mi := &file_mcp_options_v1_options_proto_msgTypes[10]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1374,7 +1449,7 @@ func (x *MessageOptions) String() string {
 func (*MessageOptions) ProtoMessage() {}
 
 func (x *MessageOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_mcp_options_v1_options_proto_msgTypes[10]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1387,7 +1462,7 @@ func (x *MessageOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MessageOptions.ProtoReflect.Descriptor instead.
 func (*MessageOptions) Descriptor() ([]byte, []int) {
-	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{10}
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *MessageOptions) GetTitle() string {
@@ -1444,7 +1519,7 @@ type EnumOptions struct {
 
 func (x *EnumOptions) Reset() {
 	*x = EnumOptions{}
-	mi := &file_mcp_options_v1_options_proto_msgTypes[11]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1456,7 +1531,7 @@ func (x *EnumOptions) String() string {
 func (*EnumOptions) ProtoMessage() {}
 
 func (x *EnumOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_mcp_options_v1_options_proto_msgTypes[11]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1469,7 +1544,7 @@ func (x *EnumOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnumOptions.ProtoReflect.Descriptor instead.
 func (*EnumOptions) Descriptor() ([]byte, []int) {
-	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{11}
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *EnumOptions) GetTitle() string {
@@ -1535,7 +1610,7 @@ type EnumValueOptions struct {
 
 func (x *EnumValueOptions) Reset() {
 	*x = EnumValueOptions{}
-	mi := &file_mcp_options_v1_options_proto_msgTypes[12]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1547,7 +1622,7 @@ func (x *EnumValueOptions) String() string {
 func (*EnumValueOptions) ProtoMessage() {}
 
 func (x *EnumValueOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_mcp_options_v1_options_proto_msgTypes[12]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1560,7 +1635,7 @@ func (x *EnumValueOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnumValueOptions.ProtoReflect.Descriptor instead.
 func (*EnumValueOptions) Descriptor() ([]byte, []int) {
-	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{12}
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *EnumValueOptions) GetDescription() string {
@@ -1614,7 +1689,7 @@ type PromptOptions struct {
 
 func (x *PromptOptions) Reset() {
 	*x = PromptOptions{}
-	mi := &file_mcp_options_v1_options_proto_msgTypes[13]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1626,7 +1701,7 @@ func (x *PromptOptions) String() string {
 func (*PromptOptions) ProtoMessage() {}
 
 func (x *PromptOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_mcp_options_v1_options_proto_msgTypes[13]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1639,7 +1714,7 @@ func (x *PromptOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PromptOptions.ProtoReflect.Descriptor instead.
 func (*PromptOptions) Descriptor() ([]byte, []int) {
-	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{13}
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *PromptOptions) GetName() string {
@@ -1685,7 +1760,7 @@ type ResourceAnnotations struct {
 
 func (x *ResourceAnnotations) Reset() {
 	*x = ResourceAnnotations{}
-	mi := &file_mcp_options_v1_options_proto_msgTypes[14]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1697,7 +1772,7 @@ func (x *ResourceAnnotations) String() string {
 func (*ResourceAnnotations) ProtoMessage() {}
 
 func (x *ResourceAnnotations) ProtoReflect() protoreflect.Message {
-	mi := &file_mcp_options_v1_options_proto_msgTypes[14]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1710,7 +1785,7 @@ func (x *ResourceAnnotations) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceAnnotations.ProtoReflect.Descriptor instead.
 func (*ResourceAnnotations) Descriptor() ([]byte, []int) {
-	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{14}
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ResourceAnnotations) GetAudience() []ResourceAudience {
@@ -1777,14 +1852,28 @@ type ResourceOptions struct {
 	// annotations carries MCP-level resource metadata (audience, priority).
 	Annotations *ResourceAnnotations `protobuf:"bytes,6,opt,name=annotations,proto3" json:"annotations,omitempty"`
 	// icons for the resource.
-	Icons         []*Icon `protobuf:"bytes,7,rep,name=icons,proto3" json:"icons,omitempty"`
+	Icons []*Icon `protobuf:"bytes,7,rep,name=icons,proto3" json:"icons,omitempty"`
+	// content_field selects a singular string or bytes field of this message
+	// as the raw resource body instead of serializing the whole message using
+	// ProtoJSON. String fields become MCP text; bytes fields become MCP blob.
+	// Required for non-JSON MIME types such as text/markdown, text/plain,
+	// text/html;profile=mcp-app and application/octet-stream.
+	// Use the protobuf field name (for example "markdown"), not its JSON name.
+	ContentField string `protobuf:"bytes,8,opt,name=content_field,json=contentField,proto3" json:"content_field,omitempty"`
+	// source_file embeds a compiled static file from the generated Go package.
+	// The path is relative to the directory containing the generated *.mcp.go,
+	// and must not contain parent traversal. Static resources only.
+	// Mutually exclusive with content_field; no handler method is required.
+	SourceFile string `protobuf:"bytes,9,opt,name=source_file,json=sourceFile,proto3" json:"source_file,omitempty"`
+	// app_ui emits MCP Apps resource metadata (CSP, sandbox permissions).
+	AppUi         *AppResourceOptions `protobuf:"bytes,10,opt,name=app_ui,json=appUi,proto3" json:"app_ui,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ResourceOptions) Reset() {
 	*x = ResourceOptions{}
-	mi := &file_mcp_options_v1_options_proto_msgTypes[15]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1796,7 +1885,7 @@ func (x *ResourceOptions) String() string {
 func (*ResourceOptions) ProtoMessage() {}
 
 func (x *ResourceOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_mcp_options_v1_options_proto_msgTypes[15]
+	mi := &file_mcp_options_v1_options_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1809,7 +1898,7 @@ func (x *ResourceOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceOptions.ProtoReflect.Descriptor instead.
 func (*ResourceOptions) Descriptor() ([]byte, []int) {
-	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{15}
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ResourceOptions) GetUri() string {
@@ -1859,6 +1948,470 @@ func (x *ResourceOptions) GetIcons() []*Icon {
 		return x.Icons
 	}
 	return nil
+}
+
+func (x *ResourceOptions) GetContentField() string {
+	if x != nil {
+		return x.ContentField
+	}
+	return ""
+}
+
+func (x *ResourceOptions) GetSourceFile() string {
+	if x != nil {
+		return x.SourceFile
+	}
+	return ""
+}
+
+func (x *ResourceOptions) GetAppUi() *AppResourceOptions {
+	if x != nil {
+		return x.AppUi
+	}
+	return nil
+}
+
+// ServerConfig is attached to a protobuf file and controls the generated
+// Go server constructor and Streamable HTTP resource-server configuration.
+type ServerConfig struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Server implementation name used during MCP initialization.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Server software version used during MCP initialization.
+	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	// MCP Apps extension configuration, including an explicit opt-out.
+	Apps *AppsConfig `protobuf:"bytes,3,opt,name=apps,proto3" json:"apps,omitempty"`
+	// OAuth protected-resource and token-verification configuration.
+	Oauth         *OAuthConfig `protobuf:"bytes,4,opt,name=oauth,proto3" json:"oauth,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ServerConfig) Reset() {
+	*x = ServerConfig{}
+	mi := &file_mcp_options_v1_options_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ServerConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ServerConfig) ProtoMessage() {}
+
+func (x *ServerConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_mcp_options_v1_options_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ServerConfig.ProtoReflect.Descriptor instead.
+func (*ServerConfig) Descriptor() ([]byte, []int) {
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *ServerConfig) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ServerConfig) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *ServerConfig) GetApps() *AppsConfig {
+	if x != nil {
+		return x.Apps
+	}
+	return nil
+}
+
+func (x *ServerConfig) GetOauth() *OAuthConfig {
+	if x != nil {
+		return x.Oauth
+	}
+	return nil
+}
+
+// AppsConfig configures the standard MCP Apps capability.
+// If omitted, the generator enables Apps when a tool's app_ui or a
+// text/html;profile=mcp-app resource exists in the file.
+type AppsConfig struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Enables or disables MCP Apps; unset automatically follows tool/resource usage.
+	Enabled       *bool `protobuf:"varint,1,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AppsConfig) Reset() {
+	*x = AppsConfig{}
+	mi := &file_mcp_options_v1_options_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppsConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppsConfig) ProtoMessage() {}
+
+func (x *AppsConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_mcp_options_v1_options_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AppsConfig.ProtoReflect.Descriptor instead.
+func (*AppsConfig) Descriptor() ([]byte, []int) {
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *AppsConfig) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
+	}
+	return false
+}
+
+// OAuthConfig is public server policy, not user credentials. An external
+// identity provider issues tokens; the generated handler verifies bearer
+// tokens through JWKS or an application-provided TokenVerifier.
+type OAuthConfig struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Public HTTPS identifier of this protected MCP resource.
+	ResourceUrl string `protobuf:"bytes,1,opt,name=resource_url,json=resourceUrl,proto3" json:"resource_url,omitempty"`
+	// HTTPS authorization servers that can issue acceptable tokens.
+	AuthorizationServers []string `protobuf:"bytes,2,rep,name=authorization_servers,json=authorizationServers,proto3" json:"authorization_servers,omitempty"`
+	// Scopes required for any authenticated request to the MCP HTTP endpoint.
+	Scopes []string `protobuf:"bytes,3,rep,name=scopes,proto3" json:"scopes,omitempty"`
+	// Expected issuer claim when validating signed access JWTs.
+	Issuer string `protobuf:"bytes,4,opt,name=issuer,proto3" json:"issuer,omitempty"`
+	// HTTPS JWKS endpoint containing public RSA verification keys.
+	JwksUri string `protobuf:"bytes,5,opt,name=jwks_uri,json=jwksUri,proto3" json:"jwks_uri,omitempty"`
+	// Expected resource audience claim in JWT access tokens.
+	Audience string `protobuf:"bytes,6,opt,name=audience,proto3" json:"audience,omitempty"`
+	// Route under which the MCP Streamable HTTP endpoint is exposed.
+	McpPath       string `protobuf:"bytes,7,opt,name=mcp_path,json=mcpPath,proto3" json:"mcp_path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OAuthConfig) Reset() {
+	*x = OAuthConfig{}
+	mi := &file_mcp_options_v1_options_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OAuthConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OAuthConfig) ProtoMessage() {}
+
+func (x *OAuthConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_mcp_options_v1_options_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OAuthConfig.ProtoReflect.Descriptor instead.
+func (*OAuthConfig) Descriptor() ([]byte, []int) {
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *OAuthConfig) GetResourceUrl() string {
+	if x != nil {
+		return x.ResourceUrl
+	}
+	return ""
+}
+
+func (x *OAuthConfig) GetAuthorizationServers() []string {
+	if x != nil {
+		return x.AuthorizationServers
+	}
+	return nil
+}
+
+func (x *OAuthConfig) GetScopes() []string {
+	if x != nil {
+		return x.Scopes
+	}
+	return nil
+}
+
+func (x *OAuthConfig) GetIssuer() string {
+	if x != nil {
+		return x.Issuer
+	}
+	return ""
+}
+
+func (x *OAuthConfig) GetJwksUri() string {
+	if x != nil {
+		return x.JwksUri
+	}
+	return ""
+}
+
+func (x *OAuthConfig) GetAudience() string {
+	if x != nil {
+		return x.Audience
+	}
+	return ""
+}
+
+func (x *OAuthConfig) GetMcpPath() string {
+	if x != nil {
+		return x.McpPath
+	}
+	return ""
+}
+
+// AppResourceCSP declares the origins allowed by the MCP Apps sandbox.
+type AppResourceCSP struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Origins permitted for fetch, WebSocket and other network calls.
+	ConnectDomains []string `protobuf:"bytes,1,rep,name=connect_domains,json=connectDomains,proto3" json:"connect_domains,omitempty"`
+	// Origins permitted for external scripts, styles, images and fonts.
+	ResourceDomains []string `protobuf:"bytes,2,rep,name=resource_domains,json=resourceDomains,proto3" json:"resource_domains,omitempty"`
+	// Origins permitted for nested frames embedded inside the app.
+	FrameDomains []string `protobuf:"bytes,3,rep,name=frame_domains,json=frameDomains,proto3" json:"frame_domains,omitempty"`
+	// Origins permitted in the embedded document base URI.
+	BaseUriDomains []string `protobuf:"bytes,4,rep,name=base_uri_domains,json=baseUriDomains,proto3" json:"base_uri_domains,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AppResourceCSP) Reset() {
+	*x = AppResourceCSP{}
+	mi := &file_mcp_options_v1_options_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppResourceCSP) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppResourceCSP) ProtoMessage() {}
+
+func (x *AppResourceCSP) ProtoReflect() protoreflect.Message {
+	mi := &file_mcp_options_v1_options_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AppResourceCSP.ProtoReflect.Descriptor instead.
+func (*AppResourceCSP) Descriptor() ([]byte, []int) {
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *AppResourceCSP) GetConnectDomains() []string {
+	if x != nil {
+		return x.ConnectDomains
+	}
+	return nil
+}
+
+func (x *AppResourceCSP) GetResourceDomains() []string {
+	if x != nil {
+		return x.ResourceDomains
+	}
+	return nil
+}
+
+func (x *AppResourceCSP) GetFrameDomains() []string {
+	if x != nil {
+		return x.FrameDomains
+	}
+	return nil
+}
+
+func (x *AppResourceCSP) GetBaseUriDomains() []string {
+	if x != nil {
+		return x.BaseUriDomains
+	}
+	return nil
+}
+
+// AppResourcePermissions declares optional browser capabilities for a UI resource.
+type AppResourcePermissions struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Requests browser camera access from supporting MCP Apps hosts.
+	Camera bool `protobuf:"varint,1,opt,name=camera,proto3" json:"camera,omitempty"`
+	// Requests browser microphone access from supporting MCP Apps hosts.
+	Microphone bool `protobuf:"varint,2,opt,name=microphone,proto3" json:"microphone,omitempty"`
+	// Requests geolocation access from supporting MCP Apps hosts.
+	Geolocation bool `protobuf:"varint,3,opt,name=geolocation,proto3" json:"geolocation,omitempty"`
+	// Requests clipboard write access from supporting MCP Apps hosts.
+	ClipboardWrite bool `protobuf:"varint,4,opt,name=clipboard_write,json=clipboardWrite,proto3" json:"clipboard_write,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AppResourcePermissions) Reset() {
+	*x = AppResourcePermissions{}
+	mi := &file_mcp_options_v1_options_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppResourcePermissions) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppResourcePermissions) ProtoMessage() {}
+
+func (x *AppResourcePermissions) ProtoReflect() protoreflect.Message {
+	mi := &file_mcp_options_v1_options_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AppResourcePermissions.ProtoReflect.Descriptor instead.
+func (*AppResourcePermissions) Descriptor() ([]byte, []int) {
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *AppResourcePermissions) GetCamera() bool {
+	if x != nil {
+		return x.Camera
+	}
+	return false
+}
+
+func (x *AppResourcePermissions) GetMicrophone() bool {
+	if x != nil {
+		return x.Microphone
+	}
+	return false
+}
+
+func (x *AppResourcePermissions) GetGeolocation() bool {
+	if x != nil {
+		return x.Geolocation
+	}
+	return false
+}
+
+func (x *AppResourcePermissions) GetClipboardWrite() bool {
+	if x != nil {
+		return x.ClipboardWrite
+	}
+	return false
+}
+
+// AppResourceOptions is the MCP Apps resource-level _meta.ui configuration.
+type AppResourceOptions struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Content Security Policy allowlists for the app sandbox.
+	Csp *AppResourceCSP `protobuf:"bytes,1,opt,name=csp,proto3" json:"csp,omitempty"`
+	// Optional browser permissions the app would like to use.
+	Permissions *AppResourcePermissions `protobuf:"bytes,2,opt,name=permissions,proto3" json:"permissions,omitempty"`
+	// Optional host-specific stable origin for the app sandbox.
+	Domain string `protobuf:"bytes,3,opt,name=domain,proto3" json:"domain,omitempty"`
+	// Whether this app prefers a visible host-rendered border.
+	PrefersBorder *bool `protobuf:"varint,4,opt,name=prefers_border,json=prefersBorder,proto3,oneof" json:"prefers_border,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AppResourceOptions) Reset() {
+	*x = AppResourceOptions{}
+	mi := &file_mcp_options_v1_options_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AppResourceOptions) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AppResourceOptions) ProtoMessage() {}
+
+func (x *AppResourceOptions) ProtoReflect() protoreflect.Message {
+	mi := &file_mcp_options_v1_options_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AppResourceOptions.ProtoReflect.Descriptor instead.
+func (*AppResourceOptions) Descriptor() ([]byte, []int) {
+	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *AppResourceOptions) GetCsp() *AppResourceCSP {
+	if x != nil {
+		return x.Csp
+	}
+	return nil
+}
+
+func (x *AppResourceOptions) GetPermissions() *AppResourcePermissions {
+	if x != nil {
+		return x.Permissions
+	}
+	return nil
+}
+
+func (x *AppResourceOptions) GetDomain() string {
+	if x != nil {
+		return x.Domain
+	}
+	return ""
+}
+
+func (x *AppResourceOptions) GetPrefersBorder() bool {
+	if x != nil && x.PrefersBorder != nil {
+		return *x.PrefersBorder
+	}
+	return false
 }
 
 var file_mcp_options_v1_options_proto_extTypes = []protoimpl.ExtensionInfo{
@@ -1934,6 +2487,14 @@ var file_mcp_options_v1_options_proto_extTypes = []protoimpl.ExtensionInfo{
 		Tag:           "bytes,91009,opt,name=resource",
 		Filename:      "mcp/options/v1/options.proto",
 	},
+	{
+		ExtendedType:  (*descriptorpb.FileOptions)(nil),
+		ExtensionType: (*ServerConfig)(nil),
+		Field:         91010,
+		Name:          "mcp.options.v1.server",
+		Tag:           "bytes,91010,opt,name=server",
+		Filename:      "mcp/options/v1/options.proto",
+	},
 }
 
 // Extension fields to descriptorpb.ServiceOptions.
@@ -2004,6 +2565,12 @@ var (
 	E_Oneof = &file_mcp_options_v1_options_proto_extTypes[6]
 )
 
+// Extension fields to descriptorpb.FileOptions.
+var (
+	// optional mcp.options.v1.ServerConfig server = 91010;
+	E_Server = &file_mcp_options_v1_options_proto_extTypes[9]
+)
+
 var File_mcp_options_v1_options_proto protoreflect.FileDescriptor
 
 const file_mcp_options_v1_options_proto_rawDesc = "" +
@@ -2012,7 +2579,7 @@ const file_mcp_options_v1_options_proto_rawDesc = "" +
 	"\x0eServiceOptions\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12*\n" +
-	"\x05icons\x18\x03 \x03(\v2\x14.mcp.options.v1.IconR\x05icons\"\xa2\x02\n" +
+	"\x05icons\x18\x03 \x03(\v2\x14.mcp.options.v1.IconR\x05icons\"\x80\x03\n" +
 	"\rMethodOptions\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05title\x18\x02 \x01(\tR\x05title\x12 \n" +
@@ -2021,7 +2588,14 @@ const file_mcp_options_v1_options_proto_rawDesc = "" +
 	"\vannotations\x18\n" +
 	" \x01(\v2\x1f.mcp.options.v1.ToolAnnotationsR\vannotations\x12*\n" +
 	"\x05icons\x18\v \x03(\v2\x14.mcp.options.v1.IconR\x05icons\x12>\n" +
-	"\texecution\x18\f \x01(\v2 .mcp.options.v1.ExecutionOptionsR\texecution\"\x81\x06\n" +
+	"\texecution\x18\f \x01(\v2 .mcp.options.v1.ExecutionOptionsR\texecution\x123\n" +
+	"\x06app_ui\x18\r \x01(\v2\x1c.mcp.options.v1.AppUIOptionsR\x05appUi\x12'\n" +
+	"\x0frequired_scopes\x18\x0e \x03(\tR\x0erequiredScopes\"Q\n" +
+	"\fAppUIOptions\x12!\n" +
+	"\fresource_uri\x18\x01 \x01(\tR\vresourceUri\x12\x1e\n" +
+	"\n" +
+	"visibility\x18\x02 \x03(\tR\n" +
+	"visibility\"\x81\x06\n" +
 	"\fFieldOptions\x12 \n" +
 	"\vdescription\x18\x01 \x01(\tR\vdescription\x128\n" +
 	"\bexamples\x18\x03 \x03(\v2\x1c.mcp.options.v1.ExampleValueR\bexamples\x12A\n" +
@@ -2113,7 +2687,7 @@ const file_mcp_options_v1_options_proto_rawDesc = "" +
 	"\x13ResourceAnnotations\x12<\n" +
 	"\baudience\x18\x01 \x03(\x0e2 .mcp.options.v1.ResourceAudienceR\baudience\x12\x1f\n" +
 	"\bpriority\x18\x02 \x01(\x01H\x00R\bpriority\x88\x01\x01B\v\n" +
-	"\t_priority\"\x8c\x02\n" +
+	"\t_priority\"\x8d\x03\n" +
 	"\x0fResourceOptions\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12!\n" +
 	"\furi_template\x18\x02 \x01(\tR\vuriTemplate\x12\x12\n" +
@@ -2121,7 +2695,48 @@ const file_mcp_options_v1_options_proto_rawDesc = "" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x1b\n" +
 	"\tmime_type\x18\x05 \x01(\tR\bmimeType\x12E\n" +
 	"\vannotations\x18\x06 \x01(\v2#.mcp.options.v1.ResourceAnnotationsR\vannotations\x12*\n" +
-	"\x05icons\x18\a \x03(\v2\x14.mcp.options.v1.IconR\x05icons*Z\n" +
+	"\x05icons\x18\a \x03(\v2\x14.mcp.options.v1.IconR\x05icons\x12#\n" +
+	"\rcontent_field\x18\b \x01(\tR\fcontentField\x12\x1f\n" +
+	"\vsource_file\x18\t \x01(\tR\n" +
+	"sourceFile\x129\n" +
+	"\x06app_ui\x18\n" +
+	" \x01(\v2\".mcp.options.v1.AppResourceOptionsR\x05appUi\"\x9f\x01\n" +
+	"\fServerConfig\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\tR\aversion\x12.\n" +
+	"\x04apps\x18\x03 \x01(\v2\x1a.mcp.options.v1.AppsConfigR\x04apps\x121\n" +
+	"\x05oauth\x18\x04 \x01(\v2\x1b.mcp.options.v1.OAuthConfigR\x05oauth\"7\n" +
+	"\n" +
+	"AppsConfig\x12\x1d\n" +
+	"\aenabled\x18\x01 \x01(\bH\x00R\aenabled\x88\x01\x01B\n" +
+	"\n" +
+	"\b_enabled\"\xe7\x01\n" +
+	"\vOAuthConfig\x12!\n" +
+	"\fresource_url\x18\x01 \x01(\tR\vresourceUrl\x123\n" +
+	"\x15authorization_servers\x18\x02 \x03(\tR\x14authorizationServers\x12\x16\n" +
+	"\x06scopes\x18\x03 \x03(\tR\x06scopes\x12\x16\n" +
+	"\x06issuer\x18\x04 \x01(\tR\x06issuer\x12\x19\n" +
+	"\bjwks_uri\x18\x05 \x01(\tR\ajwksUri\x12\x1a\n" +
+	"\baudience\x18\x06 \x01(\tR\baudience\x12\x19\n" +
+	"\bmcp_path\x18\a \x01(\tR\amcpPath\"\xb3\x01\n" +
+	"\x0eAppResourceCSP\x12'\n" +
+	"\x0fconnect_domains\x18\x01 \x03(\tR\x0econnectDomains\x12)\n" +
+	"\x10resource_domains\x18\x02 \x03(\tR\x0fresourceDomains\x12#\n" +
+	"\rframe_domains\x18\x03 \x03(\tR\fframeDomains\x12(\n" +
+	"\x10base_uri_domains\x18\x04 \x03(\tR\x0ebaseUriDomains\"\x9b\x01\n" +
+	"\x16AppResourcePermissions\x12\x16\n" +
+	"\x06camera\x18\x01 \x01(\bR\x06camera\x12\x1e\n" +
+	"\n" +
+	"microphone\x18\x02 \x01(\bR\n" +
+	"microphone\x12 \n" +
+	"\vgeolocation\x18\x03 \x01(\bR\vgeolocation\x12'\n" +
+	"\x0fclipboard_write\x18\x04 \x01(\bR\x0eclipboardWrite\"\xe7\x01\n" +
+	"\x12AppResourceOptions\x120\n" +
+	"\x03csp\x18\x01 \x01(\v2\x1e.mcp.options.v1.AppResourceCSPR\x03csp\x12H\n" +
+	"\vpermissions\x18\x02 \x01(\v2&.mcp.options.v1.AppResourcePermissionsR\vpermissions\x12\x16\n" +
+	"\x06domain\x18\x03 \x01(\tR\x06domain\x12*\n" +
+	"\x0eprefers_border\x18\x04 \x01(\bH\x00R\rprefersBorder\x88\x01\x01B\x11\n" +
+	"\x0f_prefers_border*Z\n" +
 	"\vTaskSupport\x12\x15\n" +
 	"\x11TASK_SUPPORT_NONE\x10\x00\x12\x19\n" +
 	"\x15TASK_SUPPORT_OPTIONAL\x10\x01\x12\x19\n" +
@@ -2139,7 +2754,8 @@ const file_mcp_options_v1_options_proto_rawDesc = "" +
 	"enum_value\x12!.google.protobuf.EnumValueOptions\x18\xfe\xc6\x05 \x01(\v2 .mcp.options.v1.EnumValueOptionsR\tenumValue:S\n" +
 	"\x05oneof\x12\x1d.google.protobuf.OneofOptions\x18\xff\xc6\x05 \x01(\v2\x1c.mcp.options.v1.OneofOptionsR\x05oneof:X\n" +
 	"\x06prompt\x12\x1f.google.protobuf.MessageOptions\x18\x80\xc7\x05 \x01(\v2\x1d.mcp.options.v1.PromptOptionsR\x06prompt:^\n" +
-	"\bresource\x12\x1f.google.protobuf.MessageOptions\x18\x81\xc7\x05 \x01(\v2\x1f.mcp.options.v1.ResourceOptionsR\bresourceB?Z=github.com/easyp-tech/protoc-gen-mcp/mcp/options/v1;optionsv1b\x06proto3"
+	"\bresource\x12\x1f.google.protobuf.MessageOptions\x18\x81\xc7\x05 \x01(\v2\x1f.mcp.options.v1.ResourceOptionsR\bresource:T\n" +
+	"\x06server\x12\x1c.google.protobuf.FileOptions\x18\x82\xc7\x05 \x01(\v2\x1c.mcp.options.v1.ServerConfigR\x06serverB?Z=github.com/easyp-tech/protoc-gen-mcp/mcp/options/v1;optionsv1b\x06proto3"
 
 var (
 	file_mcp_options_v1_options_proto_rawDescOnce sync.Once
@@ -2154,76 +2770,92 @@ func file_mcp_options_v1_options_proto_rawDescGZIP() []byte {
 }
 
 var file_mcp_options_v1_options_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_mcp_options_v1_options_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_mcp_options_v1_options_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_mcp_options_v1_options_proto_goTypes = []any{
 	(TaskSupport)(0),                      // 0: mcp.options.v1.TaskSupport
 	(ResourceAudience)(0),                 // 1: mcp.options.v1.ResourceAudience
 	(*ServiceOptions)(nil),                // 2: mcp.options.v1.ServiceOptions
 	(*MethodOptions)(nil),                 // 3: mcp.options.v1.MethodOptions
-	(*FieldOptions)(nil),                  // 4: mcp.options.v1.FieldOptions
-	(*ExampleValue)(nil),                  // 5: mcp.options.v1.ExampleValue
-	(*ExampleObject)(nil),                 // 6: mcp.options.v1.ExampleObject
-	(*ExampleArray)(nil),                  // 7: mcp.options.v1.ExampleArray
-	(*ToolAnnotations)(nil),               // 8: mcp.options.v1.ToolAnnotations
-	(*Icon)(nil),                          // 9: mcp.options.v1.Icon
-	(*ExecutionOptions)(nil),              // 10: mcp.options.v1.ExecutionOptions
-	(*OneofOptions)(nil),                  // 11: mcp.options.v1.OneofOptions
-	(*MessageOptions)(nil),                // 12: mcp.options.v1.MessageOptions
-	(*EnumOptions)(nil),                   // 13: mcp.options.v1.EnumOptions
-	(*EnumValueOptions)(nil),              // 14: mcp.options.v1.EnumValueOptions
-	(*PromptOptions)(nil),                 // 15: mcp.options.v1.PromptOptions
-	(*ResourceAnnotations)(nil),           // 16: mcp.options.v1.ResourceAnnotations
-	(*ResourceOptions)(nil),               // 17: mcp.options.v1.ResourceOptions
-	nil,                                   // 18: mcp.options.v1.ExampleObject.PropertiesEntry
-	(*descriptorpb.ServiceOptions)(nil),   // 19: google.protobuf.ServiceOptions
-	(*descriptorpb.MethodOptions)(nil),    // 20: google.protobuf.MethodOptions
-	(*descriptorpb.FieldOptions)(nil),     // 21: google.protobuf.FieldOptions
-	(*descriptorpb.MessageOptions)(nil),   // 22: google.protobuf.MessageOptions
-	(*descriptorpb.EnumOptions)(nil),      // 23: google.protobuf.EnumOptions
-	(*descriptorpb.EnumValueOptions)(nil), // 24: google.protobuf.EnumValueOptions
-	(*descriptorpb.OneofOptions)(nil),     // 25: google.protobuf.OneofOptions
+	(*AppUIOptions)(nil),                  // 4: mcp.options.v1.AppUIOptions
+	(*FieldOptions)(nil),                  // 5: mcp.options.v1.FieldOptions
+	(*ExampleValue)(nil),                  // 6: mcp.options.v1.ExampleValue
+	(*ExampleObject)(nil),                 // 7: mcp.options.v1.ExampleObject
+	(*ExampleArray)(nil),                  // 8: mcp.options.v1.ExampleArray
+	(*ToolAnnotations)(nil),               // 9: mcp.options.v1.ToolAnnotations
+	(*Icon)(nil),                          // 10: mcp.options.v1.Icon
+	(*ExecutionOptions)(nil),              // 11: mcp.options.v1.ExecutionOptions
+	(*OneofOptions)(nil),                  // 12: mcp.options.v1.OneofOptions
+	(*MessageOptions)(nil),                // 13: mcp.options.v1.MessageOptions
+	(*EnumOptions)(nil),                   // 14: mcp.options.v1.EnumOptions
+	(*EnumValueOptions)(nil),              // 15: mcp.options.v1.EnumValueOptions
+	(*PromptOptions)(nil),                 // 16: mcp.options.v1.PromptOptions
+	(*ResourceAnnotations)(nil),           // 17: mcp.options.v1.ResourceAnnotations
+	(*ResourceOptions)(nil),               // 18: mcp.options.v1.ResourceOptions
+	(*ServerConfig)(nil),                  // 19: mcp.options.v1.ServerConfig
+	(*AppsConfig)(nil),                    // 20: mcp.options.v1.AppsConfig
+	(*OAuthConfig)(nil),                   // 21: mcp.options.v1.OAuthConfig
+	(*AppResourceCSP)(nil),                // 22: mcp.options.v1.AppResourceCSP
+	(*AppResourcePermissions)(nil),        // 23: mcp.options.v1.AppResourcePermissions
+	(*AppResourceOptions)(nil),            // 24: mcp.options.v1.AppResourceOptions
+	nil,                                   // 25: mcp.options.v1.ExampleObject.PropertiesEntry
+	(*descriptorpb.ServiceOptions)(nil),   // 26: google.protobuf.ServiceOptions
+	(*descriptorpb.MethodOptions)(nil),    // 27: google.protobuf.MethodOptions
+	(*descriptorpb.FieldOptions)(nil),     // 28: google.protobuf.FieldOptions
+	(*descriptorpb.MessageOptions)(nil),   // 29: google.protobuf.MessageOptions
+	(*descriptorpb.EnumOptions)(nil),      // 30: google.protobuf.EnumOptions
+	(*descriptorpb.EnumValueOptions)(nil), // 31: google.protobuf.EnumValueOptions
+	(*descriptorpb.OneofOptions)(nil),     // 32: google.protobuf.OneofOptions
+	(*descriptorpb.FileOptions)(nil),      // 33: google.protobuf.FileOptions
 }
 var file_mcp_options_v1_options_proto_depIdxs = []int32{
-	9,  // 0: mcp.options.v1.ServiceOptions.icons:type_name -> mcp.options.v1.Icon
-	8,  // 1: mcp.options.v1.MethodOptions.annotations:type_name -> mcp.options.v1.ToolAnnotations
-	9,  // 2: mcp.options.v1.MethodOptions.icons:type_name -> mcp.options.v1.Icon
-	10, // 3: mcp.options.v1.MethodOptions.execution:type_name -> mcp.options.v1.ExecutionOptions
-	5,  // 4: mcp.options.v1.FieldOptions.examples:type_name -> mcp.options.v1.ExampleValue
-	5,  // 5: mcp.options.v1.FieldOptions.default_value:type_name -> mcp.options.v1.ExampleValue
-	6,  // 6: mcp.options.v1.ExampleValue.object_value:type_name -> mcp.options.v1.ExampleObject
-	7,  // 7: mcp.options.v1.ExampleValue.array_value:type_name -> mcp.options.v1.ExampleArray
-	18, // 8: mcp.options.v1.ExampleObject.properties:type_name -> mcp.options.v1.ExampleObject.PropertiesEntry
-	5,  // 9: mcp.options.v1.ExampleArray.items:type_name -> mcp.options.v1.ExampleValue
-	0,  // 10: mcp.options.v1.ExecutionOptions.task_support:type_name -> mcp.options.v1.TaskSupport
-	6,  // 11: mcp.options.v1.MessageOptions.examples:type_name -> mcp.options.v1.ExampleObject
-	9,  // 12: mcp.options.v1.PromptOptions.icons:type_name -> mcp.options.v1.Icon
-	1,  // 13: mcp.options.v1.ResourceAnnotations.audience:type_name -> mcp.options.v1.ResourceAudience
-	16, // 14: mcp.options.v1.ResourceOptions.annotations:type_name -> mcp.options.v1.ResourceAnnotations
-	9,  // 15: mcp.options.v1.ResourceOptions.icons:type_name -> mcp.options.v1.Icon
-	5,  // 16: mcp.options.v1.ExampleObject.PropertiesEntry.value:type_name -> mcp.options.v1.ExampleValue
-	19, // 17: mcp.options.v1.service:extendee -> google.protobuf.ServiceOptions
-	20, // 18: mcp.options.v1.method:extendee -> google.protobuf.MethodOptions
-	21, // 19: mcp.options.v1.field:extendee -> google.protobuf.FieldOptions
-	22, // 20: mcp.options.v1.message:extendee -> google.protobuf.MessageOptions
-	23, // 21: mcp.options.v1.enum:extendee -> google.protobuf.EnumOptions
-	24, // 22: mcp.options.v1.enum_value:extendee -> google.protobuf.EnumValueOptions
-	25, // 23: mcp.options.v1.oneof:extendee -> google.protobuf.OneofOptions
-	22, // 24: mcp.options.v1.prompt:extendee -> google.protobuf.MessageOptions
-	22, // 25: mcp.options.v1.resource:extendee -> google.protobuf.MessageOptions
-	2,  // 26: mcp.options.v1.service:type_name -> mcp.options.v1.ServiceOptions
-	3,  // 27: mcp.options.v1.method:type_name -> mcp.options.v1.MethodOptions
-	4,  // 28: mcp.options.v1.field:type_name -> mcp.options.v1.FieldOptions
-	12, // 29: mcp.options.v1.message:type_name -> mcp.options.v1.MessageOptions
-	13, // 30: mcp.options.v1.enum:type_name -> mcp.options.v1.EnumOptions
-	14, // 31: mcp.options.v1.enum_value:type_name -> mcp.options.v1.EnumValueOptions
-	11, // 32: mcp.options.v1.oneof:type_name -> mcp.options.v1.OneofOptions
-	15, // 33: mcp.options.v1.prompt:type_name -> mcp.options.v1.PromptOptions
-	17, // 34: mcp.options.v1.resource:type_name -> mcp.options.v1.ResourceOptions
-	35, // [35:35] is the sub-list for method output_type
-	35, // [35:35] is the sub-list for method input_type
-	26, // [26:35] is the sub-list for extension type_name
-	17, // [17:26] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	10, // 0: mcp.options.v1.ServiceOptions.icons:type_name -> mcp.options.v1.Icon
+	9,  // 1: mcp.options.v1.MethodOptions.annotations:type_name -> mcp.options.v1.ToolAnnotations
+	10, // 2: mcp.options.v1.MethodOptions.icons:type_name -> mcp.options.v1.Icon
+	11, // 3: mcp.options.v1.MethodOptions.execution:type_name -> mcp.options.v1.ExecutionOptions
+	4,  // 4: mcp.options.v1.MethodOptions.app_ui:type_name -> mcp.options.v1.AppUIOptions
+	6,  // 5: mcp.options.v1.FieldOptions.examples:type_name -> mcp.options.v1.ExampleValue
+	6,  // 6: mcp.options.v1.FieldOptions.default_value:type_name -> mcp.options.v1.ExampleValue
+	7,  // 7: mcp.options.v1.ExampleValue.object_value:type_name -> mcp.options.v1.ExampleObject
+	8,  // 8: mcp.options.v1.ExampleValue.array_value:type_name -> mcp.options.v1.ExampleArray
+	25, // 9: mcp.options.v1.ExampleObject.properties:type_name -> mcp.options.v1.ExampleObject.PropertiesEntry
+	6,  // 10: mcp.options.v1.ExampleArray.items:type_name -> mcp.options.v1.ExampleValue
+	0,  // 11: mcp.options.v1.ExecutionOptions.task_support:type_name -> mcp.options.v1.TaskSupport
+	7,  // 12: mcp.options.v1.MessageOptions.examples:type_name -> mcp.options.v1.ExampleObject
+	10, // 13: mcp.options.v1.PromptOptions.icons:type_name -> mcp.options.v1.Icon
+	1,  // 14: mcp.options.v1.ResourceAnnotations.audience:type_name -> mcp.options.v1.ResourceAudience
+	17, // 15: mcp.options.v1.ResourceOptions.annotations:type_name -> mcp.options.v1.ResourceAnnotations
+	10, // 16: mcp.options.v1.ResourceOptions.icons:type_name -> mcp.options.v1.Icon
+	24, // 17: mcp.options.v1.ResourceOptions.app_ui:type_name -> mcp.options.v1.AppResourceOptions
+	20, // 18: mcp.options.v1.ServerConfig.apps:type_name -> mcp.options.v1.AppsConfig
+	21, // 19: mcp.options.v1.ServerConfig.oauth:type_name -> mcp.options.v1.OAuthConfig
+	22, // 20: mcp.options.v1.AppResourceOptions.csp:type_name -> mcp.options.v1.AppResourceCSP
+	23, // 21: mcp.options.v1.AppResourceOptions.permissions:type_name -> mcp.options.v1.AppResourcePermissions
+	6,  // 22: mcp.options.v1.ExampleObject.PropertiesEntry.value:type_name -> mcp.options.v1.ExampleValue
+	26, // 23: mcp.options.v1.service:extendee -> google.protobuf.ServiceOptions
+	27, // 24: mcp.options.v1.method:extendee -> google.protobuf.MethodOptions
+	28, // 25: mcp.options.v1.field:extendee -> google.protobuf.FieldOptions
+	29, // 26: mcp.options.v1.message:extendee -> google.protobuf.MessageOptions
+	30, // 27: mcp.options.v1.enum:extendee -> google.protobuf.EnumOptions
+	31, // 28: mcp.options.v1.enum_value:extendee -> google.protobuf.EnumValueOptions
+	32, // 29: mcp.options.v1.oneof:extendee -> google.protobuf.OneofOptions
+	29, // 30: mcp.options.v1.prompt:extendee -> google.protobuf.MessageOptions
+	29, // 31: mcp.options.v1.resource:extendee -> google.protobuf.MessageOptions
+	33, // 32: mcp.options.v1.server:extendee -> google.protobuf.FileOptions
+	2,  // 33: mcp.options.v1.service:type_name -> mcp.options.v1.ServiceOptions
+	3,  // 34: mcp.options.v1.method:type_name -> mcp.options.v1.MethodOptions
+	5,  // 35: mcp.options.v1.field:type_name -> mcp.options.v1.FieldOptions
+	13, // 36: mcp.options.v1.message:type_name -> mcp.options.v1.MessageOptions
+	14, // 37: mcp.options.v1.enum:type_name -> mcp.options.v1.EnumOptions
+	15, // 38: mcp.options.v1.enum_value:type_name -> mcp.options.v1.EnumValueOptions
+	12, // 39: mcp.options.v1.oneof:type_name -> mcp.options.v1.OneofOptions
+	16, // 40: mcp.options.v1.prompt:type_name -> mcp.options.v1.PromptOptions
+	18, // 41: mcp.options.v1.resource:type_name -> mcp.options.v1.ResourceOptions
+	19, // 42: mcp.options.v1.server:type_name -> mcp.options.v1.ServerConfig
+	43, // [43:43] is the sub-list for method output_type
+	43, // [43:43] is the sub-list for method input_type
+	33, // [33:43] is the sub-list for extension type_name
+	23, // [23:33] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_mcp_options_v1_options_proto_init() }
@@ -2231,8 +2863,8 @@ func file_mcp_options_v1_options_proto_init() {
 	if File_mcp_options_v1_options_proto != nil {
 		return
 	}
-	file_mcp_options_v1_options_proto_msgTypes[2].OneofWrappers = []any{}
-	file_mcp_options_v1_options_proto_msgTypes[3].OneofWrappers = []any{
+	file_mcp_options_v1_options_proto_msgTypes[3].OneofWrappers = []any{}
+	file_mcp_options_v1_options_proto_msgTypes[4].OneofWrappers = []any{
 		(*ExampleValue_StringValue)(nil),
 		(*ExampleValue_NumberValue)(nil),
 		(*ExampleValue_BoolValue)(nil),
@@ -2241,16 +2873,18 @@ func file_mcp_options_v1_options_proto_init() {
 		(*ExampleValue_NullValue)(nil),
 		(*ExampleValue_IntegerValue)(nil),
 	}
-	file_mcp_options_v1_options_proto_msgTypes[6].OneofWrappers = []any{}
-	file_mcp_options_v1_options_proto_msgTypes[14].OneofWrappers = []any{}
+	file_mcp_options_v1_options_proto_msgTypes[7].OneofWrappers = []any{}
+	file_mcp_options_v1_options_proto_msgTypes[15].OneofWrappers = []any{}
+	file_mcp_options_v1_options_proto_msgTypes[18].OneofWrappers = []any{}
+	file_mcp_options_v1_options_proto_msgTypes[22].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mcp_options_v1_options_proto_rawDesc), len(file_mcp_options_v1_options_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   17,
-			NumExtensions: 9,
+			NumMessages:   24,
+			NumExtensions: 10,
 			NumServices:   0,
 		},
 		GoTypes:           file_mcp_options_v1_options_proto_goTypes,

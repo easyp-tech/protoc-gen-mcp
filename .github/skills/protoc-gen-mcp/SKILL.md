@@ -29,7 +29,7 @@ truth for supported features, layout, commands, and working rules.
 | Path | Role |
 |---|---|
 | `cmd/protoc-gen-mcp` | `--mcp_out` protoc plugin entrypoint and option dispatch |
-| `mcpruntime` | Self-contained Go MCP runtime (JSON-RPC server, tool/resource/prompt registration, stdio). No `modelcontextprotocol/go-sdk` dependency. |
+| `mcpruntime` | Protobuf/ProtoJSON/JSON Schema adapters, MCP Apps metadata/resources and OAuth helpers over the official Go MCP SDK. No self-contained wire server or transports. |
 | `internal/codegen` | Shared semantic model and language renderers |
 | `internal/codegen/render_python.go` | Python dataclass/protobuf/dual handler generation |
 | `internal/codegen/jvm_*.go` | SDK-neutral JVM model, naming, and collection |
@@ -53,7 +53,7 @@ truth for supported features, layout, commands, and working rules.
 
 | Target | Plugin Options | Generated Public API |
 |---|---|---|
-| Go | `lang=go` | Tools: `<Service>ToolHandler`, `Register<Service>Tools(server, impl, opts...) error`. Prompts: `<File>PromptHandler`, `Register<File>Prompts(server, impl, opts...) error`. Resources: `<File>ResourceHandler`, `Register<File>Resources(ctx, server, impl, opts...) error`. `server` is `*mcpruntime.Server`. |
+| Go | `lang=go` | Tools: `<Service>ToolHandler`, `Register<Service>Tools(server, impl, opts...) error`. Prompts: `<File>PromptHandler`, `Register<File>Prompts(server, impl, opts...) error`. Resources: `<File>ResourceHandler`, `Register<File>Resources(ctx, server, impl, opts...) error`. `server` is the official SDK's `*mcp.Server`. |
 | Python dataclass | `lang=python,python_runtime=google.protobuf` or `python_handler=dataclass` | `*_mcp.py`, dataclasses, `UNSET`, oneof wrappers, mapper helpers, `register_<service>_tools(...)` |
 | Python protobuf | `lang=python,python_handler=protobuf` | `*_mcp.py` with raw `*_pb2` handler protocol and identity converters |
 | Python dual | `lang=python,python_handler=dataclass+protobuf` | dataclass sidecar in `*_mcp.py` plus raw protobuf sidecar in `*_mcp_pb.py` |
@@ -61,6 +61,16 @@ truth for supported features, layout, commands, and working rules.
 | Java | `lang=java` | top-level `<ProtoFile>Mcp` class, nested `<Service>ToolHandler`, `register<Service>Tools(...)` |
 | TypeScript | `lang=typescript` | `*_mcp.ts`, typed `<Service>ToolHandler`, `register<Service>Tools(server, impl, namespace?)` |
 | JavaScript | no direct `lang=javascript` in v1.1 | consume compiled TypeScript `.js` plus `.d.ts` output |
+
+Go `<File>` names use the exported CamelCase proto basename (for example,
+`resources.proto` → `Resources`), scoped to `go_package`, not directory paths.
+Path-derived names remain deprecated aliases; migrate before relocating files.
+Generation rejects Go name collisions and `TASK_SUPPORT_REQUIRED`;
+omitted/`NONE`/`OPTIONAL` run synchronously without advertising Tasks.
+Generated OAuth HTTP handlers return HTTP 403 `insufficient_scope` challenges
+before tool dispatch. SDK clients use `OAuthHandler` for scope step-up/retry.
+Tools with `required_scopes` always return `permission denied` without a bearer
+token (stdio, in-memory, HTTP without OAuth); serve them through the OAuth handler.
 
 ## Resources and Prompts (message-level)
 
@@ -72,27 +82,62 @@ Go registration functions are named after the proto **file**, not a service.
 
 - **Prompt**: each field of the annotated message becomes a prompt argument
   (scalar/enum only; `optional` ⇒ not required). Handler returns
-  `[]mcpruntime.PromptMessage`. Arguments are parsed from `map[string]string`
+  `[]*mcp.PromptMessage`, with SDK content such as `&mcp.TextContent{Text: text}`.
+  Arguments are parsed from `map[string]string`
   via `mcpruntime.ParsePromptArguments`.
 - **Resource**: set exactly one of `uri` (static) or `uri_template` (templated,
   RFC-6570 simple `{param}`). Message fields are the output schema, serialized
   with ProtoJSON via `mcpruntime.MarshalResourceContent`. Templated resources
-  generate a `List<Msg>s(ctx) ([]mcpruntime.Resource, error)` (advertised
+  generate a `List<Msg>s(ctx) ([]mcp.Resource, error)` (advertised
   instances) plus `Read<Msg>(ctx, <param>...) (*<Msg>, error)`; URI params are
   extracted with `mcpruntime.ExtractURIParams`. `Register<File>Resources` takes
   `ctx` first because it calls `List*` eagerly at registration time.
-- `annotations.priority` maps to `*float64` — generated code must wrap it with
-  `mcpruntime.Ptr(...)`. Tool annotation hints (`ToolAnnotations.*Hint`) are all
-  `*bool` and must be wrapped with `proto.Bool(...)`; emitting bare values does
-  not compile.
+- `MarshalResourceContent` returns `[]*mcp.ResourceContents`. `content_field`
+  emits raw string/blob content; `source_file` embeds a static file without a
+  handler. MCP Apps resources carry SDK `_meta.ui` metadata.
+- SDK `mcp.Annotations.Priority` is `float64`, and `Audience` is `[]mcp.Role`.
+  The generator's `mcpruntime.ToolAnnotations` preserves all four hints as
+  `*bool` (`proto.Bool(...)`); its adapter converts to SDK annotations, where
+  `ReadOnlyHint` and `IdempotentHint` are plain `bool`, while `DestructiveHint`
+  and `OpenWorldHint` remain pointers. Do not apply one pointer rule to both types.
 
 ## Go runtime (`mcpruntime`)
 
-The Go target does not use `modelcontextprotocol/go-sdk`; it uses the in-repo
-`mcpruntime`. Wire a server with `mcpruntime.NewServer(name, version)`, register
-generated tools/prompts/resources, then serve with
-`mcpruntime.ServeStdio(ctx, server)` (or `ServeIO`). Python, JVM, and TypeScript
-targets still generate against their respective native MCP SDKs.
+The Go target uses `github.com/modelcontextprotocol/go-sdk v1.8.0` (Go 1.26+).
+Import `github.com/modelcontextprotocol/go-sdk/mcp`, construct the server with
+`mcp.NewServer(&mcp.Implementation{Name: name, Version: version}, nil)`, register
+generated tools/prompts/resources, then run
+`server.Run(ctx, &mcp.StdioTransport{})`. For custom streams, use
+`mcp.IOTransport{Reader: reader, Writer: writer}` with `io.ReadCloser` /
+`io.WriteCloser` values. Python, JVM and TypeScript keep their native MCP SDKs.
+
+Go bindings must be regenerated after the SDK migration. The old
+`mcpruntime.Server`, `NewServer`, `ServeStdio`, `ServeIO`, transport/session
+APIs and `HandleRaw` are removed. Generated tool registration uses
+`mcpruntime.RegisterSDKProtoTool`; callers should continue using the generated
+`Register<Service>Tools` API. Test protocol behavior with an SDK client and
+`mcp.NewInMemoryTransports` instead of raw wire dispatch.
+
+The protobuf `server` file option emits `New<File>MCPServer` and
+`New<File>MCPHTTPHandler`. The latter, `NewConfiguredHTTPHandler` and
+`NewOAuthResourceHandler` deliberately use stateless Streamable HTTP. No
+persistent session IDs, legacy GET listen streams or replay are provided by
+these helpers. Request-associated SSE notifications and new-protocol
+`subscriptions/listen` remain SDK-owned. Legacy stateful HTTP requires direct
+`mcp.NewStreamableHTTPHandler` configuration, an event store for resumption,
+and application-owned OAuth middleware/discovery. Never expose an unwrapped
+SDK handler assuming generated OAuth policy still applies. See
+[`docs/mcp-apps-oauth.md`](../../../docs/mcp-apps-oauth.md) for migration and
+session-owner authentication requirements.
+
+Built-in RS256 JWKS validation uses a five-minute cache. Refreshes share one
+in-flight fetch outside the cache mutex, with independent waiter cancellation
+and exponential failed-fetch backoff (one second to one minute). Past the TTL,
+known keys are served while the cache revalidates in the background and stay
+usable for `JWKSVerifierConfig.MaxStale` (one hour by default, negative for
+strict expiry at the TTL) after the last successful fetch; unknown keys never
+use a stale cache. Do not widen that window implicitly or bypass
+issuer/audience/expiration checks.
 
 Because generated resource/prompt code was historically only checked as text
 goldens, keep it **compiled**: `internal/examplemcp` registers the generated

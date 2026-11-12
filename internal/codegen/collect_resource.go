@@ -2,10 +2,14 @@ package codegen
 
 import (
 	"fmt"
+	"io/fs"
+	"mime"
+	"path"
 	"regexp"
 	"strings"
 
 	"google.golang.org/protobuf/compiler/protogen"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // paramRegex matches valid URI template parameter placeholders like {user_id}.
@@ -63,6 +67,43 @@ func collectResources(file *protogen.File) ([]ResourceModel, error) {
 		if mimeType == "" {
 			mimeType = "application/json"
 		}
+		baseMIME, _, err := mime.ParseMediaType(mimeType)
+		if err != nil {
+			return nil, fmt.Errorf("resource %s: invalid mime_type %q: %w", message.Desc.FullName(), mimeType, err)
+		}
+
+		sourceFile := strings.TrimSpace(opts.GetSourceFile())
+		if sourceFile != "" {
+			if uri == "" || uriTemplate != "" {
+				return nil, fmt.Errorf("resource %s: source_file requires a static uri", message.Desc.FullName())
+			}
+			if opts.GetContentField() != "" {
+				return nil, fmt.Errorf("resource %s: source_file and content_field are mutually exclusive", message.Desc.FullName())
+			}
+			if err := validateEmbedFile(sourceFile); err != nil {
+				return nil, fmt.Errorf("resource %s: %w", message.Desc.FullName(), err)
+			}
+		}
+		contentField := strings.TrimSpace(opts.GetContentField())
+		if contentField == "" && sourceFile == "" {
+			if baseMIME != "application/json" && !strings.HasSuffix(baseMIME, "+json") {
+				return nil, fmt.Errorf("resource %s: non-JSON mime_type %q requires content_field to avoid serving ProtoJSON as another format", message.Desc.FullName(), mimeType)
+			}
+		} else if contentField != "" {
+			field := message.Desc.Fields().ByName(protoreflect.Name(contentField))
+			if field == nil {
+				return nil, fmt.Errorf("resource %s: content_field %q is not a declared protobuf field", message.Desc.FullName(), contentField)
+			}
+			if field.IsList() || field.IsMap() {
+				return nil, fmt.Errorf("resource %s: content_field %q must be singular string or bytes", message.Desc.FullName(), contentField)
+			}
+			if field.Kind() != protoreflect.StringKind && field.Kind() != protoreflect.BytesKind {
+				return nil, fmt.Errorf("resource %s: content_field %q must be string or bytes, got %s", message.Desc.FullName(), contentField, field.Kind())
+			}
+			if field.Kind() == protoreflect.BytesKind && strings.HasPrefix(baseMIME, "text/") {
+				return nil, fmt.Errorf("resource %s: text mime_type %q requires a string content_field, not bytes", message.Desc.FullName(), mimeType)
+			}
+		}
 
 		resource := ResourceModel{
 			ProtoFullName: string(message.Desc.FullName()),
@@ -72,6 +113,9 @@ func collectResources(file *protogen.File) ([]ResourceModel, error) {
 			URI:           uri,
 			URITemplate:   uriTemplate,
 			MIMEType:      mimeType,
+			ContentField:  contentField,
+			SourceFile:    sourceFile,
+			AppUI:         opts.GetAppUi(),
 			IsTemplate:    isTemplate,
 			Params:        params,
 			Annotations:   opts.GetAnnotations(),
@@ -110,4 +154,16 @@ func extractTemplateParams(msgFullName, uriTemplate string) ([]ResourceParamMode
 	}
 
 	return params, nil
+}
+
+func validateEmbedFile(name string) error {
+	if !fs.ValidPath(name) || path.Clean(name) != name || strings.ContainsAny(name, "*?[\\] \t\r\n") {
+		return fmt.Errorf("source_file %q is not a valid relative Go embed path", name)
+	}
+	for _, segment := range strings.Split(name, "/") {
+		if segment == "" || strings.HasPrefix(segment, ".") || strings.HasPrefix(segment, "_") {
+			return fmt.Errorf("source_file %q uses an unsupported Go embed path segment", name)
+		}
+	}
+	return nil
 }

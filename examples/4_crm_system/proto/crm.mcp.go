@@ -7,6 +7,7 @@ import (
 	context "context"
 	errors "errors"
 	mcpruntime "github.com/easyp-tech/protoc-gen-mcp/mcpruntime"
+	mcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	proto "google.golang.org/protobuf/proto"
 )
 
@@ -17,11 +18,11 @@ type UsersAPIToolHandler interface {
 }
 
 // RegisterUsersAPITools registers generated MCP tools for UsersAPI.
-func RegisterUsersAPITools(server *mcpruntime.Server, impl UsersAPIToolHandler, opts ...mcpruntime.RegisterOption) error {
+func RegisterUsersAPITools(server *mcp.Server, impl UsersAPIToolHandler, opts ...mcpruntime.RegisterOption) error {
 	if impl == nil {
 		return errors.New("RegisterUsersAPITools: impl is nil")
 	}
-	if err := mcpruntime.RegisterProtoTool(server, mcpruntime.ToolSpec[*ListUsersRequest, *ListUsersResponse]{
+	if err := mcpruntime.RegisterSDKProtoTool(server, mcpruntime.ToolSpec[*ListUsersRequest, *ListUsersResponse]{
 		Name:             "ListUsers",
 		Title:            "",
 		Description:      "List users matching the selected filters.",
@@ -36,7 +37,7 @@ func RegisterUsersAPITools(server *mcpruntime.Server, impl UsersAPIToolHandler, 
 	}, opts...); err != nil {
 		return err
 	}
-	if err := mcpruntime.RegisterProtoTool(server, mcpruntime.ToolSpec[*UpdateUserRequest, *UpdateUserResponse]{
+	if err := mcpruntime.RegisterSDKProtoTool(server, mcpruntime.ToolSpec[*UpdateUserRequest, *UpdateUserResponse]{
 		Name:             "UpdateUser",
 		Title:            "",
 		Description:      "Perform a partial update of a user profile using a field mask.",

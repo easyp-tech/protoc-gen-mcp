@@ -72,6 +72,22 @@ class Document:
     author: str
 
 @dataclass(slots=True)
+class SkillDocument:
+    markdown: str
+
+@dataclass(slots=True)
+class PlainText:
+    body: str
+
+@dataclass(slots=True)
+class RawBinary:
+    data: bytes
+
+@dataclass(slots=True)
+class AppPage:
+    html: str
+
+@dataclass(slots=True)
 class PlainData:
     key: str
     value: str
@@ -461,6 +477,46 @@ def _to_pb_document(value: Document) -> resources_pb2.Document:
     message.author = value.author
     return message
 
+def _from_pb_skill_document(message: resources_pb2.SkillDocument) -> SkillDocument:
+    return SkillDocument(
+        markdown=message.markdown,
+    )
+
+def _to_pb_skill_document(value: SkillDocument) -> resources_pb2.SkillDocument:
+    message = resources_pb2.SkillDocument()
+    message.markdown = value.markdown
+    return message
+
+def _from_pb_plain_text(message: resources_pb2.PlainText) -> PlainText:
+    return PlainText(
+        body=message.body,
+    )
+
+def _to_pb_plain_text(value: PlainText) -> resources_pb2.PlainText:
+    message = resources_pb2.PlainText()
+    message.body = value.body
+    return message
+
+def _from_pb_raw_binary(message: resources_pb2.RawBinary) -> RawBinary:
+    return RawBinary(
+        data=message.data,
+    )
+
+def _to_pb_raw_binary(value: RawBinary) -> resources_pb2.RawBinary:
+    message = resources_pb2.RawBinary()
+    message.data = value.data
+    return message
+
+def _from_pb_app_page(message: resources_pb2.AppPage) -> AppPage:
+    return AppPage(
+        html=message.html,
+    )
+
+def _to_pb_app_page(value: AppPage) -> resources_pb2.AppPage:
+    message = resources_pb2.AppPage()
+    message.html = value.html
+    return message
+
 def _from_pb_plain_data(message: resources_pb2.PlainData) -> PlainData:
     return PlainData(
         key=message.key,
@@ -486,6 +542,16 @@ class ResourcesResourceHandler(Protocol):
     async def list_documents(self) -> list[mcp.types.Resource]:
         ...
     async def read_document(self, project_id: str, document_id: str) -> Any:
+        ...
+    async def read_skill_document(self) -> Any:
+        ...
+    async def list_plain_texts(self) -> list[mcp.types.Resource]:
+        ...
+    async def read_plain_text(self, name: str) -> Any:
+        ...
+    async def read_raw_binary(self) -> Any:
+        ...
+    async def read_app_page(self) -> Any:
         ...
 
 

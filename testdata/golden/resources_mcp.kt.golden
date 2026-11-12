@@ -275,6 +275,11 @@ interface ResourcesResourceHandler {
     suspend fun readUserProfile(user_id: String): Any
     suspend fun listDocuments(): List<io.modelcontextprotocol.kotlin.sdk.types.Resource>
     suspend fun readDocument(project_id: String, document_id: String): Any
+    suspend fun skillDocument(): Any
+    suspend fun listPlainTexts(): List<io.modelcontextprotocol.kotlin.sdk.types.Resource>
+    suspend fun readPlainText(name: String): Any
+    suspend fun rawBinary(): Any
+    suspend fun appPage(): Any
 }
 
 fun registerResourcesResources(server: Server, impl: ResourcesResourceHandler, namespace: String? = null) {
