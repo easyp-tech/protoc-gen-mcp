@@ -55,8 +55,8 @@ func ensureJVMExamplesInstalled(t *testing.T, root string) {
 		javaScript := filepath.Join(root, "examples/jvm/java-server/build/install/java-server/bin/java-server")
 		kotlinScript := filepath.Join(root, "examples/jvm/kotlin-server/build/install/kotlin-server/bin/kotlin-server")
 		if fileExists(javaScript) && fileExists(kotlinScript) {
-			if _, err := exec.LookPath("java"); err != nil {
-				ensureJVMExamplesInstalledSkip = "java not found in PATH; skipping JVM stdio tests"
+			if err := jvmToolRuns("java"); err != nil {
+				ensureJVMExamplesInstalledSkip = fmt.Sprintf("java is not usable (%v); skipping JVM stdio tests", err)
 			}
 			return
 		}
@@ -64,8 +64,8 @@ func ensureJVMExamplesInstalled(t *testing.T, root string) {
 			ensureJVMExamplesInstalledSkip = "gradle not found in PATH; skipping JVM stdio tests"
 			return
 		}
-		if _, err := exec.LookPath("javac"); err != nil {
-			ensureJVMExamplesInstalledSkip = "javac not found in PATH; skipping JVM stdio tests"
+		if err := jvmToolRuns("javac"); err != nil {
+			ensureJVMExamplesInstalledSkip = fmt.Sprintf("javac is not usable (%v); skipping JVM stdio tests", err)
 			return
 		}
 
@@ -153,4 +153,16 @@ func runJVMInvalidOutputTest(t *testing.T, target string) {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// jvmToolRuns checks that a JDK tool actually starts. macOS ships /usr/bin
+// java and javac stubs that are found in PATH but fail without a JDK.
+func jvmToolRuns(name string) error {
+	if _, err := exec.LookPath(name); err != nil {
+		return err
+	}
+	if out, err := exec.Command(name, "-version").CombinedOutput(); err != nil {
+		return fmt.Errorf("%s -version: %v: %s", name, err, strings.TrimSpace(string(out)))
+	}
+	return nil
 }
