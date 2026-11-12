@@ -158,8 +158,8 @@ architecture unless explicitly revised.
 - JSON contract is ProtoJSON-first
 - Tool input requiredness is a generated MCP schema policy, not the protobuf
   `required` label: singular fields are marked as required in the tool schema
-  by default unless they are `proto3 optional`, `repeated`, `map`, `oneof`,
-  or explicitly marked optional through MCP field options
+  by default unless they are `proto3 optional`, `repeated`, `map`, or `oneof`;
+  MCP field options do not override requiredness
 - Generated schemas must accept explicit JSON `null` for fields that are not
   marked as required by that generated MCP tool schema so MCP clients that
   validate cached `inputSchema` remain compatible with ProtoJSON unset

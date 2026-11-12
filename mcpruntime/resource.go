@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"mime"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -15,7 +16,7 @@ import (
 
 var templateParamRe = regexp.MustCompile(`\{([a-zA-Z_][a-zA-Z0-9_]*)\}`)
 
-// ExtractURIParams extracts named parameters from a URI using the given
+// ExtractURIParams extracts named, percent-decoded parameters from a URI using the given
 // URI template. Template parameters use the {name} syntax.
 func ExtractURIParams(uri, uriTemplate string) (map[string]string, error) {
 	matches := templateParamRe.FindAllStringSubmatch(uriTemplate, -1)
@@ -43,10 +44,16 @@ func ExtractURIParams(uri, uriTemplate string) (map[string]string, error) {
 	}
 	result := make(map[string]string, len(paramNames))
 	for i, name := range paramNames {
-		if groups[i+1] == "" {
+		// RFC 6570 simple-string expansion percent-encodes values, so decode
+		// them back. PathUnescape keeps "+" literal, unlike query decoding.
+		value, err := url.PathUnescape(groups[i+1])
+		if err != nil {
+			return nil, fmt.Errorf("mcpruntime: parameter %q in uri %q: %w", name, uri, err)
+		}
+		if value == "" {
 			return nil, fmt.Errorf("mcpruntime: parameter %q has empty value in uri %q", name, uri)
 		}
-		result[name] = groups[i+1]
+		result[name] = value
 	}
 	return result, nil
 }

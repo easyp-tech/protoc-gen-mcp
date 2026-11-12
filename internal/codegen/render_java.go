@@ -208,11 +208,11 @@ func renderJavaResources(generated *protogen.GeneratedFile, model JVMFileModel) 
 		if resource.IsTemplate {
 			generated.P("        java.util.List<Object> list", resource.ProtoName, "s();")
 			paramList := ""
-			for i, param := range resource.Params {
+			for i, identifier := range javaParamIdentifiers(resource.Params) {
 				if i > 0 {
 					paramList += ", "
 				}
-				paramList += "String " + param.Name
+				paramList += "String " + identifier
 			}
 			generated.P("        Object read", resource.ProtoName, "(", paramList, ");")
 		} else {

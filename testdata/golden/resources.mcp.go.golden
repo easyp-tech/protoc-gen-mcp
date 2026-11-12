@@ -55,6 +55,7 @@ func RegisterResourcesResources(ctx context.Context, server *mcp.Server, impl Re
 			Description: "Current server status and health information",
 			MIMEType:    "application/json",
 			Annotations: annotations,
+			Icons:       []mcp.Icon{mcp.Icon{Source: "https://example.com/status.svg", MIMEType: ""}},
 		}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			result, err := impl.ReadServerStatus(ctx)
 			if err != nil {
@@ -82,8 +83,7 @@ func RegisterResourcesResources(ctx context.Context, server *mcp.Server, impl Re
 			if err != nil {
 				return nil, err
 			}
-			user_id := params["user_id"]
-			result, err := impl.ReadUserProfile(ctx, user_id)
+			result, err := impl.ReadUserProfile(ctx, params["user_id"])
 			if err != nil {
 				return nil, err
 			}
@@ -120,9 +120,7 @@ func RegisterResourcesResources(ctx context.Context, server *mcp.Server, impl Re
 			if err != nil {
 				return nil, err
 			}
-			project_id := params["project_id"]
-			document_id := params["document_id"]
-			result, err := impl.ReadDocument(ctx, project_id, document_id)
+			result, err := impl.ReadDocument(ctx, params["project_id"], params["document_id"])
 			if err != nil {
 				return nil, err
 			}
@@ -181,8 +179,7 @@ func RegisterResourcesResources(ctx context.Context, server *mcp.Server, impl Re
 			if err != nil {
 				return nil, err
 			}
-			name := params["name"]
-			result, err := impl.ReadPlainText(ctx, name)
+			result, err := impl.ReadPlainText(ctx, params["name"])
 			if err != nil {
 				return nil, err
 			}

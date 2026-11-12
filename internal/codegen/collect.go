@@ -72,10 +72,7 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 				return FileModel{}, fmt.Errorf("input schema for %s: %w", method.Desc.FullName(), err)
 			}
 			if len(methodMetadata.Examples) > 0 {
-				inputSchema.Examples = make([]any, 0, len(methodMetadata.Examples))
-				for _, example := range methodMetadata.Examples {
-					inputSchema.Examples = append(inputSchema.Examples, example)
-				}
+				inputSchema.Examples = schema.MaterializeExamples(methodMetadata.Examples)
 			}
 
 			if methodMetadata.Deprecated {

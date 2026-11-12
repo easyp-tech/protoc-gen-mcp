@@ -2,6 +2,7 @@ package codegen
 
 import (
 	"context"
+	"encoding/json"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -97,6 +98,30 @@ func TestCollectFileModel_ExampleAPI(t *testing.T) {
 	}
 	if !strings.Contains(hidden.InputSchemaJSON, `"deprecated":true`) {
 		t.Fatalf("HiddenThing input schema should be marked deprecated: %s", hidden.InputSchemaJSON)
+	}
+}
+
+func TestCollectFileModel_MethodCommentExamplesAreJSONValues(t *testing.T) {
+	plugin := newExampleProtogenPlugin(t)
+	file := plugin.FilesByPath["internal/testproto/example/v1/example.proto"]
+	model, err := CollectFileModel(file, Options{Language: LanguageGo})
+	if err != nil {
+		t.Fatalf("CollectFileModel: %v", err)
+	}
+
+	var schema struct {
+		Examples []any `json:"examples"`
+	}
+	if err := json.Unmarshal([]byte(model.Services[0].Methods[0].InputSchemaJSON), &schema); err != nil {
+		t.Fatalf("unmarshal input schema: %v", err)
+	}
+	want := []any{map[string]any{
+		"city":    "Paris",
+		"count":   float64(2),
+		"details": map[string]any{"label": "today"},
+	}}
+	if !reflect.DeepEqual(schema.Examples, want) {
+		t.Fatalf("input schema examples = %#v, want %#v", schema.Examples, want)
 	}
 }
 

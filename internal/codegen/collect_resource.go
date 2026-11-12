@@ -149,7 +149,12 @@ func extractTemplateParams(msgFullName, uriTemplate string) ([]ResourceParamMode
 	}
 
 	params := make([]ResourceParamModel, 0, len(matches))
+	seen := make(map[string]struct{}, len(matches))
 	for _, match := range matches {
+		if _, exists := seen[match[1]]; exists {
+			return nil, fmt.Errorf("resource %s: uri_template %q repeats parameter %q", msgFullName, uriTemplate, match[1])
+		}
+		seen[match[1]] = struct{}{}
 		params = append(params, ResourceParamModel{Name: match[1]})
 	}
 

@@ -61,6 +61,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `// Example:` comments on an RPC are emitted into the tool `inputSchema` as
+  JSON values instead of strings, matching field and message examples.
+- Go bindings keep icon `sizes` and `theme`, render icons declared on
+  resources and resource templates, and reject icon themes other than
+  `light`/`dark` at generation time.
+- `uri_template` parameters named after reserved words (`{type}`, `{class}`,
+  `{fun}`, `{default}`, …) or Go handler identifiers (`{ctx}`, `{result}`)
+  now generate compilable code in every target language; a template that
+  repeats a parameter fails generation.
+- `mcpruntime.ExtractURIParams` percent-decodes template values, so generated
+  Go resource handlers receive `john doe` rather than `john%20doe`. Handlers
+  that decoded values themselves must stop doing so.
 - JWKS refreshes share one in-flight request and no longer hold the cache mutex
   during network I/O. Failed refreshes back off exponentially from one second
   to one minute; successful refreshes reset the delay. Past the five-minute

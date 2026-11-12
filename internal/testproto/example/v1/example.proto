@@ -62,8 +62,8 @@ service ExampleAPI {
     };
   }
 
-  // HiddenThing is intentionally hidden from generated tools.
-  // Note: the `hidden` method option was removed in this iteration.
+  // HiddenThing stays exposed as a tool and exercises the standard deprecated
+  // option; MethodOptions.hidden is covered by dedicated collector tests.
   rpc HiddenThing(HiddenThingRequest) returns (HiddenThingResponse) {
     option deprecated = true;
   }

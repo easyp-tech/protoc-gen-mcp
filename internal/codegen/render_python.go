@@ -197,8 +197,8 @@ func renderPythonResources(generated *protogen.GeneratedFile, model FileModel) {
 			generated.P("    async def list_", methodName, "s(self) -> list[mcp.types.Resource]:")
 			generated.P("        ...")
 			paramList := "self"
-			for _, param := range resource.Params {
-				paramList += ", " + param.Name + ": str"
+			for _, identifier := range pythonParamIdentifiers(resource.Params) {
+				paramList += ", " + identifier + ": str"
 			}
 			generated.P("    async def read_", methodName, "(", paramList, ") -> Any:")
 			generated.P("        ...")

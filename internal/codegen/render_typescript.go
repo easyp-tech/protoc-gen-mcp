@@ -648,11 +648,11 @@ func renderTypeScriptResources(generated *protogen.GeneratedFile, model TypeScri
 		if resource.IsTemplate {
 			generated.P("  list", resource.ProtoName, "s(): Promise<Array<{ name: string; uri: string; description?: string }>>;")
 			paramList := ""
-			for i, param := range resource.Params {
+			for i, identifier := range typescriptParamIdentifiers(resource.Params) {
 				if i > 0 {
 					paramList += ", "
 				}
-				paramList += param.Name + ": string"
+				paramList += identifier + ": string"
 			}
 			generated.P("  read", resource.ProtoName, "(", paramList, "): Promise<unknown>;")
 		} else {

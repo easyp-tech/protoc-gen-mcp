@@ -57,3 +57,7 @@ examples/7_kotlin_standalone/.gradle/
 examples/7_kotlin_standalone/build/
 .DS_Store
 .idea/*
+
+# Local planning docs
+ROADMAP.md
+.spec/
