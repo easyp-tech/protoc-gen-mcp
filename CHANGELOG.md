@@ -30,8 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   typed notification APIs and SDK client transports. Stateless HTTP can still
   deliver request-associated SSE notifications, including the new protocol's
   `subscriptions/listen`; legacy stateful HTTP is available through direct
-  SDK configuration. See the [migration guide](docs/mcp-apps-oauth.md#migrating-go-applications-from-070)
-  for concrete API/type replacements, stateful setup and authentication rules.
+  SDK configuration.
 - File-scoped Go APIs now use CamelCase proto basenames within `go_package`,
   independent of directory layout. Prior descriptor-path names remain deprecated
   aliases/wrappers; generation rejects collisions with other generated names

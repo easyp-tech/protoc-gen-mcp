@@ -395,7 +395,7 @@ func buildTypeScriptGeneratedNodeServerCommand(t *testing.T, invalidOutput strin
 
 	tempProject, err := os.MkdirTemp(spikeDir, ".tmp-typescript-stdio-*")
 	if err != nil {
-		t.Fatalf("create temporary TypeScript stdio project under sdk-spike: %v", err)
+		t.Fatalf("create temporary TypeScript stdio project under testdata/node: %v", err)
 	}
 	t.Cleanup(func() {
 		if err := os.RemoveAll(tempProject); err != nil {
