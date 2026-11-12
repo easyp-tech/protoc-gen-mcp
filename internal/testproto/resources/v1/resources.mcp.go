@@ -55,6 +55,7 @@ func RegisterResourcesResources(ctx context.Context, server *mcp.Server, impl Re
 			Description: "Current server status and health information",
 			MIMEType:    "application/json",
 			Annotations: annotations,
+			Icons:       []mcp.Icon{mcp.Icon{Source: "https://example.com/status.svg", MIMEType: ""}},
 		}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			result, err := impl.ReadServerStatus(ctx)
 			if err != nil {

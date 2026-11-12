@@ -51,7 +51,12 @@ func RegisterSDKProtoTool[Req proto.Message, Resp proto.Message](
 
 	icons := make([]mcp.Icon, 0, len(spec.Icons))
 	for _, icon := range spec.Icons {
-		icons = append(icons, mcp.Icon{Source: icon.URL, MIMEType: icon.MIMEType})
+		icons = append(icons, mcp.Icon{
+			Source:   icon.URL,
+			MIMEType: icon.MIMEType,
+			Sizes:    slices.Clone(icon.Sizes),
+			Theme:    mcp.IconTheme(icon.Theme),
+		})
 	}
 	tool := &mcp.Tool{
 		Name:         fullName,

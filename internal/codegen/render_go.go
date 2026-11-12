@@ -10,6 +10,9 @@ import (
 )
 
 func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
+	if err := validateGoIconThemes(model); err != nil {
+		return err
+	}
 	goInfo, err := newGoRenderInfo(plugin, model)
 	if err != nil {
 		return err
@@ -371,6 +374,9 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 				if resource.Annotations != nil {
 					generated.P("Annotations: annotations,")
 				}
+				if len(resource.Icons) > 0 {
+					generated.P("Icons: ", stringifySDKIcons(generated, resource.Icons), ",")
+				}
 				if resource.AppUI != nil {
 					generated.P("Meta: ", stringifyGoAppResourceMeta(generated, resource.AppUI), ",")
 				}
@@ -390,6 +396,9 @@ func renderGoFile(plugin *protogen.Plugin, model FileModel) error {
 				}
 				if resource.Annotations != nil {
 					generated.P("Annotations: annotations,")
+				}
+				if len(resource.Icons) > 0 {
+					generated.P("Icons: ", stringifySDKIcons(generated, resource.Icons), ",")
 				}
 				if resource.AppUI != nil {
 					generated.P("Meta: ", stringifyGoAppResourceMeta(generated, resource.AppUI), ",")
@@ -549,8 +558,7 @@ func stringifyIcons(generated *protogen.GeneratedFile, icons []*mcpoptionsv1.Ico
 
 	var items []string
 	for _, icon := range icons {
-		items = append(items, fmt.Sprintf("%s{URL: %q, MIMEType: %q},",
-			mcpIconIdent, icon.GetSrc(), icon.GetMimeType()))
+		items = append(items, mcpIconIdent+"{"+goIconFields(icon, "URL")+"},")
 	}
 	return "[]" + mcpIconIdent + "{" + strings.Join(items, " ") + "}"
 }
@@ -562,7 +570,50 @@ func stringifySDKIcons(generated *protogen.GeneratedFile, icons []*mcpoptionsv1.
 	mcpIconIdent := generated.QualifiedGoIdent(protogen.GoImportPath("github.com/modelcontextprotocol/go-sdk/mcp").Ident("Icon"))
 	var items []string
 	for _, icon := range icons {
-		items = append(items, fmt.Sprintf("%s{Source: %q, MIMEType: %q},", mcpIconIdent, icon.GetSrc(), icon.GetMimeType()))
+		items = append(items, mcpIconIdent+"{"+goIconFields(icon, "Source")+"},")
 	}
 	return "[]" + mcpIconIdent + "{" + strings.Join(items, " ") + "}"
+}
+
+// goIconFields renders the shared icon fields; srcField differs between the
+// mcpruntime (URL) and SDK (Source) icon structs.
+func goIconFields(icon *mcpoptionsv1.Icon, srcField string) string {
+	fields := []string{fmt.Sprintf("%s: %q", srcField, icon.GetSrc()), fmt.Sprintf("MIMEType: %q", icon.GetMimeType())}
+	if sizes := icon.GetSizes(); len(sizes) > 0 {
+		quoted := make([]string, 0, len(sizes))
+		for _, size := range sizes {
+			quoted = append(quoted, quote(size))
+		}
+		fields = append(fields, "Sizes: []string{"+strings.Join(quoted, ", ")+"}")
+	}
+	if theme := icon.GetTheme(); theme != "" {
+		fields = append(fields, "Theme: "+quote(theme))
+	}
+	return strings.Join(fields, ", ")
+}
+
+// validateGoIconThemes rejects icon themes outside the MCP Icon contract
+// before any Go output is rendered.
+func validateGoIconThemes(model FileModel) error {
+	var icons []*mcpoptionsv1.Icon
+	for _, service := range model.Services {
+		icons = append(icons, service.Icons...)
+		for _, method := range service.Methods {
+			icons = append(icons, method.Icons...)
+		}
+	}
+	for _, prompt := range model.Prompts {
+		icons = append(icons, prompt.Icons...)
+	}
+	for _, resource := range model.Resources {
+		icons = append(icons, resource.Icons...)
+	}
+	for _, icon := range icons {
+		switch icon.GetTheme() {
+		case "", "light", "dark":
+		default:
+			return fmt.Errorf("unsupported Go icon theme %q", icon.GetTheme())
+		}
+	}
+	return nil
 }
