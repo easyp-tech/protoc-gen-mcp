@@ -7,7 +7,7 @@ import type { JsonValue, Registry } from "@bufbuild/protobuf";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import { CallToolRequestSchema, ErrorCode, GetPromptRequestSchema, ListPromptsRequestSchema, ListToolsRequestSchema, McpError } from "@modelcontextprotocol/sdk/types.js";
-import type { CallToolRequest, GetPromptResult, PromptArgument } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolRequest, GetPromptResult, Prompt, PromptArgument } from "@modelcontextprotocol/sdk/types.js";
 import type { CallToolResult, ServerNotification, ServerRequest, Tool } from "@modelcontextprotocol/sdk/types.js";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import type { ValidateFunction } from "ajv/dist/2020.js";
@@ -60,22 +60,15 @@ type ServerToolRegistry = {
 };
 
 export interface PromptsPromptHandler {
-  codeReview(arguments: Record<string, string>): Promise<GetPromptResult> | GetPromptResult;
-  summarize(arguments: Record<string, string>): Promise<GetPromptResult> | GetPromptResult;
-  explainError(arguments: Record<string, string>): Promise<GetPromptResult> | GetPromptResult;
+  codeReview(args: Record<string, string>): Promise<GetPromptResult> | GetPromptResult;
+  summarize(args: Record<string, string>): Promise<GetPromptResult> | GetPromptResult;
+  explainError(args: Record<string, string>): Promise<GetPromptResult> | GetPromptResult;
 }
 
-type RegisteredPrompt = {
-  name: string;
-  title?: string;
-  description?: string;
-  arguments: PromptArgument[];
-  handler: (args: Record<string, string>) => Promise<GetPromptResult> | GetPromptResult;
-};
-
 export function registerPromptsPrompts(server: Server, impl: PromptsPromptHandler, namespace?: string): void {
-  const prompts: RegisteredPrompt[] = [
-    {
+  const registry = installPromptHandlers(server);
+  addRegisteredPrompt(registry, {
+    prompt: {
       name: promptName(namespace, "code_review"),
       description: "Analyze code quality and suggest improvements",
       arguments: [
@@ -83,9 +76,11 @@ export function registerPromptsPrompts(server: Server, impl: PromptsPromptHandle
         { name: "language", description: "Programming language (go, python, java, etc)", required: true },
         { name: "focusArea", description: "Specific area: security, performance, readability", required: false },
       ],
-      handler: impl.codeReview.bind(impl),
     },
-    {
+    handler: impl.codeReview.bind(impl),
+  });
+  addRegisteredPrompt(registry, {
+    prompt: {
       name: promptName(namespace, "summarize"),
       title: "Document Summarizer",
       description: "Summarize a document or text",
@@ -94,9 +89,11 @@ export function registerPromptsPrompts(server: Server, impl: PromptsPromptHandle
         { name: "maxLength", description: "Maximum length of the summary in words", required: false },
         { name: "format", description: "Output format: bullet_points, paragraph, tldr", required: false },
       ],
-      handler: impl.summarize.bind(impl),
     },
-    {
+    handler: impl.summarize.bind(impl),
+  });
+  addRegisteredPrompt(registry, {
+    prompt: {
       name: promptName(namespace, "explain_error"),
       description: "Explain an error message and suggest fixes",
       arguments: [
@@ -104,33 +101,54 @@ export function registerPromptsPrompts(server: Server, impl: PromptsPromptHandle
         { name: "language", description: "Programming language context", required: true },
         { name: "level", description: "Expertise level for the explanation", required: true },
       ],
-      handler: impl.explainError.bind(impl),
     },
-  ];
+    handler: impl.explainError.bind(impl),
+  });
+}
 
+type RegisteredPrompt = {
+  prompt: Prompt & { arguments: PromptArgument[] };
+  handler: (args: Record<string, string>) => Promise<GetPromptResult> | GetPromptResult;
+};
+
+type ServerPromptRegistry = Map<string, RegisteredPrompt>;
+
+const promptRegistrySymbol: unique symbol = Symbol.for("protoc-gen-mcp.typescript.promptRegistry") as never;
+
+function installPromptHandlers(server: Server): ServerPromptRegistry {
+  const holder = server as Server & { [promptRegistrySymbol]?: ServerPromptRegistry };
+  const existing = holder[promptRegistrySymbol];
+  if (existing !== undefined) {
+    return existing;
+  }
+  const registry: ServerPromptRegistry = new Map();
+  holder[promptRegistrySymbol] = registry;
+  server.registerCapabilities({ prompts: {} });
   server.setRequestHandler(ListPromptsRequestSchema, async () => ({
-    prompts: prompts.map((p) => ({
-      name: p.name,
-      ...(p.title !== undefined && { title: p.title }),
-      ...(p.description !== undefined && { description: p.description }),
-      arguments: p.arguments,
-    })),
+    prompts: [...registry.values()].map((entry) => entry.prompt),
   }));
-
   server.setRequestHandler(GetPromptRequestSchema, async (request) => {
     const requestedName = request.params.name;
-    const prompt = prompts.find((p) => p.name === requestedName);
-    if (prompt === undefined) {
+    const entry = registry.get(requestedName);
+    if (entry === undefined) {
       throw new McpError(ErrorCode.InvalidParams, `unknown prompt '${requestedName}'`);
     }
-    const args = request.params.arguments ?? {};
-    for (const arg of prompt.arguments) {
+    const args: Record<string, string> = { ...(request.params.arguments ?? {}) };
+    for (const arg of entry.prompt.arguments) {
       if (arg.required && !(arg.name in args)) {
         throw new McpError(ErrorCode.InvalidParams, `missing required prompt argument: ${arg.name}`);
       }
     }
-    return await prompt.handler(args as Record<string, string>);
+    return await entry.handler(args);
   });
+  return registry;
+}
+
+function addRegisteredPrompt(registry: ServerPromptRegistry, entry: RegisteredPrompt): void {
+  if (registry.has(entry.prompt.name)) {
+    throw new Error(`duplicate prompt registration: ${entry.prompt.name}`);
+  }
+  registry.set(entry.prompt.name, entry);
 }
 
 function promptName(namespace: string | undefined, promptName: string): string {
