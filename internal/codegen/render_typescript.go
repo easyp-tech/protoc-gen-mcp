@@ -39,7 +39,9 @@ func renderTypeScriptFile(plugin *protogen.Plugin, model TypeScriptFileModel) er
 	}
 
 	if len(model.Resources) > 0 {
-		renderTypeScriptResources(generated, model)
+		if err := renderTypeScriptResources(generated, model); err != nil {
+			return err
+		}
 		generated.P()
 	}
 
@@ -53,12 +55,22 @@ func renderTypeScriptImports(generated *protogen.GeneratedFile, model TypeScript
 	generated.P(`import type { JsonValue, Registry } from "@bufbuild/protobuf";`)
 	generated.P(`import { Server } from "@modelcontextprotocol/sdk/server/index.js";`)
 	generated.P(`import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";`)
+	sdkValues := []string{"CallToolRequestSchema", "ErrorCode", "ListToolsRequestSchema", "McpError"}
+	sdkTypes := []string{"CallToolRequest"}
 	if len(model.Prompts) > 0 {
-		generated.P(`import { CallToolRequestSchema, ErrorCode, GetPromptRequestSchema, ListPromptsRequestSchema, ListToolsRequestSchema, McpError } from "@modelcontextprotocol/sdk/types.js";`)
-		generated.P(`import type { CallToolRequest, GetPromptResult, PromptArgument } from "@modelcontextprotocol/sdk/types.js";`)
-	} else {
-		generated.P(`import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from "@modelcontextprotocol/sdk/types.js";`)
-		generated.P(`import type { CallToolRequest } from "@modelcontextprotocol/sdk/types.js";`)
+		sdkValues = append(sdkValues, "GetPromptRequestSchema", "ListPromptsRequestSchema")
+		sdkTypes = append(sdkTypes, "GetPromptResult", "Prompt", "PromptArgument")
+	}
+	if len(model.Resources) > 0 {
+		sdkValues = append(sdkValues, "ListResourceTemplatesRequestSchema", "ListResourcesRequestSchema", "ReadResourceRequestSchema")
+		sdkTypes = append(sdkTypes, "ReadResourceResult", "Resource", "ResourceTemplate")
+	}
+	sort.Strings(sdkValues)
+	sort.Strings(sdkTypes)
+	generated.P("import { ", strings.Join(sdkValues, ", "), " } from \"@modelcontextprotocol/sdk/types.js\";")
+	generated.P("import type { ", strings.Join(sdkTypes, ", "), " } from \"@modelcontextprotocol/sdk/types.js\";")
+	if len(model.Resources) > 0 {
+		generated.P(`import { base64Encode } from "@bufbuild/protobuf/wire";`)
 	}
 	generated.P(`import type { CallToolResult, ServerNotification, ServerRequest, Tool } from "@modelcontextprotocol/sdk/types.js";`)
 	generated.P(`import { Ajv2020 } from "ajv/dist/2020.js";`)
@@ -119,6 +131,11 @@ func collectTypeScriptRenderImports(model TypeScriptFileModel) []TypeScriptImpor
 		for _, method := range service.Methods {
 			addRef(method.Input)
 			addRef(method.Output)
+		}
+	}
+	for _, resource := range model.Resources {
+		if ref, ok := model.ResourceOutputs[resource.ProtoFullName]; ok {
+			addRef(ref)
 		}
 	}
 
@@ -552,29 +569,18 @@ func renderTypeScriptPrompts(generated *protogen.GeneratedFile, model TypeScript
 	interfaceName := typescriptExportedIdentifier(fileBase) + "PromptHandler"
 	registerName := "register" + typescriptExportedIdentifier(fileBase) + "Prompts"
 
-	// Handler interface.
 	generated.P("export interface ", interfaceName, " {")
 	for _, prompt := range model.Prompts {
-		generated.P("  ", typescriptMethodName(prompt.ProtoName), "(arguments: Record<string, string>): Promise<GetPromptResult> | GetPromptResult;")
+		generated.P("  ", typescriptMethodName(prompt.ProtoName), "(args: Record<string, string>): Promise<GetPromptResult> | GetPromptResult;")
 	}
 	generated.P("}")
 	generated.P()
 
-	// Prompt registry type.
-	generated.P("type RegisteredPrompt = {")
-	generated.P("  name: string;")
-	generated.P("  title?: string;")
-	generated.P("  description?: string;")
-	generated.P("  arguments: PromptArgument[];")
-	generated.P("  handler: (args: Record<string, string>) => Promise<GetPromptResult> | GetPromptResult;")
-	generated.P("};")
-	generated.P()
-
-	// Register function — collects prompts and installs handlers once.
 	generated.P("export function ", registerName, "(server: Server, impl: ", interfaceName, ", namespace?: string): void {")
-	generated.P("  const prompts: RegisteredPrompt[] = [")
+	generated.P("  const registry = installPromptHandlers(server);")
 	for _, prompt := range model.Prompts {
-		generated.P("    {")
+		generated.P("  addRegisteredPrompt(registry, {")
+		generated.P("    prompt: {")
 		generated.P("      name: promptName(namespace, ", typescriptStringLiteral(prompt.Name), "),")
 		if prompt.Title != "" {
 			generated.P("      title: ", typescriptStringLiteral(prompt.Title), ",")
@@ -587,43 +593,58 @@ func renderTypeScriptPrompts(generated *protogen.GeneratedFile, model TypeScript
 			generated.P("        { name: ", typescriptStringLiteral(arg.Name), ", description: ", typescriptStringLiteral(arg.Description), ", required: ", typescriptBoolLiteral(arg.Required), " },")
 		}
 		generated.P("      ],")
-		generated.P("      handler: impl.", typescriptMethodName(prompt.ProtoName), ".bind(impl),")
 		generated.P("    },")
+		generated.P("    handler: impl.", typescriptMethodName(prompt.ProtoName), ".bind(impl),")
+		generated.P("  });")
 	}
-	generated.P("  ];")
+	generated.P("}")
 	generated.P()
 
-	// Install ListPrompts handler.
+	generated.P("type RegisteredPrompt = {")
+	generated.P("  prompt: Prompt & { arguments: PromptArgument[] };")
+	generated.P("  handler: (args: Record<string, string>) => Promise<GetPromptResult> | GetPromptResult;")
+	generated.P("};")
+	generated.P()
+	generated.P("type ServerPromptRegistry = Map<string, RegisteredPrompt>;")
+	generated.P()
+	generated.P(`const promptRegistrySymbol: unique symbol = Symbol.for("protoc-gen-mcp.typescript.promptRegistry") as never;`)
+	generated.P()
+	generated.P("function installPromptHandlers(server: Server): ServerPromptRegistry {")
+	generated.P("  const holder = server as Server & { [promptRegistrySymbol]?: ServerPromptRegistry };")
+	generated.P("  const existing = holder[promptRegistrySymbol];")
+	generated.P("  if (existing !== undefined) {")
+	generated.P("    return existing;")
+	generated.P("  }")
+	generated.P("  const registry: ServerPromptRegistry = new Map();")
+	generated.P("  holder[promptRegistrySymbol] = registry;")
+	generated.P("  server.registerCapabilities({ prompts: {} });")
 	generated.P("  server.setRequestHandler(ListPromptsRequestSchema, async () => ({")
-	generated.P("    prompts: prompts.map((p) => ({")
-	generated.P("      name: p.name,")
-	generated.P("      ...(p.title !== undefined && { title: p.title }),")
-	generated.P("      ...(p.description !== undefined && { description: p.description }),")
-	generated.P("      arguments: p.arguments,")
-	generated.P("    })),")
+	generated.P("    prompts: [...registry.values()].map((entry) => entry.prompt),")
 	generated.P("  }));")
-	generated.P()
-
-	// Install GetPrompt handler — dispatches to the matching prompt.
 	generated.P("  server.setRequestHandler(GetPromptRequestSchema, async (request) => {")
 	generated.P("    const requestedName = request.params.name;")
-	generated.P("    const prompt = prompts.find((p) => p.name === requestedName);")
-	generated.P("    if (prompt === undefined) {")
+	generated.P("    const entry = registry.get(requestedName);")
+	generated.P("    if (entry === undefined) {")
 	generated.P("      throw new McpError(ErrorCode.InvalidParams, `unknown prompt '${requestedName}'`);")
 	generated.P("    }")
-	generated.P("    const args = request.params.arguments ?? {};")
-	// Validate required arguments.
-	generated.P("    for (const arg of prompt.arguments) {")
+	generated.P("    const args: Record<string, string> = { ...(request.params.arguments ?? {}) };")
+	generated.P("    for (const arg of entry.prompt.arguments) {")
 	generated.P("      if (arg.required && !(arg.name in args)) {")
 	generated.P("        throw new McpError(ErrorCode.InvalidParams, `missing required prompt argument: ${arg.name}`);")
 	generated.P("      }")
 	generated.P("    }")
-	generated.P("    return await prompt.handler(args as Record<string, string>);")
+	generated.P("    return await entry.handler(args);")
 	generated.P("  });")
+	generated.P("  return registry;")
 	generated.P("}")
 	generated.P()
-
-	// Prompt name helper.
+	generated.P("function addRegisteredPrompt(registry: ServerPromptRegistry, entry: RegisteredPrompt): void {")
+	generated.P("  if (registry.has(entry.prompt.name)) {")
+	generated.P("    throw new Error(`duplicate prompt registration: ${entry.prompt.name}`);")
+	generated.P("  }")
+	generated.P("  registry.set(entry.prompt.name, entry);")
+	generated.P("}")
+	generated.P()
 	generated.P("function promptName(namespace: string | undefined, promptName: string): string {")
 	generated.P("  const normalizedNamespace = normalizeToolSegment(namespace ?? \"\");")
 	generated.P("  const normalizedPromptName = normalizeToolSegment(promptName);")
@@ -637,37 +658,246 @@ func renderTypeScriptPrompts(generated *protogen.GeneratedFile, model TypeScript
 	generated.P("}")
 }
 
-func renderTypeScriptResources(generated *protogen.GeneratedFile, model TypeScriptFileModel) {
+func renderTypeScriptResources(generated *protogen.GeneratedFile, model TypeScriptFileModel) error {
 	fileBase := typescriptFileBaseName(model.ProtoPath)
 	interfaceName := typescriptExportedIdentifier(fileBase) + "ResourceHandler"
 	registerName := "register" + typescriptExportedIdentifier(fileBase) + "Resources"
 
 	generated.P("export interface ", interfaceName, " {")
 	for _, resource := range model.Resources {
-		methodName := typescriptMethodName(resource.ProtoName)
+		returnType := "string | Uint8Array"
+		if ref, ok := model.ResourceOutputs[resource.ProtoFullName]; ok {
+			returnType = ref.TypeName
+		}
+		paramList := ""
 		if resource.IsTemplate {
-			generated.P("  list", resource.ProtoName, "s(): Promise<Array<{ name: string; uri: string; description?: string }>>;")
-			paramList := ""
+			generated.P("  list", resource.ProtoName, "s(): Promise<Resource[]> | Resource[];")
 			for i, identifier := range typescriptParamIdentifiers(resource.Params) {
 				if i > 0 {
 					paramList += ", "
 				}
 				paramList += identifier + ": string"
 			}
-			generated.P("  read", resource.ProtoName, "(", paramList, "): Promise<unknown>;")
-		} else {
-			generated.P("  ", methodName, "(): Promise<unknown>;")
 		}
+		generated.P("  read", resource.ProtoName, "(", paramList, "): Promise<", returnType, "> | ", returnType, ";")
 	}
 	generated.P("}")
 	generated.P()
 
-	generated.P("export function ", registerName, "(")
-	generated.P("  server: Server,")
-	generated.P("  impl: ", interfaceName, ",")
-	generated.P("  namespace?: string,")
-	generated.P("): void {")
-	generated.P("  // TODO: full TypeScript resource registration")
-	generated.P("  throw new Error(\"MCP Resources for TypeScript are not yet fully supported\");")
+	generated.P("export function ", registerName, "(server: Server, impl: ", interfaceName, ", namespace?: string): void {")
+	generated.P("  const registry = installResourceHandlers(server);")
+	generated.P("  const protoRegistry = buildProtoRegistry(", model.CurrentFile.RegistryRef.RefName, ");")
+	for _, resource := range model.Resources {
+		descriptor, err := resourceDescriptorJSON(resource)
+		if err != nil {
+			return err
+		}
+		meta := "undefined"
+		if metaJSON := resourceMetaJSON(resource); metaJSON != "" {
+			meta = "JSON.parse(" + typescriptStringLiteral(metaJSON) + ")"
+		}
+		encoding := "{ kind: \"raw\" }"
+		if ref, ok := model.ResourceOutputs[resource.ProtoFullName]; ok {
+			switch resourceContent(resource) {
+			case resourceContentTextField:
+				encoding = "{ kind: \"text_field\", schema: " + ref.SchemaName + ", field: " + typescriptStringLiteral(resource.ContentField) + " }"
+			case resourceContentBlobField:
+				encoding = "{ kind: \"blob_field\", schema: " + ref.SchemaName + ", field: " + typescriptStringLiteral(resource.ContentField) + " }"
+			default:
+				encoding = "{ kind: \"protojson\", schema: " + ref.SchemaName + ", registry: protoRegistry }"
+			}
+		}
+		options := "{ mimeType: " + typescriptStringLiteral(resource.MIMEType) + ", meta: " + meta + ", encoding: " + encoding + " }"
+		if resource.IsTemplate {
+			args := make([]string, 0, len(resource.Params))
+			for _, param := range resource.Params {
+				args = append(args, "params["+typescriptStringLiteral(param.Name)+"] ?? \"\"")
+			}
+			generated.P("  addResourceTemplate(registry, {")
+			generated.P("    template: resourceListing(", typescriptStringLiteral(descriptor), ", namespace, ", typescriptStringLiteral(resource.Name), ") as ResourceTemplate,")
+			generated.P("    pattern: compileUriTemplate(", typescriptStringLiteral(resource.URITemplate), "),")
+			generated.P("    names: ", typescriptStringArrayLiteral(resourceParamNames(resource.Params)), ",")
+			generated.P("    list: async () => await impl.list", resource.ProtoName, "s(),")
+			generated.P("    read: async (uri, params) => resourceContents(await impl.read", resource.ProtoName, "(", strings.Join(args, ", "), "), uri, ", options, "),")
+			generated.P("  });")
+		} else {
+			generated.P("  addStaticResource(registry, {")
+			generated.P("    resource: resourceListing(", typescriptStringLiteral(descriptor), ", namespace, ", typescriptStringLiteral(resource.Name), ") as Resource,")
+			generated.P("    read: async (uri) => resourceContents(await impl.read", resource.ProtoName, "(), uri, ", options, "),")
+			generated.P("  });")
+		}
+	}
+	generated.P("}")
+	generated.P()
+	renderTypeScriptResourceRuntime(generated)
+	return nil
+}
+
+func resourceParamNames(params []ResourceParamModel) []string {
+	names := make([]string, 0, len(params))
+	for _, param := range params {
+		names = append(names, param.Name)
+	}
+	return names
+}
+
+// renderTypeScriptResourceRuntime emits the per-server resource registry and
+// ports of mcpruntime.ExtractURIParams and mcpruntime.MarshalResourceContent.
+func renderTypeScriptResourceRuntime(generated *protogen.GeneratedFile) {
+	generated.P("type ResourceEncoding =")
+	generated.P(`  | { kind: "protojson"; schema: DescMessage; registry: Registry }`)
+	generated.P(`  | { kind: "text_field" | "blob_field"; schema: DescMessage; field: string }`)
+	generated.P(`  | { kind: "raw" };`)
+	generated.P()
+	generated.P("type ResourceContentOptions = {")
+	generated.P("  mimeType: string;")
+	generated.P("  meta: Record<string, unknown> | undefined;")
+	generated.P("  encoding: ResourceEncoding;")
+	generated.P("};")
+	generated.P()
+	generated.P("type ResourceContents = ReadResourceResult[\"contents\"][number];")
+	generated.P()
+	generated.P("type RegisteredStaticResource = {")
+	generated.P("  resource: Resource;")
+	generated.P("  read: (uri: string) => Promise<ResourceContents>;")
+	generated.P("};")
+	generated.P()
+	generated.P("type RegisteredResourceTemplate = {")
+	generated.P("  template: ResourceTemplate;")
+	generated.P("  pattern: RegExp;")
+	generated.P("  names: string[];")
+	generated.P("  list: () => Promise<Resource[]>;")
+	generated.P("  read: (uri: string, params: Record<string, string>) => Promise<ResourceContents>;")
+	generated.P("};")
+	generated.P()
+	generated.P("type ServerResourceRegistry = {")
+	generated.P("  statics: Map<string, RegisteredStaticResource>;")
+	generated.P("  templates: RegisteredResourceTemplate[];")
+	generated.P("};")
+	generated.P()
+	generated.P(`const resourceRegistrySymbol: unique symbol = Symbol.for("protoc-gen-mcp.typescript.resourceRegistry") as never;`)
+	generated.P()
+	generated.P("function installResourceHandlers(server: Server): ServerResourceRegistry {")
+	generated.P("  const holder = server as Server & { [resourceRegistrySymbol]?: ServerResourceRegistry };")
+	generated.P("  const existing = holder[resourceRegistrySymbol];")
+	generated.P("  if (existing !== undefined) {")
+	generated.P("    return existing;")
+	generated.P("  }")
+	generated.P("  const registry: ServerResourceRegistry = { statics: new Map(), templates: [] };")
+	generated.P("  holder[resourceRegistrySymbol] = registry;")
+	generated.P("  server.registerCapabilities({ resources: {} });")
+	generated.P("  server.setRequestHandler(ListResourcesRequestSchema, async () => {")
+	generated.P("    const resources: Resource[] = [...registry.statics.values()].map((entry) => entry.resource);")
+	generated.P("    for (const entry of registry.templates) {")
+	generated.P("      resources.push(...(await entry.list()));")
+	generated.P("    }")
+	generated.P("    return { resources };")
+	generated.P("  });")
+	generated.P("  server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({")
+	generated.P("    resourceTemplates: registry.templates.map((entry) => entry.template),")
+	generated.P("  }));")
+	generated.P("  server.setRequestHandler(ReadResourceRequestSchema, async (request): Promise<ReadResourceResult> => {")
+	generated.P("    const uri = request.params.uri;")
+	generated.P("    const entry = registry.statics.get(uri);")
+	generated.P("    if (entry !== undefined) {")
+	generated.P("      return { contents: [await entry.read(uri)] };")
+	generated.P("    }")
+	generated.P("    for (const template of registry.templates) {")
+	generated.P("      const params = matchUriTemplate(template, uri);")
+	generated.P("      if (params !== undefined) {")
+	generated.P("        return { contents: [await template.read(uri, params)] };")
+	generated.P("      }")
+	generated.P("    }")
+	generated.P("    throw new McpError(ErrorCode.InvalidParams, \"Resource not found\", { uri });")
+	generated.P("  });")
+	generated.P("  return registry;")
+	generated.P("}")
+	generated.P()
+	generated.P("function addStaticResource(registry: ServerResourceRegistry, entry: RegisteredStaticResource): void {")
+	generated.P("  if (registry.statics.has(entry.resource.uri)) {")
+	generated.P("    throw new Error(`duplicate resource registration: ${entry.resource.uri}`);")
+	generated.P("  }")
+	generated.P("  registry.statics.set(entry.resource.uri, entry);")
+	generated.P("}")
+	generated.P()
+	generated.P("function addResourceTemplate(registry: ServerResourceRegistry, entry: RegisteredResourceTemplate): void {")
+	generated.P("  if (registry.templates.some((existing) => existing.template.uriTemplate === entry.template.uriTemplate)) {")
+	generated.P("    throw new Error(`duplicate resource template registration: ${entry.template.uriTemplate}`);")
+	generated.P("  }")
+	generated.P("  registry.templates.push(entry);")
+	generated.P("}")
+	generated.P()
+	generated.P("function resourceListing(descriptorJson: string, namespace: string | undefined, name: string): Record<string, unknown> {")
+	generated.P("  const descriptor = JSON.parse(descriptorJson) as Record<string, unknown>;")
+	generated.P("  descriptor.name = namespace ? `${namespace}_${name}` : name;")
+	generated.P("  return descriptor;")
+	generated.P("}")
+	generated.P()
+	generated.P("function compileUriTemplate(uriTemplate: string): RegExp {")
+	generated.P("  const parts = uriTemplate.split(/\\{[a-zA-Z_][a-zA-Z0-9_]*\\}/);")
+	generated.P("  const escaped = parts.map((part) => part.replace(/[.*+?^${}()|[\\]\\\\]/g, \"\\\\$&\"));")
+	generated.P("  return new RegExp(`^${escaped.join(\"([^/]+)\")}$`);")
+	generated.P("}")
+	generated.P()
+	generated.P("function matchUriTemplate(entry: RegisteredResourceTemplate, uri: string): Record<string, string> | undefined {")
+	generated.P("  const match = entry.pattern.exec(uri);")
+	generated.P("  if (match === null) {")
+	generated.P("    return undefined;")
+	generated.P("  }")
+	generated.P("  const params: Record<string, string> = {};")
+	generated.P("  entry.names.forEach((name, index) => {")
+	generated.P("    const raw = match[index + 1] ?? \"\";")
+	generated.P("    let value: string;")
+	generated.P("    try {")
+	generated.P("      value = decodeURIComponent(raw);")
+	generated.P("    } catch (error) {")
+	generated.P("      throw new McpError(ErrorCode.InvalidParams, `mcpruntime: parameter '${name}' in uri '${uri}': ${errorMessage(error)}`, { uri });")
+	generated.P("    }")
+	generated.P("    if (value === \"\") {")
+	generated.P("      throw new McpError(ErrorCode.InvalidParams, `mcpruntime: parameter '${name}' has empty value in uri '${uri}'`, { uri });")
+	generated.P("    }")
+	generated.P("    params[name] = value;")
+	generated.P("  });")
+	generated.P("  return params;")
+	generated.P("}")
+	generated.P()
+	generated.P("function resourceContents(value: unknown, uri: string, options: ResourceContentOptions): ResourceContents {")
+	generated.P("  if (value === null || value === undefined) {")
+	generated.P("    throw new Error(`mcpruntime: resource '${uri}' handler returned no value`);")
+	generated.P("  }")
+	generated.P("  const base: { uri: string; mimeType: string; _meta?: Record<string, unknown> } = { uri, mimeType: options.mimeType };")
+	generated.P("  if (options.meta !== undefined) {")
+	generated.P("    base._meta = options.meta;")
+	generated.P("  }")
+	generated.P("  const encoding = options.encoding;")
+	generated.P("  switch (encoding.kind) {")
+	generated.P(`    case "raw":`)
+	generated.P("      if (typeof value === \"string\") {")
+	generated.P("        return { ...base, text: value };")
+	generated.P("      }")
+	generated.P("      if (value instanceof Uint8Array) {")
+	generated.P("        return { ...base, blob: base64Encode(value) };")
+	generated.P("      }")
+	generated.P("      throw new Error(`mcpruntime: resource '${uri}' handler must return a string or Uint8Array`);")
+	generated.P(`    case "protojson":`)
+	generated.P("      return {")
+	generated.P("        ...base,")
+	generated.P("        text: JSON.stringify(toJson(encoding.schema, value as MessageShape<typeof encoding.schema>, {")
+	generated.P("          alwaysEmitImplicit: true,")
+	generated.P("          registry: encoding.registry,")
+	generated.P("        })),")
+	generated.P("      };")
+	generated.P("    default: {")
+	generated.P("      const field = encoding.schema.fields.find((candidate) => candidate.name === encoding.field);")
+	generated.P("      if (field === undefined) {")
+	generated.P("        throw new Error(`mcpruntime: resource content field '${encoding.field}' not found`);")
+	generated.P("      }")
+	generated.P("      const raw = (value as Record<string, unknown>)[field.localName];")
+	generated.P(`      if (encoding.kind === "text_field") {`)
+	generated.P("        return { ...base, text: typeof raw === \"string\" ? raw : \"\" };")
+	generated.P("      }")
+	generated.P("      return { ...base, blob: base64Encode(raw instanceof Uint8Array ? raw : new Uint8Array()) };")
+	generated.P("    }")
+	generated.P("  }")
 	generated.P("}")
 }

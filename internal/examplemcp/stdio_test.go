@@ -1,9 +1,7 @@
 package examplemcp_test
 
 import (
-	"bufio"
 	"encoding/json"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,138 +13,27 @@ import (
 
 	"github.com/easyp-tech/protoc-gen-mcp/internal/examplemcp"
 	"github.com/easyp-tech/protoc-gen-mcp/internal/pythontest"
+	"github.com/easyp-tech/protoc-gen-mcp/internal/stdiotest"
 	"github.com/google/jsonschema-go/jsonschema"
 )
 
-type jsonrpcRequest struct {
-	JSONRPC string          `json:"jsonrpc"`
-	ID      json.RawMessage `json:"id,omitempty"`
-	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params,omitempty"`
-}
+type jsonrpcError = stdiotest.RPCError
 
-type jsonrpcResponse struct {
-	JSONRPC string          `json:"jsonrpc"`
-	ID      json.RawMessage `json:"id"`
-	Result  json.RawMessage `json:"result,omitempty"`
-	Error   *jsonrpcError   `json:"error,omitempty"`
-}
-
-type jsonrpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
-// stdioClient communicates with a subprocess MCP server over stdin/stdout JSON-RPC.
+// stdioClient adds the tool calls used by the ExampleAPI contract to the
+// shared stdio JSON-RPC client.
 type stdioClient struct {
-	t       *testing.T
-	stdin   io.WriteCloser
-	scanner *bufio.Scanner
-	nextID  int
+	*stdiotest.Client
+	t *testing.T
 }
 
 func newStdioClient(t *testing.T, cmd *exec.Cmd) *stdioClient {
 	t.Helper()
-
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		t.Fatalf("stdin pipe: %v", err)
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		t.Fatalf("stdout pipe: %v", err)
-	}
-
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("start command: %v", err)
-	}
-
-	t.Cleanup(func() {
-		stdin.Close()
-		cmd.Process.Kill()
-		cmd.Wait()
-	})
-
-	return &stdioClient{
-		t:       t,
-		stdin:   stdin,
-		scanner: bufio.NewScanner(stdout),
-		nextID:  1,
-	}
-}
-
-func (c *stdioClient) call(method string, params any) jsonrpcResponse {
-	c.t.Helper()
-
-	paramsBytes, err := json.Marshal(params)
-	if err != nil {
-		c.t.Fatalf("marshal params: %v", err)
-	}
-
-	id := c.nextID
-	c.nextID++
-	idBytes, _ := json.Marshal(id)
-
-	req := jsonrpcRequest{
-		JSONRPC: "2.0",
-		ID:      idBytes,
-		Method:  method,
-		Params:  paramsBytes,
-	}
-	data, err := json.Marshal(req)
-	if err != nil {
-		c.t.Fatalf("marshal request: %v", err)
-	}
-	data = append(data, '\n')
-	if _, err := c.stdin.Write(data); err != nil {
-		c.t.Fatalf("write request: %v", err)
-	}
-
-	if !c.scanner.Scan() {
-		c.t.Fatalf("no response for %s (scanner error: %v)", method, c.scanner.Err())
-	}
-
-	var resp jsonrpcResponse
-	if err := json.Unmarshal(c.scanner.Bytes(), &resp); err != nil {
-		c.t.Fatalf("unmarshal response for %s: %v (raw: %s)", method, err, c.scanner.Bytes())
-	}
-	return resp
-}
-
-func (c *stdioClient) notify(method string, params any) {
-	c.t.Helper()
-
-	paramsBytes, err := json.Marshal(params)
-	if err != nil {
-		c.t.Fatalf("marshal params: %v", err)
-	}
-
-	req := jsonrpcRequest{
-		JSONRPC: "2.0",
-		Method:  method,
-		Params:  paramsBytes,
-	}
-	data, err := json.Marshal(req)
-	if err != nil {
-		c.t.Fatalf("marshal notification: %v", err)
-	}
-	data = append(data, '\n')
-	if _, err := c.stdin.Write(data); err != nil {
-		c.t.Fatalf("write notification: %v", err)
-	}
+	return &stdioClient{Client: stdiotest.NewClient(t, cmd), t: t}
 }
 
 func (c *stdioClient) initialize() {
 	c.t.Helper()
-	resp := c.call("initialize", map[string]any{
-		"protocolVersion": "2025-11-25",
-		"capabilities":    map[string]any{},
-		"clientInfo":      map[string]any{"name": "test-client", "version": "v0.0.1"},
-	})
-	if resp.Error != nil {
-		c.t.Fatalf("initialize failed: code=%d msg=%s", resp.Error.Code, resp.Error.Message)
-	}
-	c.notify("notifications/initialized", map[string]any{})
+	c.Initialize()
 }
 
 type toolsListResult struct {
@@ -173,20 +60,14 @@ type textContent struct {
 
 func (c *stdioClient) listTools() toolsListResult {
 	c.t.Helper()
-	resp := c.call("tools/list", map[string]any{})
-	if resp.Error != nil {
-		c.t.Fatalf("tools/list failed: code=%d msg=%s", resp.Error.Code, resp.Error.Message)
-	}
 	var result toolsListResult
-	if err := json.Unmarshal(resp.Result, &result); err != nil {
-		c.t.Fatalf("unmarshal tools/list result: %v", err)
-	}
+	c.Result("tools/list", map[string]any{}, &result)
 	return result
 }
 
 func (c *stdioClient) callTool(name string, arguments map[string]any) (callToolResult, *jsonrpcError) {
 	c.t.Helper()
-	resp := c.call("tools/call", map[string]any{
+	resp := c.Call("tools/call", map[string]any{
 		"name":      name,
 		"arguments": arguments,
 	})

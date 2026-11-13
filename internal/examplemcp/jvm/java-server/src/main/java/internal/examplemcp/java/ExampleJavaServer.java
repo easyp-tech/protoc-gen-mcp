@@ -14,6 +14,10 @@ public final class ExampleJavaServer {
   }
 
   public static void main(String[] args) {
+    if (args.length > 0 && "resources".equals(args[0])) {
+      ResourcesJavaServer.run();
+      return;
+    }
     validateInvalidOutputMode();
 
     StdioServerTransportProvider transportProvider =

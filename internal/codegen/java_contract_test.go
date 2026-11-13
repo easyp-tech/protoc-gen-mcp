@@ -104,7 +104,8 @@ func TestJavaContract_LowLevelServerContractShape(t *testing.T) {
 	assertJavaContains(t, generated, wantSnippets...)
 
 	notWantSnippets := []string{
-		".tools(",
+		"McpServer.sync(",
+		"McpServer.async(",
 		".toolCall(",
 		"addTool(",
 	}
