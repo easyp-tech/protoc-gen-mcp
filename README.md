@@ -25,14 +25,17 @@ handlers. JavaScript projects consume the compiled TypeScript output.
 |-----------|:--:|:------:|:------:|:----:|:----------:|
 | **Tools** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
 | **Prompts** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
-| **Resources** | ✅ Full | ⚠️ Interface | ⚠️ Interface | ⚠️ Interface | ⚠️ Interface |
+| **Resources** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
 | **Protobuf server factory** | ✅ | 📋 Planned | 📋 Planned | 📋 Planned | 📋 Planned |
 | **MCP Apps UI / CSP** | ✅ | 📋 Planned | 📋 Planned | 📋 Planned | 📋 Planned |
-| **Markdown, HTML, binary resources** | ✅ | 📋 Planned | 📋 Planned | 📋 Planned | 📋 Planned |
+| **Markdown, HTML, binary resources** | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **OAuth/JWKS and tool scopes** | ✅ | 📋 Planned | 📋 Planned | 📋 Planned | 📋 Planned |
 
-"Interface" means that a target emits handler declarations but does **not**
-yet implement full resource registration and reading.
+Every target serves the same resources contract: ProtoJSON or raw text/blob
+bodies, percent-decoded template parameters, annotations, icons and the MCP
+Apps `_meta.ui` of a resource. Only Go embeds `source_file` at build time;
+the other targets read it through a generated handler that returns the file
+body. MCP Apps on tools (linking a tool to its UI resource) is Go-only.
 
 Each target uses the official MCP SDK of its language: the Go MCP SDK,
 the Python `mcp` SDK with `google.protobuf`, `io.modelcontextprotocol.sdk:mcp`
@@ -170,6 +173,22 @@ file-scoped: `Register<File>Prompts(server, impl, opts...)` and
 CamelCase proto basename. A static resource (`uri`) needs `Read<Msg>(ctx)`; a
 template resource (`uri_template`) needs `List<Msg>s(ctx)` and
 `Read<Msg>(ctx, params...)` with percent-decoded template values.
+
+The other targets follow the same shape:
+
+| Target | Prompts | Resources |
+|---|---|---|
+| Python | `register_<file>_prompts(server, impl, *, namespace=None)` | `register_<file>_resources(server, impl, *, namespace=None)` |
+| Kotlin | `register<File>Prompts(server, impl, namespace)` | `suspend fun register<File>Resources(server, impl, namespace)` |
+| Java | `<ProtoFile>Mcp.register<File>Prompts(transportProvider, impl, namespace)` | `<ProtoFile>Mcp.register<File>Resources(transportProvider, impl, namespace)` |
+| TypeScript | `register<File>Prompts(server, impl, namespace?)` | `register<File>Resources(server, impl, namespace?)` |
+
+Resource handlers return the generated message type of the target (a Python
+dataclass or `*_pb2` message, a Protobuf-ES message, a Java/Kotlin protobuf
+message). Like Go, Kotlin lists template instances once, at registration, so
+its Server must declare the resources and prompts capabilities; Python,
+TypeScript and Java list them on every `resources/list` and declare the
+capabilities themselves.
 
 At runtime the generated code validates arguments against the input schema,
 unmarshals them with ProtoJSON, calls your handler, marshals the response with
