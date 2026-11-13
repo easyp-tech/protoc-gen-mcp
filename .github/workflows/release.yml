@@ -33,3 +33,34 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  python-runtime:
+    # PyPI trusted publishing: the protoc-gen-mcp-runtime project must list
+    # this repository and workflow as a trusted publisher.
+    needs: release
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check runtime version matches the tag
+        run: |
+          version="$(python -c 'import tomllib; print(tomllib.load(open("runtime/python/pyproject.toml", "rb"))["project"]["version"])')"
+          if [[ "v${version}" != "${GITHUB_REF_NAME}" ]]; then
+            echo "runtime/python version ${version} does not match tag ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
+      - name: Build distribution
+        run: |
+          python -m pip install --upgrade build
+          python -m build runtime/python --outdir dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

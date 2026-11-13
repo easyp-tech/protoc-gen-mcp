@@ -60,6 +60,12 @@ architecture unless explicitly revised.
   Gradle workspace that builds the Java/Kotlin servers for the JVM stdio tests
 - `internal/codegen/testdata/node`: pinned npm package (official TypeScript
   SDK, Protobuf-ES, Ajv) used by the TypeScript compile, runtime and stdio tests
+- `runtime/python`: the `protoc-gen-mcp-runtime` PyPI package (module
+  `protoc_gen_mcp_runtime`) that generated Python code imports: tool, prompt
+  and resource registries, dispatch, URI templates and content encoding; its
+  unittest suite runs through `go test ./runtime/python`. Bump
+  `GENCODE_VERSION` together with `pythonGencodeVersion` in the renderer when
+  generated code needs a new runtime API
 - `internal/pythontest`: hermetic Python virtualenv bootstrap for Go tests that
   execute generated Python code
 - `internal/stdiotest`: stdio JSON-RPC client and the resources/prompts
