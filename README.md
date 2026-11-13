@@ -27,15 +27,21 @@ handlers. JavaScript projects consume the compiled TypeScript output.
 | **Prompts** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
 | **Resources** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
 | **Protobuf server factory** | ✅ | 📋 Planned | 📋 Planned | 📋 Planned | 📋 Planned |
-| **MCP Apps UI / CSP** | ✅ | 📋 Planned | 📋 Planned | 📋 Planned | 📋 Planned |
+| **MCP Apps UI / CSP** | ✅ | ⚠️ Metadata | ⚠️ Metadata | ⚠️ Metadata | ⚠️ Metadata |
 | **Markdown, HTML, binary resources** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **OAuth/JWKS and tool scopes** | ✅ | 📋 Planned | 📋 Planned | 📋 Planned | 📋 Planned |
+| **OAuth/JWKS and tool scopes** | ✅ | ⛔ Rejected | ⛔ Rejected | ⛔ Rejected | ⛔ Rejected |
 
 Every target serves the same resources contract: ProtoJSON or raw text/blob
 bodies, percent-decoded template parameters, annotations, icons and the MCP
 Apps `_meta.ui` of a resource. Only Go embeds `source_file` at build time;
 the other targets read it through a generated handler that returns the file
-body. MCP Apps on tools (linking a tool to its UI resource) is Go-only.
+body.
+
+"Metadata" means a tool's `app_ui` and a resource's `app_ui` reach clients as
+`_meta.ui` in every target, while the MCP Apps capability itself is advertised
+by the generated server factory, which only Go has so far. "Rejected" means
+`option (mcp.options.v1.server).oauth` and per-tool `required_scopes` fail at
+generation outside Go instead of producing a tool that skips the check.
 
 Each target uses the official MCP SDK of its language: the Go MCP SDK,
 the Python `mcp` SDK with `google.protobuf`, `io.modelcontextprotocol.sdk:mcp`

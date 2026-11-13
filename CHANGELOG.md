@@ -54,6 +54,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   template parameters, annotations, icons and MCP Apps `_meta.ui`. A
   `source_file` resource is read through a generated handler outside Go.
   Kotlin `register<File>Resources` is a `suspend` function.
+- Method `app_ui` becomes tool `_meta.ui` in Python, TypeScript, Java and
+  Kotlin, and every standalone example serves a resource template and a prompt.
+- Every TypeScript fixture is type-checked against real `protoc-gen-es` output.
 - A shared stdio contract (`internal/stdiotest`) runs the resources and
   prompts fixtures against the Go, Python, TypeScript, Java and Kotlin servers.
 - Protobuf-defined Go server/HTTP factories, MCP Apps UI metadata and embedded
@@ -64,6 +67,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Python, TypeScript, Java and Kotlin silently ignored the server `oauth`
+  option and per-tool `required_scopes`, serving protected tools without any
+  check; generation now fails with an explicit error for those targets.
+- The Java and Kotlin standalone examples are now compiled and run in CI.
 - Python prompt registration called a `server.add_prompt` method the low-level
   MCP server does not have and raised `AttributeError`.
 - Java prompts were stored but never served, and a second generated sidecar

@@ -24,7 +24,7 @@ architecture unless explicitly revised.
 - `mcpruntime` contains protobuf/ProtoJSON/JSON Schema adapters, MCP Apps
   metadata/resource registration, and OAuth resource-server wiring. The
   self-hosted MCP wire runtime has been removed.
-- `mcp>=1.27,<2` as the official Python MCP SDK target
+- `mcp>=1.30,<2` as the official Python MCP SDK target
 - `io.modelcontextprotocol.sdk:mcp` as the official Java MCP SDK target
 - `io.modelcontextprotocol:kotlin-sdk-server` as the official Kotlin MCP SDK
   target
@@ -70,7 +70,9 @@ architecture unless explicitly revised.
   `11_protobuf_first_mcp` (Go), `5_python_standalone`, `6_java_standalone`,
   `7_kotlin_standalone`, `8_typescript_standalone`; `examples/easyp.yaml` and
   `easyp.lock` resolve `mcp/options/v1` from GitHub, not the local root
-- `easyp.yaml` (shipped options), `easyp.test.yaml` (test fixtures),
+- `easyp.yaml` (shipped options), `easyp.test.yaml` (Go output for test
+  fixtures), `easyp.test.python.yaml` (Python output for every fixture except
+  the Go-only `config/v1`),
   `easyp.showcase.yaml` (example 11)
 - `.github/workflows`: `tests.yml` (CI and coverage gate), `release.yml`;
   `.goreleaser.yaml` packages the plugin binary
@@ -173,6 +175,10 @@ architecture unless explicitly revised.
 - Go MCP Apps resources support static `source_file` (Go embed) and
   `app_ui` CSP/permissions metadata, alongside `content_field` for dynamic
   text/blob resources. Static `source_file` resources require no Go handler.
+- Only Go implements `option (mcp.options.v1.server).oauth` and per-tool
+  `required_scopes`; the other targets reject them at generation
+  (`validateGoOnlyOptions`) so no tool is served without its scope check.
+  Method `app_ui` becomes tool `_meta.ui` in every target.
 - Generated OAuth HTTP handlers enforce server-wide and per-tool
   `required_scopes` before dispatch, returning HTTP 403 `insufficient_scope`
   challenges for missing scopes. SDK client `OAuthHandler` can perform step-up
@@ -221,7 +227,8 @@ architecture unless explicitly revised.
   `easyp --cfg easyp.yaml generate -p mcp -r .`
 - Lint / generate test fixtures:
   `easyp --cfg easyp.test.yaml lint -p internal/testproto -r .`,
-  `easyp --cfg easyp.test.yaml generate -p internal/testproto -r .`
+  `easyp --cfg easyp.test.yaml generate -p internal/testproto -r .`,
+  `easyp --cfg easyp.test.python.yaml generate -p internal/testproto -r .`
 - Generate the showcase:
   `easyp --cfg easyp.showcase.yaml generate -p examples/11_protobuf_first_mcp/proto -r .`
 - Generate standalone examples: `cd examples && make generate`
