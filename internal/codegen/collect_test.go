@@ -494,6 +494,20 @@ func newTempProtogenPlugin(t *testing.T, files map[string]string, filesToGenerat
 func newCompiledProtogenPlugin(t *testing.T, filesToGenerate []string, resolver protocompile.Resolver) *protogen.Plugin {
 	t.Helper()
 
+	request := newCompiledCodeGeneratorRequest(t, filesToGenerate, resolver)
+	plugin, err := protogen.Options{}.New(request)
+	if err != nil {
+		t.Fatalf("protogen.Options.New for %v: %v", filesToGenerate, err)
+	}
+
+	return plugin
+}
+
+// newCompiledCodeGeneratorRequest compiles filesToGenerate in-process into the
+// request protoc would send to a plugin.
+func newCompiledCodeGeneratorRequest(t *testing.T, filesToGenerate []string, resolver protocompile.Resolver) *pluginpb.CodeGeneratorRequest {
+	t.Helper()
+
 	compiler := protocompile.Compiler{
 		Resolver:       protocompile.WithStandardImports(resolver),
 		SourceInfoMode: protocompile.SourceInfoStandard,
@@ -517,13 +531,7 @@ func newCompiledProtogenPlugin(t *testing.T, filesToGenerate []string, resolver 
 		SourceFileDescriptors: sourceFileDescriptors(descriptorProtos, filesToGenerate...),
 		CompilerVersion:       &pluginpb.Version{},
 	}
-
-	plugin, err := protogen.Options{}.New(request)
-	if err != nil {
-		t.Fatalf("protogen.Options.New for %v: %v", filesToGenerate, err)
-	}
-
-	return plugin
+	return request
 }
 
 func collectDescriptorProtos(files []protoreflect.FileDescriptor) []*descriptorpb.FileDescriptorProto {
