@@ -14,15 +14,24 @@ import (
 // tests can run a real server process without a separate command package.
 const serveStdioEnv = "EXAMPLEMCP_SERVE_STDIO"
 
+// serveResourcesMode serves the resources and prompts fixture server instead
+// of the tool example server.
+const serveResourcesMode = "resources"
+
 func TestMain(m *testing.M) {
-	if os.Getenv(serveStdioEnv) == "1" {
-		os.Exit(serveExampleOverStdio())
+	switch os.Getenv(serveStdioEnv) {
+	case "1":
+		os.Exit(serveOverStdio(examplemcp.NewServer))
+	case serveResourcesMode:
+		os.Exit(serveOverStdio(func() (*mcp.Server, error) {
+			return examplemcp.NewResourcesServer(context.Background())
+		}))
 	}
 	os.Exit(m.Run())
 }
 
-func serveExampleOverStdio() int {
-	server, err := examplemcp.NewServer()
+func serveOverStdio(newServer func() (*mcp.Server, error)) int {
+	server, err := newServer()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "create example server: %v\n", err)
 		return 1
