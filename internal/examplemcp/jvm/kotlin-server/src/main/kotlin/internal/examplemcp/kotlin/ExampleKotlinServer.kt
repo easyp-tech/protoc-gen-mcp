@@ -18,9 +18,13 @@ import kotlinx.io.buffered
 
 private const val INVALID_OUTPUT_ENV = "PROTOC_GEN_MCP_JVM_INVALID_OUTPUT"
 
-fun main() = runBlocking {
-    validateInvalidOutputMode()
+fun main(args: Array<String>) = runBlocking {
     disableKotlinLoggingStartupMessage()
+    if (args.firstOrNull() == "resources") {
+        runResourcesServer()
+        return@runBlocking
+    }
+    validateInvalidOutputMode()
 
     val closed = CompletableDeferred<Unit>()
     val server = Server(

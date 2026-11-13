@@ -27,6 +27,10 @@ func TestJavaResourcesOverStdio(t *testing.T) {
 	runJVMResourcesContract(t, "java-server")
 }
 
+func TestKotlinResourcesOverStdio(t *testing.T) {
+	runJVMResourcesContract(t, "kotlin-server")
+}
+
 func runJVMResourcesContract(t *testing.T, target string) {
 	t.Helper()
 	root := repoRoot(t)

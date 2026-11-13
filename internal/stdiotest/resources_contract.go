@@ -14,6 +14,10 @@ import (
 // (Invalid Params, MCP SEP-2164).
 const ResourceNotFoundCode = -32602
 
+// legacyResourceNotFoundCode predates SEP-2164. The Kotlin SDK (0.11) still
+// answers unknown resources with it from its own resources/read handler.
+const legacyResourceNotFoundCode = -32002
+
 // Resource mirrors an MCP resource or resource template listing entry.
 type Resource struct {
 	URI         string          `json:"uri,omitempty"`
@@ -171,7 +175,7 @@ func checkResourceReads(t *testing.T, client *Client) {
 
 	for _, uri := range []string{"nothing://here", "users://ada/settings"} {
 		resp := client.Call("resources/read", map[string]any{"uri": uri})
-		if resp.Error == nil || resp.Error.Code != ResourceNotFoundCode {
+		if resp.Error == nil || (resp.Error.Code != ResourceNotFoundCode && resp.Error.Code != legacyResourceNotFoundCode) {
 			t.Errorf("resources/read %s = %+v, want error code %d", uri, resp.Error, ResourceNotFoundCode)
 		}
 	}
