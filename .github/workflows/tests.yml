@@ -36,7 +36,9 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: internal/codegen/testdata/node/package-lock.json
+          cache-dependency-path: |
+            internal/codegen/testdata/node/package-lock.json
+            runtime/typescript/package-lock.json
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -49,6 +51,12 @@ jobs:
       - name: Install protoc plugins
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+
+      - name: Build TypeScript runtime
+        working-directory: runtime/typescript
+        run: |
+          npm ci
+          npm run build
 
       - name: Validate configs
         run: |
@@ -140,7 +148,15 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: internal/codegen/testdata/node/package-lock.json
+          cache-dependency-path: |
+            internal/codegen/testdata/node/package-lock.json
+            runtime/typescript/package-lock.json
+
+      - name: Build TypeScript runtime
+        working-directory: runtime/typescript
+        run: |
+          npm ci
+          npm run build
 
       - name: Install Node dependencies
         working-directory: internal/codegen/testdata/node

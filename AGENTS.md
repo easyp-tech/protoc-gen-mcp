@@ -58,6 +58,12 @@ architecture unless explicitly revised.
 - `internal/examplemcp`: Go and Python servers for the shared ExampleAPI and
   resources/prompts fixtures and their stdio contract tests; `internal/examplemcp/jvm` is the
   Gradle workspace that builds the Java/Kotlin servers for the JVM stdio tests
+- `runtime/typescript`: the `@easyp-tech/protoc-gen-mcp-runtime` npm package
+  that generated TypeScript imports (tool, prompt and resource registries,
+  dispatch, URI templates, content encoding); SDK, Protobuf-ES and Ajv are
+  peer dependencies. The harness and example 8 depend on it through `file:`
+  with `install-links=true`, so build it first (`npm ci && npm run build`).
+  `GENCODE_VERSION` in `src/version.ts` moves with `typescriptGencodeVersion`
 - `internal/codegen/testdata/node`: pinned npm package (official TypeScript
   SDK, Protobuf-ES, Ajv) used by the TypeScript compile, runtime and stdio tests
 - `runtime/python`: the `protoc-gen-mcp-runtime` PyPI package (module
@@ -238,7 +244,8 @@ architecture unless explicitly revised.
 - Generate the showcase:
   `easyp --cfg easyp.showcase.yaml generate -p examples/11_protobuf_first_mcp/proto -r .`
 - Generate standalone examples: `cd examples && make generate`
-- Prepare the TypeScript harness:
+- Prepare the TypeScript runtime and harness:
+  `cd runtime/typescript && npm ci && npm run build`, then
   `cd internal/codegen/testdata/node && npm ci && npm run typecheck`
 - Build and install the JVM test servers:
   `gradle --no-daemon -p internal/examplemcp/jvm :java-server:installDist :kotlin-server:installDist`
