@@ -277,50 +277,65 @@ interface PromptsPromptHandler {
 
 fun registerPromptsPrompts(server: Server, impl: PromptsPromptHandler, namespace: String? = null) {
     server.addPrompt(
-        name = promptName(namespace, "code_review"),
-        description = "Analyze code quality and suggest improvements",
-        arguments = listOf(
-            io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "code", description = "Source code to review", required = true),
-            io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "language", description = "Programming language (go, python, java, etc)", required = true),
-            io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "focusArea", description = "Specific area: security, performance, readability", required = false),
+        io.modelcontextprotocol.kotlin.sdk.types.Prompt(
+            name = promptName(namespace, "code_review"),
+            description = "Analyze code quality and suggest improvements",
+            arguments = listOf(
+                io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "code", description = "Source code to review", required = true),
+                io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "language", description = "Programming language (go, python, java, etc)", required = true),
+                io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "focusArea", description = "Specific area: security, performance, readability", required = false),
+            ),
         ),
     ) { request ->
-        val args = request.arguments ?: emptyMap()
-        require(args.containsKey("code")) { "missing required prompt argument: code" }
-        require(args.containsKey("language")) { "missing required prompt argument: language" }
-        val messages = impl.codeReview(args)
-        io.modelcontextprotocol.kotlin.sdk.types.GetPromptResult(messages = messages)
+        val args = request.arguments.orEmpty()
+        if (!args.containsKey("code")) {
+            throw McpException(code = RPCError.ErrorCode.INVALID_PARAMS, message = "missing required prompt argument: code")
+        }
+        if (!args.containsKey("language")) {
+            throw McpException(code = RPCError.ErrorCode.INVALID_PARAMS, message = "missing required prompt argument: language")
+        }
+        io.modelcontextprotocol.kotlin.sdk.types.GetPromptResult(messages = impl.codeReview(args))
     }
     server.addPrompt(
-        name = promptName(namespace, "summarize"),
-        title = "Document Summarizer",
-        description = "Summarize a document or text",
-        arguments = listOf(
-            io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "content", description = "Text content to summarize", required = true),
-            io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "maxLength", description = "Maximum length of the summary in words", required = false),
-            io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "format", description = "Output format: bullet_points, paragraph, tldr", required = false),
+        io.modelcontextprotocol.kotlin.sdk.types.Prompt(
+            name = promptName(namespace, "summarize"),
+            description = "Summarize a document or text",
+            arguments = listOf(
+                io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "content", description = "Text content to summarize", required = true),
+                io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "maxLength", description = "Maximum length of the summary in words", required = false),
+                io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "format", description = "Output format: bullet_points, paragraph, tldr", required = false),
+            ),
+            title = "Document Summarizer",
         ),
     ) { request ->
-        val args = request.arguments ?: emptyMap()
-        require(args.containsKey("content")) { "missing required prompt argument: content" }
-        val messages = impl.summarize(args)
-        io.modelcontextprotocol.kotlin.sdk.types.GetPromptResult(messages = messages)
+        val args = request.arguments.orEmpty()
+        if (!args.containsKey("content")) {
+            throw McpException(code = RPCError.ErrorCode.INVALID_PARAMS, message = "missing required prompt argument: content")
+        }
+        io.modelcontextprotocol.kotlin.sdk.types.GetPromptResult(messages = impl.summarize(args))
     }
     server.addPrompt(
-        name = promptName(namespace, "explain_error"),
-        description = "Explain an error message and suggest fixes",
-        arguments = listOf(
-            io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "errorMessage", description = "The error message or stack trace", required = true),
-            io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "language", description = "Programming language context", required = true),
-            io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "level", description = "Expertise level for the explanation", required = true),
+        io.modelcontextprotocol.kotlin.sdk.types.Prompt(
+            name = promptName(namespace, "explain_error"),
+            description = "Explain an error message and suggest fixes",
+            arguments = listOf(
+                io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "errorMessage", description = "The error message or stack trace", required = true),
+                io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "language", description = "Programming language context", required = true),
+                io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = "level", description = "Expertise level for the explanation", required = true),
+            ),
         ),
     ) { request ->
-        val args = request.arguments ?: emptyMap()
-        require(args.containsKey("errorMessage")) { "missing required prompt argument: errorMessage" }
-        require(args.containsKey("language")) { "missing required prompt argument: language" }
-        require(args.containsKey("level")) { "missing required prompt argument: level" }
-        val messages = impl.explainError(args)
-        io.modelcontextprotocol.kotlin.sdk.types.GetPromptResult(messages = messages)
+        val args = request.arguments.orEmpty()
+        if (!args.containsKey("errorMessage")) {
+            throw McpException(code = RPCError.ErrorCode.INVALID_PARAMS, message = "missing required prompt argument: errorMessage")
+        }
+        if (!args.containsKey("language")) {
+            throw McpException(code = RPCError.ErrorCode.INVALID_PARAMS, message = "missing required prompt argument: language")
+        }
+        if (!args.containsKey("level")) {
+            throw McpException(code = RPCError.ErrorCode.INVALID_PARAMS, message = "missing required prompt argument: level")
+        }
+        io.modelcontextprotocol.kotlin.sdk.types.GetPromptResult(messages = impl.explainError(args))
     }
 }
 
