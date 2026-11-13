@@ -54,6 +54,7 @@ jobs:
         run: |
           easyp --cfg easyp.yaml validate-config
           easyp --cfg easyp.test.yaml validate-config
+          easyp --cfg easyp.test.python.yaml validate-config
           easyp --cfg easyp.showcase.yaml validate-config
 
       - name: Lint protobuf packages
@@ -66,6 +67,7 @@ jobs:
         run: |
           easyp --cfg easyp.yaml generate -p mcp -r .
           easyp --cfg easyp.test.yaml generate -p internal/testproto -r .
+          easyp --cfg easyp.test.python.yaml generate -p internal/testproto -r .
           easyp --cfg easyp.showcase.yaml generate -p examples/11_protobuf_first_mcp/proto -r .
 
       - name: Regenerate example artifacts
@@ -100,6 +102,9 @@ jobs:
         run: |
           go test ./internal/examplemcp -run 'TestJava.*OverStdio' -count=1
           go test ./internal/examplemcp -run 'TestKotlin.*OverStdio' -count=1
+
+      - name: Build and run JVM examples
+        run: go test ./examples -run 'TestStandalone(Java|Kotlin)ExampleOverStdio' -count=1 -v
 
       - name: Verify runnable protobuf-first showcase
         run: |
