@@ -55,13 +55,15 @@ architecture unless explicitly revised.
 - `internal/testproto`: protobuf fixtures and their generated Go/Python code
 - `testdata/golden`: golden snapshots for generated Go, Python, Kotlin, Java
   and TypeScript bindings; `testdata/unsupported`: fail-fast fixtures
-- `internal/examplemcp`: Go and Python servers for the shared ExampleAPI
-  fixture and their stdio contract tests; `internal/examplemcp/jvm` is the
+- `internal/examplemcp`: Go and Python servers for the shared ExampleAPI and
+  resources/prompts fixtures and their stdio contract tests; `internal/examplemcp/jvm` is the
   Gradle workspace that builds the Java/Kotlin servers for the JVM stdio tests
 - `internal/codegen/testdata/node`: pinned npm package (official TypeScript
   SDK, Protobuf-ES, Ajv) used by the TypeScript compile, runtime and stdio tests
 - `internal/pythontest`: hermetic Python virtualenv bootstrap for Go tests that
   execute generated Python code
+- `internal/stdiotest`: stdio JSON-RPC client and the resources/prompts
+  contract run against the Go, Python, TypeScript, Java and Kotlin servers
 - `internal/devtools/protobufesnormalize`: normalizer that keeps checked-in
   Protobuf-ES descriptors in `examples/8_typescript_standalone` deterministic
 - `examples`: one runnable project per language — `1_helloworld` and
@@ -119,9 +121,17 @@ architecture unless explicitly revised.
   `Register<File>Resources(ctx, server, impl, opts...) error` (handler
   `<File>ResourceHandler`; static `uri` ⇒ `Read<Msg>(ctx)`, templated
   `uri_template` ⇒ `List<Msg>s(ctx)` + `Read<Msg>(ctx, <param>...)`; ctx-first
-  because `List*` runs at registration time). Resource output is ProtoJSON.
-  Full Go support; Python/Kotlin/Java/TypeScript emit interfaces with stub
-  registration (`NotImplementedError`)
+  because `List*` runs at registration time). Resource output is ProtoJSON or
+  a raw text/blob `content_field`. Python, Kotlin, Java and TypeScript expose
+  the same file-scoped `register<File>Prompts` / `register<File>Resources`
+  (Kotlin resources registration is `suspend`); outside Go a `source_file`
+  resource is read through a handler returning the file body. Unknown
+  resource URIs return Invalid Params (-32602, SEP-2164); Kotlin keeps its
+  SDK's -32002
+- Java sidecars on one transport share their request handlers through a
+  JVM-wide per-transport list in `System.getProperties()`, so prompts, resources
+  and tools from different proto files compose; two sidecars serving the same
+  MCP method fail when a session starts
 - Generated Python modules expose `<Service>ToolHandler`
 - Generated Python modules expose `register_<service_name>_tools(server, impl, *, namespace=None)`
 - Generated Python modules default to `python_handler=dataclass`, exposing

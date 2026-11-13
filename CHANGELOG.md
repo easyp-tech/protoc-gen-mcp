@@ -49,17 +49,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Resources for Python, Kotlin, Java and TypeScript: static and template
+  resources, ProtoJSON or raw text/blob content fields, percent-decoded
+  template parameters, annotations, icons and MCP Apps `_meta.ui`. A
+  `source_file` resource is read through a generated handler outside Go.
+  Kotlin `register<File>Resources` is a `suspend` function.
+- A shared stdio contract (`internal/stdiotest`) runs the resources and
+  prompts fixtures against the Go, Python, TypeScript, Java and Kotlin servers.
 - Protobuf-defined Go server/HTTP factories, MCP Apps UI metadata and embedded
   resources, raw text/blob resource fields, OAuth resource-server discovery,
   RS256 JWKS verification and per-tool required scopes.
-- Pinned/latest official Go SDK CI gate compiling checked-in generated fixtures
-  and actual Go golden contents, with prompt/resource/Apps/annotation/factory
-  smoke tests, isolated dependencies and weekly/manual drift checks.
 - Executable Tasks SDK-boundary and raw-wire regressions for both negotiated
   protocol versions; these detect future upstream integration opportunities.
 
 ### Fixed
 
+- Python prompt registration called a `server.add_prompt` method the low-level
+  MCP server does not have and raised `AttributeError`.
+- Java prompts were stored but never served, and a second generated sidecar
+  on the same transport replaced the first one's handlers.
+- TypeScript prompts from several proto files overwrote each other, did not
+  declare the prompts capability, and the handler interface did not compile
+  in strict mode (`arguments` parameter).
+- Kotlin prompts with a `title` did not compile against kotlin-sdk-server 0.11.
 - `// Example:` comments on an RPC are emitted into the tool `inputSchema` as
   JSON values instead of strings, matching field and message examples.
 - Go bindings keep icon `sizes` and `theme`, render icons declared on
