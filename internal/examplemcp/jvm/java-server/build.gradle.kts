@@ -28,6 +28,8 @@ val stagedProtoDir = layout.buildDirectory.dir("staged-proto")
 val stageProtoSources = tasks.register<Sync>("stageProtoSources") {
     from(repoRoot) {
         include("internal/testproto/example/v1/example.proto")
+        include("internal/testproto/prompts/v1/prompts.proto")
+        include("internal/testproto/resources/v1/resources.proto")
         include("mcp/options/v1/options.proto")
     }
     into(stagedProtoDir)
