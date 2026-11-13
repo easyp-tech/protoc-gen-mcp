@@ -64,3 +64,35 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  typescript-runtime:
+    # npm trusted publishing: @easyp-tech/protoc-gen-mcp-runtime must list this
+    # repository and workflow as a trusted publisher.
+    needs: release
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Check runtime version matches the tag
+        working-directory: runtime/typescript
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          if [[ "v${version}" != "${GITHUB_REF_NAME}" ]]; then
+            echo "runtime/typescript version ${version} does not match tag ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
+      - name: Build and publish
+        working-directory: runtime/typescript
+        run: |
+          npm ci
+          npm test
+          npm publish --provenance --access public

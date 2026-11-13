@@ -49,6 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `@easyp-tech/protoc-gen-mcp-runtime`, an npm package with the TypeScript
+  registries and dispatch that generated `*_mcp.ts` files previously embedded;
+  the SDK, Protobuf-ES and Ajv are peer dependencies.
 - `protoc-gen-mcp-runtime`, a PyPI package with the tool, prompt and resource
   registries that generated Python code previously embedded in every
   `*_mcp.py`. Several generated modules now share one registry per server, and

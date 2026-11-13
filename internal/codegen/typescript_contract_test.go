@@ -9,12 +9,12 @@ func TestTypeScriptContract_PublicAPIAndLowLevelImports(t *testing.T) {
 	generated := renderBasicTypeScriptFixture(t)
 
 	wantSnippets := []string{
-		`import { Server } from "@modelcontextprotocol/sdk/server/index.js";`,
-		`import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";`,
-		`import type { CallToolResult, ServerNotification, ServerRequest, Tool } from "@modelcontextprotocol/sdk/types.js";`,
+		`import type { Server } from "@modelcontextprotocol/sdk/server/index.js";`,
+		`import * as protocGenMcp from "@easyp-tech/protoc-gen-mcp-runtime";`,
 		`import type { CreateReportRequest, CreateReportResponse } from "./example_pb.js";`,
 		`import { CreateReportRequestSchema, CreateReportResponseSchema, file_test_v1_example } from "./example_pb.js";`,
-		"export type ToolRequestContext = RequestHandlerExtra<ServerRequest, ServerNotification>;",
+		"export type ToolRequestContext = protocGenMcp.ToolRequestContext;",
+		"protocGenMcp.checkGencodeVersion(1);",
 	}
 	assertTypeScriptContains(t, generated, wantSnippets...)
 }
@@ -43,13 +43,13 @@ func TestTypeScriptContract_SchemaConstantsAndRegistryMetadata(t *testing.T) {
 	wantSnippets := []string{
 		"export const EXAMPLE_API_CREATE_REPORT_INPUT_SCHEMA_JSON =",
 		"export const EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON =",
-		"name: resolveToolName(namespace, \"CreateReport\", \"example\"),",
+		"name: protocGenMcp.resolveToolName(namespace, \"CreateReport\", \"example\"),",
 		"handler: impl.createReport.bind(impl),",
 		"inputSchemaJson: EXAMPLE_API_CREATE_REPORT_INPUT_SCHEMA_JSON,",
 		"outputSchemaJson: EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON,",
 		"inputSchema: CreateReportRequestSchema,",
 		"outputSchema: CreateReportResponseSchema,",
-		"fileRegistry: file_test_v1_example,",
+		"registry: protocGenMcp.buildProtoRegistry(file_test_v1_example, file_test_v1_example, file_test_v1_example),",
 		"annotations: {",
 		"readOnlyHint: true",
 		"destructiveHint: false",
@@ -70,15 +70,7 @@ func TestTypeScriptContract_ToolNameNormalization(t *testing.T) {
 	generated := renderTypeScriptToolNameFixture(t)
 
 	wantSnippets := []string{
-		`name: resolveToolName(namespace, "Create.Report", "example.default"),`,
-		"const resolvedNamespace = normalizeToolSegment(",
-		"namespace === null || namespace === undefined ? defaultNamespace : namespace,",
-		"const resolvedName = normalizeToolSegment(defaultName);",
-		`if (resolvedNamespace === "") {`,
-		`if (resolvedName === "") {`,
-		"return `${resolvedNamespace}_${resolvedName}`;",
-		"function normalizeToolSegment(segment: string | null | undefined): string {",
-		`return segment.trim().replace(/[.]+/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");`,
+		`name: protocGenMcp.resolveToolName(namespace, "Create.Report", "example.default"),`,
 	}
 	assertTypeScriptContains(t, generated, wantSnippets...)
 	assertTypeScriptOmits(t, generated, "function normalizeNamespace(namespace:", "return `${resolvedNamespace}_${defaultName}`;")
@@ -88,57 +80,22 @@ func TestTypeScriptContract_RuntimeDispatchPaths(t *testing.T) {
 	generated := renderBasicTypeScriptFixture(t)
 
 	wantSnippets := []string{
-		`import { createRegistry, fromJson, toJson } from "@bufbuild/protobuf";`,
-		`import type { DescFile, DescMessage, MessageShape } from "@bufbuild/protobuf";`,
-		`import type { JsonValue, Registry } from "@bufbuild/protobuf";`,
-		`import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from "@modelcontextprotocol/sdk/types.js";`,
-		`import type { CallToolRequest } from "@modelcontextprotocol/sdk/types.js";`,
-		`import type { CallToolResult, ServerNotification, ServerRequest, Tool } from "@modelcontextprotocol/sdk/types.js";`,
-		`import { Ajv2020 } from "ajv/dist/2020.js";`,
-		`import type { ValidateFunction } from "ajv/dist/2020.js";`,
-		`const toolRegistrySymbol: unique symbol = Symbol.for("protoc-gen-mcp.typescript.toolRegistry") as never;`,
-		"const jsonSchemaValidator = new Ajv2020({ strict: false, allErrors: true });",
-		"type ServerWithGeneratedToolRegistry = Server & {",
-		"[toolRegistrySymbol]?: ServerToolRegistry;",
-		"type ServerToolRegistry = {",
-		"function installMcpHandlers(server: Server, registry: ServerToolRegistry): void {",
-		"function listRegisteredTools(registry: ServerToolRegistry): Tool[] {",
-		"function buildListTool(tool: RegisteredTool): Tool {",
-		"function loadSchema(rawSchemaJson: string): Record<string, unknown> {",
-		"function compileSchema(rawSchemaJson: string): ValidateFunction {",
-		"function assertValid(",
-		"function invalidParams(toolName: string, error: unknown): never {",
-		"new McpError(ErrorCode.InvalidParams",
-		"throw new McpError(",
-		"    ErrorCode.InvalidParams,",
-		"function toolErrorResult(error: unknown): CallToolResult {",
-		"async function dispatchToolCall(",
-		"request: CallToolRequest,",
-		"assertValid(tool.name, \"input\", tool.validateInput, args);",
-		"fromJson(tool.inputSchema, args, { registry: tool.registry })",
-		"toJson(tool.outputSchema, response as MessageShape<typeof tool.outputSchema>, {",
-		"alwaysEmitImplicit: true",
-		"const structuredContent = assertStructuredContent(tool.name, payload);",
-		"assertValid(tool.name, \"output\", tool.validateOutput, structuredContent);",
-		"function assertStructuredContent(toolName: string, payload: JsonValue): Record<string, unknown> {",
-		"generated output must be a JSON object",
-		"content: [{ type: \"text\", text: JSON.stringify(structuredContent) }]",
-		"structuredContent,",
-		"const collected: DescFile[] = [];",
-		"for (const dependency of file.dependencies) {",
-		"return createRegistry(...collected);",
-		"mcpruntime: validate output for tool",
-		"mcpruntime: marshal output for tool",
+		`import * as protocGenMcp from "@easyp-tech/protoc-gen-mcp-runtime";`,
+		"protocGenMcp.checkGencodeVersion(1);",
+		"protocGenMcp.addTools(server, [",
+		"validateInput: protocGenMcp.compileSchema(EXAMPLE_API_CREATE_REPORT_INPUT_SCHEMA_JSON),",
+		"validateOutput: protocGenMcp.compileSchema(EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON),",
 	}
 	assertTypeScriptContains(t, generated, wantSnippets...)
 
 	notWantSnippets := []string{
 		"new WeakMap<Server, ServerToolRegistry>()",
 		"registerTool",
-		"addTool",
 		"zod",
 		"toJsonSchemaCompat",
-		"lang=javascript",
+		"async function dispatchToolCall(",
+		"new Ajv2020(",
+		"function buildProtoRegistry(",
 	}
 	assertTypeScriptOmits(t, generated, notWantSnippets...)
 }

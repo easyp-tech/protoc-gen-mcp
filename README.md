@@ -160,6 +160,11 @@ Language notes:
   same tree, generated with `import_extension=js` for Node ESM and
   `moduleResolution: NodeNext`. **JavaScript** projects import the compiled
   `.js` output and `.d.ts` declarations; there is no `lang=javascript`.
+  Generated files import `@easyp-tech/protoc-gen-mcp-runtime`
+  (`npm install @easyp-tech/protoc-gen-mcp-runtime`), which keeps the tool,
+  prompt and resource registries; `@modelcontextprotocol/sdk`,
+  `@bufbuild/protobuf` and `ajv` are its peer dependencies, so the server and
+  the runtime share one SDK.
 
 ## Generated API
 
