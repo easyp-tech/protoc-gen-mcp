@@ -158,6 +158,9 @@ func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 			}
 			generated.P("            icons = ", icons, ",")
 			generated.P("            execution = ", kotlinTaskSupport(method.TaskSupport), ",")
+			if meta := toolMetaJSON(method.AppUI); meta != "" {
+				generated.P("            meta = Json.parseToJsonElement(", kotlinStringLiteral(meta), ").jsonObject,")
+			}
 			generated.P("        ),")
 			generated.P("    )")
 			_ = outputType
@@ -455,6 +458,7 @@ func renderKotlinRuntime(generated *protogen.GeneratedFile, descriptorAccessors 
 	generated.P("    val annotations: ToolAnnotations?,")
 	generated.P("    val icons: List<Icon>,")
 	generated.P("    val execution: ToolExecution?,")
+	generated.P("    val meta: JsonObject? = null,")
 	generated.P(")")
 	generated.P()
 	generated.P("private class ServerToolRegistry {")
@@ -593,6 +597,7 @@ func renderKotlinRuntime(generated *protogen.GeneratedFile, descriptorAccessors 
 	generated.P("        annotations = copyToolAnnotations(tool.annotations),")
 	generated.P("        icons = tool.icons.ifEmpty { null },")
 	generated.P("        execution = tool.execution,")
+	generated.P("        meta = tool.meta,")
 	generated.P("    )")
 	generated.P("}")
 	generated.P()

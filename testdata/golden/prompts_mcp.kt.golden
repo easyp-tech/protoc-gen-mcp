@@ -46,6 +46,7 @@ private data class RegisteredTool(
     val annotations: ToolAnnotations?,
     val icons: List<Icon>,
     val execution: ToolExecution?,
+    val meta: JsonObject? = null,
 )
 
 private class ServerToolRegistry {
@@ -182,6 +183,7 @@ private fun buildListTool(tool: RegisteredTool): Tool {
         annotations = copyToolAnnotations(tool.annotations),
         icons = tool.icons.ifEmpty { null },
         execution = tool.execution,
+        meta = tool.meta,
     )
 }
 

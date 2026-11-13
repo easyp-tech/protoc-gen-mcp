@@ -56,6 +56,7 @@ type RegisteredTool = {
   annotations?: ToolAnnotationsMetadata;
   icons: ToolIconMetadata[];
   execution?: ToolExecutionMetadata;
+  meta?: Record<string, unknown>;
 };
 
 type ServerToolRegistry = {
@@ -335,6 +336,9 @@ function buildListTool(tool: RegisteredTool): Tool {
   }
   if (tool.execution !== undefined) {
     listed.execution = tool.execution;
+  }
+  if (tool.meta !== undefined) {
+    listed._meta = tool.meta;
   }
   return listed;
 }

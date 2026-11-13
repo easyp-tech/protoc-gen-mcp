@@ -95,6 +95,7 @@ class _RegisteredTool:
     annotations: dict[str, Any] | None
     icons: list[dict[str, Any]] | None
     execution: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = None
 
 class _ServerToolRegistry:
     def __init__(self, server: mcp.server.lowlevel.Server) -> None:
@@ -265,6 +266,7 @@ def _build_tool(tool: _RegisteredTool) -> Any:
         annotations=_tool_annotations(tool.annotations),
         icons=tool.icons,
         execution=_tool_execution(tool.execution),
+        _meta=tool.meta,
     )
 
 async def _maybe_await(result: Any) -> Any:

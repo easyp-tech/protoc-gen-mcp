@@ -44,6 +44,7 @@ type TypeScriptMethodModel struct {
 	OutputSchemaJSON string
 	Annotations      *mcpoptionsv1.ToolAnnotations
 	Icons            []*mcpoptionsv1.Icon
+	AppUI            *mcpoptionsv1.AppUIOptions
 	// TaskSupport mcpoptionsv1.TaskSupport mirrors the shared method contract.
 	TaskSupport mcpoptionsv1.TaskSupport
 }

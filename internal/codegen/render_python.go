@@ -163,6 +163,9 @@ func renderPythonFileForHandler(plugin *protogen.Plugin, model FileModel, handle
 			generated.P("        annotations=", pythonAnnotations(method.Annotations), ",")
 			generated.P("        icons=", pythonIcons(method.Icons), ",")
 			generated.P("        execution=", pythonTaskSupport(method.TaskSupport), ",")
+			if meta := toolMetaJSON(method.AppUI); meta != "" {
+				generated.P("        meta=json.loads(", quote(meta), "),")
+			}
 			generated.P("    ))")
 		}
 		generated.P()

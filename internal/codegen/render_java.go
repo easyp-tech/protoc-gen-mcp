@@ -170,7 +170,12 @@ func renderJavaFile(plugin *protogen.Plugin, model JVMFileModel) error {
 			generated.P("            (ctx, request) -> impl.", method.MethodName, "(ctx, (", inputType, ") request),")
 			generated.P("            ", javaAnnotations(method.Annotations), ",")
 			generated.P("            ", icons, ",")
-			generated.P("            ", javaTaskSupport(method.TaskSupport), ")")
+			generated.P("            ", javaTaskSupport(method.TaskSupport), ",")
+			if meta := toolMetaJSON(method.AppUI); meta != "" {
+				generated.P("            loadSchema(", quote(meta), "))")
+			} else {
+				generated.P("            null)")
+			}
 			generated.P("    );")
 		}
 		generated.P("    installSessionFactory(transportProvider, registry);")
@@ -509,6 +514,7 @@ func renderJavaRuntime(generated *protogen.GeneratedFile, descriptorAccessors []
 	generated.P("    private final Map<String, Object> annotations;")
 	generated.P("    private final List<Map<String, Object>> icons;")
 	generated.P("    private final Map<String, Object> execution;")
+	generated.P("    private final Map<String, Object> meta;")
 	generated.P()
 	generated.P("    private RegisteredTool(")
 	generated.P("        String name,")
@@ -521,7 +527,8 @@ func renderJavaRuntime(generated *protogen.GeneratedFile, descriptorAccessors []
 	generated.P("        ToolInvoker handler,")
 	generated.P("        Map<String, Object> annotations,")
 	generated.P("        List<Map<String, Object>> icons,")
-	generated.P("        Map<String, Object> execution) {")
+	generated.P("        Map<String, Object> execution,")
+	generated.P("        Map<String, Object> meta) {")
 	generated.P("      this.name = name;")
 	generated.P("      this.title = title;")
 	generated.P("      this.description = description;")
@@ -533,6 +540,7 @@ func renderJavaRuntime(generated *protogen.GeneratedFile, descriptorAccessors []
 	generated.P("      this.annotations = annotations;")
 	generated.P("      this.icons = icons;")
 	generated.P("      this.execution = execution;")
+	generated.P("      this.meta = meta;")
 	generated.P("    }")
 	generated.P("  }")
 	generated.P()
@@ -1055,6 +1063,7 @@ func renderJavaRuntime(generated *protogen.GeneratedFile, descriptorAccessors []
 	generated.P("      protocol.put(\"icons\", tool.icons);")
 	generated.P("    }")
 	generated.P("    putIfNotNull(protocol, \"execution\", tool.execution);")
+	generated.P("    putIfNotNull(protocol, \"_meta\", tool.meta);")
 	generated.P("    return protocol;")
 	generated.P("  }")
 	generated.P()

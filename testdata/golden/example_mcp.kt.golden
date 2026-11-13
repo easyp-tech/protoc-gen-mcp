@@ -46,6 +46,7 @@ private data class RegisteredTool(
     val annotations: ToolAnnotations?,
     val icons: List<Icon>,
     val execution: ToolExecution?,
+    val meta: JsonObject? = null,
 )
 
 private class ServerToolRegistry {
@@ -182,6 +183,7 @@ private fun buildListTool(tool: RegisteredTool): Tool {
         annotations = copyToolAnnotations(tool.annotations),
         icons = tool.icons.ifEmpty { null },
         execution = tool.execution,
+        meta = tool.meta,
     )
 }
 
@@ -291,6 +293,7 @@ fun registerExampleAPITools(server: Server, impl: ExampleAPIToolHandler, namespa
             annotations = null,
             icons = emptyList(),
             execution = toolExecutionOrNull("none"),
+            meta = Json.parseToJsonElement("{\"ui\":{\"resourceUri\":\"ui://example/report\",\"visibility\":[\"model\",\"app\"]}}").jsonObject,
         ),
     )
     registry.addTool(

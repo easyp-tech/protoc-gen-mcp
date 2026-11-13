@@ -55,6 +55,7 @@ type RegisteredTool = {
   annotations?: ToolAnnotationsMetadata;
   icons: ToolIconMetadata[];
   execution?: ToolExecutionMetadata;
+  meta?: Record<string, unknown>;
 };
 
 type ServerToolRegistry = {
@@ -128,6 +129,7 @@ export function registerExampleAPITools(
       icons: [
       ],
       execution: undefined,
+      meta: JSON.parse("{\"ui\":{\"resourceUri\":\"ui://example/report\",\"visibility\":[\"model\",\"app\"]}}") as Record<string, unknown>,
     },
     {
       name: resolveToolName(namespace, "Health", "example"),
@@ -278,6 +280,9 @@ function buildListTool(tool: RegisteredTool): Tool {
   }
   if (tool.execution !== undefined) {
     listed.execution = tool.execution;
+  }
+  if (tool.meta !== undefined) {
+    listed._meta = tool.meta;
   }
   return listed;
 }
