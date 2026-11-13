@@ -55,6 +55,12 @@ service TodoAPI {
 }
 
 message Task {
+  option (mcp.options.v1.resource) = {
+    name: "task"
+    uri_template: "todo://tasks/{id}"
+    description: "A task from the in-memory todo list, addressed by its id."
+  };
+
   string id = 1 [(mcp.options.v1.field) = {
     description: "Stable task id returned by CreateTask."
     examples: [{string_value: "task-1"}]
@@ -112,4 +118,16 @@ message CompleteTaskRequest {
 
 message CompleteTaskResponse {
   Task task = 1;
+}
+
+message PlanDay {
+  option (mcp.options.v1.prompt) = {
+    name: "plan_day"
+    title: "Plan the day"
+    description: "Ask the model to plan the day around the open tasks."
+  };
+
+  string focus = 1 [(mcp.options.v1.field) = {
+    description: "What the day should focus on."
+  }];
 }

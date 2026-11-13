@@ -1,14 +1,22 @@
 package com.example.todo.kotlin
 
 import com.example.todo.v1.TodoAPIToolHandler
+import com.example.todo.v1.TodoPromptHandler
 import com.example.todo.v1.TodoProto
+import com.example.todo.v1.TodoResourceHandler
 import com.example.todo.v1.registerTodoAPITools
+import com.example.todo.v1.registerTodoPrompts
+import com.example.todo.v1.registerTodoResources
 import io.modelcontextprotocol.kotlin.sdk.server.ClientConnection
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
 import io.modelcontextprotocol.kotlin.sdk.server.StdioServerTransport
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
+import io.modelcontextprotocol.kotlin.sdk.types.PromptMessage
+import io.modelcontextprotocol.kotlin.sdk.types.Resource
+import io.modelcontextprotocol.kotlin.sdk.types.Role
 import io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities
+import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.asSink
@@ -21,11 +29,20 @@ fun main() = runBlocking {
     val closed = CompletableDeferred<Unit>()
     val server = Server(
         Implementation(name = "todo-kotlin-standalone", version = "0.1.0"),
-        ServerOptions(ServerCapabilities(tools = ServerCapabilities.Tools(listChanged = false))),
+        ServerOptions(
+            ServerCapabilities(
+                tools = ServerCapabilities.Tools(listChanged = false),
+                resources = ServerCapabilities.Resources(listChanged = false, subscribe = false),
+                prompts = ServerCapabilities.Prompts(listChanged = false),
+            ),
+        ),
     )
     server.onClose { closed.complete(Unit) }
 
-    registerTodoAPITools(server, Handler(), namespace = "todo")
+    val handler = Handler()
+    registerTodoAPITools(server, handler, namespace = "todo")
+    registerTodoResources(server, Resources(handler))
+    registerTodoPrompts(server, Prompts(handler))
 
     val transport = StdioServerTransport(
         System.`in`.asSource().buffered(),
@@ -45,7 +62,7 @@ private fun disableKotlinLoggingStartupMessage() {
 }
 
 private class Handler : TodoAPIToolHandler {
-    private val tasks = linkedMapOf<String, TodoProto.Task>()
+    val tasks = linkedMapOf<String, TodoProto.Task>()
     private var nextId = 1
 
     override suspend fun createTask(
@@ -86,5 +103,25 @@ private class Handler : TodoAPIToolHandler {
         return TodoProto.CompleteTaskResponse.newBuilder()
             .setTask(completed)
             .build()
+    }
+}
+
+private class Resources(private val handler: Handler) : TodoResourceHandler {
+    override suspend fun listTasks(): List<Resource> =
+        handler.tasks.values.map { Resource(uri = "todo://tasks/${it.id}", name = "task", title = it.title) }
+
+    override suspend fun readTask(id: String): TodoProto.Task =
+        handler.tasks[id] ?: error("unknown task id: $id")
+}
+
+private class Prompts(private val handler: Handler) : TodoPromptHandler {
+    override suspend fun planDay(arguments: Map<String, String>): List<PromptMessage> {
+        val open = handler.tasks.values.filterNot { it.done }.joinToString("") { "\n- ${it.title}" }
+        return listOf(
+            PromptMessage(
+                role = Role.User,
+                content = TextContent(text = "Plan the day around: ${arguments["focus"]}\n\nOpen tasks:$open"),
+            ),
+        )
     }
 }

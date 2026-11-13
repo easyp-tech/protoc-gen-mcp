@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 import anyio
 import mcp.server.lowlevel
 import mcp.server.stdio
+import mcp.shared.exceptions
+import mcp.types
 
 from proto import notebook_mcp
 
@@ -66,10 +68,35 @@ class Notebook:
     ) -> notebook_mcp.HealthResponse:
         return notebook_mcp.HealthResponse(ok=True, note_count=len(self._notes))
 
+    def list_notes(self) -> list[mcp.types.Resource]:
+        return [
+            mcp.types.Resource(name="note", uri=f"notebook://notes/{note.id}", title=note.title)
+            for note in self._notes.values()
+        ]
+
+    def read_note(self, id: str) -> notebook_mcp.Note:
+        note = self._notes.get(id)
+        if note is None:
+            raise mcp.shared.exceptions.McpError(
+                mcp.types.ErrorData(code=mcp.types.INVALID_PARAMS, message=f"unknown note {id!r}")
+            )
+        return note
+
+    def review_note(self, arguments: dict[str, str]) -> mcp.types.GetPromptResult:
+        note = self.read_note(arguments["noteId"])
+        focus = arguments.get("focus") or "clarity"
+        text = f"Review this note for {focus} and suggest a clearer version.\n\n# {note.title}\n\n{note.body}"
+        return mcp.types.GetPromptResult(
+            messages=[mcp.types.PromptMessage(role="user", content=mcp.types.TextContent(type="text", text=text))]
+        )
+
 
 def new_server() -> mcp.server.lowlevel.Server:
     server = mcp.server.lowlevel.Server("standalone-python-notebook", version="0.1.0")
-    notebook_mcp.register_notebook_api_tools(server, Notebook())
+    notebook = Notebook()
+    notebook_mcp.register_notebook_api_tools(server, notebook)
+    notebook_mcp.register_notebook_resources(server, notebook)
+    notebook_mcp.register_notebook_prompts(server, notebook)
     return server
 
 

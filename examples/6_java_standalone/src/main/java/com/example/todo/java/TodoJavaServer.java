@@ -5,7 +5,10 @@ import com.example.todo.v1.TodoProto;
 import io.modelcontextprotocol.json.McpJsonDefaults;
 import io.modelcontextprotocol.server.McpAsyncServerExchange;
 import io.modelcontextprotocol.server.transport.StdioServerTransportProvider;
+import io.modelcontextprotocol.spec.McpSchema;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 public final class TodoJavaServer {
@@ -15,7 +18,10 @@ public final class TodoJavaServer {
   public static void main(String[] args) {
     StdioServerTransportProvider transportProvider =
         new StdioServerTransportProvider(McpJsonDefaults.getMapper());
-    TodoMcp.registerTodoAPITools(transportProvider, new Handler(), "todo");
+    Handler handler = new Handler();
+    TodoMcp.registerTodoAPITools(transportProvider, handler, "todo");
+    TodoMcp.registerTodoResources(transportProvider, new Resources(handler), null);
+    TodoMcp.registerTodoPrompts(transportProvider, new Prompts(handler), null);
   }
 
   private static final class Handler implements TodoMcp.TodoAPIToolHandler {
@@ -68,6 +74,55 @@ public final class TodoJavaServer {
       return TodoProto.CompleteTaskResponse.newBuilder()
           .setTask(completed)
           .build();
+    }
+  }
+
+  private static final class Resources implements TodoMcp.TodoResourceHandler {
+    private final Handler handler;
+
+    private Resources(Handler handler) {
+      this.handler = handler;
+    }
+
+    @Override
+    public List<McpSchema.Resource> listTasks() {
+      List<McpSchema.Resource> resources = new ArrayList<>();
+      for (TodoProto.Task task : handler.tasks.values()) {
+        resources.add(McpSchema.Resource.builder()
+            .name("task")
+            .uri("todo://tasks/" + task.getId())
+            .title(task.getTitle())
+            .build());
+      }
+      return resources;
+    }
+
+    @Override
+    public TodoProto.Task readTask(String id) {
+      TodoProto.Task task = handler.tasks.get(id);
+      if (task == null) {
+        throw new IllegalArgumentException("unknown task id: " + id);
+      }
+      return task;
+    }
+  }
+
+  private static final class Prompts implements TodoMcp.TodoPromptHandler {
+    private final Handler handler;
+
+    private Prompts(Handler handler) {
+      this.handler = handler;
+    }
+
+    @Override
+    public List<Map<String, Object>> planDay(Map<String, String> arguments) {
+      StringBuilder text = new StringBuilder("Plan the day around: " + arguments.get("focus") + "\n\nOpen tasks:");
+      for (TodoProto.Task task : handler.tasks.values()) {
+        if (!task.getDone()) {
+          text.append("\n- ").append(task.getTitle());
+        }
+      }
+      return List.of(Map.of("role", "user", "content", Map.of("type", "text", "text", text.toString())));
     }
   }
 }

@@ -234,6 +234,7 @@ func runStandaloneNotebookExample(t *testing.T, client *stdioClient) {
 	if got := note["title"]; got != "Ship Python support" {
 		t.Fatalf("created note.title = %v, want Ship Python support", got)
 	}
+	assertNotebookResourcesAndPrompts(t, client, note)
 
 	searchResult, rpcErr := client.callTool("notebook_SearchNotes", map[string]any{
 		"query": "python",

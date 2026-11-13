@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	cacheVersion = "v1"
+	cacheVersion = "v2"
 	probeScript  = "import anyio, jsonschema, mcp\nimport google.protobuf\nmajor = int(google.protobuf.__version__.split('.', 1)[0])\nassert 6 <= major < 7, google.protobuf.__version__\n"
 
 	setupLockTimeout = 5 * time.Minute
@@ -118,7 +118,7 @@ func ensurePython() (string, string, error) {
 			return fmt.Errorf("create venv: %w", err)
 		}
 		if err := run(python, "-m", "pip", "install", "--upgrade",
-			"mcp>=1.27,<2",
+			"mcp>=1.30,<2",
 			"protobuf>=6,<7",
 			"jsonschema>=4,<5",
 			"anyio>=4,<5",

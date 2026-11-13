@@ -1,9 +1,18 @@
 import { create } from "@bufbuild/protobuf";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { ErrorCode, McpError, type GetPromptResult, type Resource } from "@modelcontextprotocol/sdk/types.js";
 
 import { TimestampSchema } from "./generated/google/protobuf/timestamp_pb.js";
-import { registerNotebookAPITools, type NotebookAPIToolHandler, type ToolRequestContext } from "./generated/proto/notebook_mcp.js";
+import {
+  registerNotebookAPITools,
+  registerNotebookPrompts,
+  registerNotebookResources,
+  type NotebookAPIToolHandler,
+  type NotebookPromptHandler,
+  type NotebookResourceHandler,
+  type ToolRequestContext,
+} from "./generated/proto/notebook_mcp.js";
 import {
   CreateNoteResponseSchema,
   HealthResponseSchema,
@@ -26,7 +35,7 @@ function nowTimestamp() {
   });
 }
 
-class Notebook implements NotebookAPIToolHandler {
+class Notebook implements NotebookAPIToolHandler, NotebookPromptHandler, NotebookResourceHandler {
   private nextID = 1;
   private readonly notes = new Map<string, Note>();
 
@@ -74,6 +83,38 @@ class Notebook implements NotebookAPIToolHandler {
       noteCount: this.notes.size,
     });
   }
+
+  listNotes(): Resource[] {
+    return [...this.notes.values()].map((note) => ({
+      name: "note",
+      uri: `notebook://notes/${note.id}`,
+      title: note.title,
+    }));
+  }
+
+  readNote(id: string): Note {
+    const note = this.notes.get(id);
+    if (note === undefined) {
+      throw new McpError(ErrorCode.InvalidParams, `unknown note '${id}'`);
+    }
+    return note;
+  }
+
+  reviewNote(args: Record<string, string>): GetPromptResult {
+    const note = this.readNote(args.noteId ?? "");
+    const focus = args.focus || "clarity";
+    return {
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: `Review this note for ${focus} and suggest a clearer version.\n\n# ${note.title}\n\n${note.body}`,
+          },
+        },
+      ],
+    };
+  }
 }
 
 const server = new Server(
@@ -82,5 +123,7 @@ const server = new Server(
 );
 const notebook = new Notebook();
 registerNotebookAPITools(server, notebook, "notebook");
+registerNotebookResources(server, notebook);
+registerNotebookPrompts(server, notebook);
 
 await server.connect(new StdioServerTransport());
