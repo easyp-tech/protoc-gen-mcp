@@ -84,6 +84,7 @@ type ResourceModel struct {
 	URITemplate   string // Non-empty for template resources
 	MIMEType      string // Defaults to "application/json"
 	ContentField  string // Optional singular string/bytes field to return as raw resource body
+	ContentBytes  bool   // ContentField is a bytes field served as a blob
 	IsTemplate    bool
 	Params        []ResourceParamModel
 	Annotations   *mcpoptionsv1.ResourceAnnotations

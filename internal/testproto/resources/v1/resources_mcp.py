@@ -5,12 +5,15 @@ from __future__ import annotations
 import enum
 import inspect
 import json
+import re
+import urllib.parse
 import weakref
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Protocol, TypeAlias
 
 import jsonschema
 import mcp.server.lowlevel
+import mcp.server.lowlevel.helper_types
 import mcp.server.session
 import mcp.shared.exceptions
 import mcp.types
@@ -530,30 +533,161 @@ def _to_pb_plain_data(value: PlainData) -> resources_pb2.PlainData:
     return message
 
 
+@dataclass(frozen=True)
+class _RegisteredResource:
+    resource: mcp.types.Resource
+    reader: Any
+
+@dataclass(frozen=True)
+class _RegisteredResourceTemplate:
+    template: mcp.types.ResourceTemplate
+    pattern: Any
+    names: tuple[str, ...]
+    lister: Any
+    reader: Any
+
+class _ServerResourceRegistry:
+    def __init__(self) -> None:
+        self.static: dict[str, Any] = {}
+        self.templates: list[Any] = []
+
+    def add_static(self, entry: Any) -> None:
+        uri = str(entry.resource.uri)
+        if uri in self.static:
+            raise ValueError(f"duplicate resource registration: {uri}")
+        self.static[uri] = entry
+
+    def add_template(self, entry: Any) -> None:
+        for existing in self.templates:
+            if existing.template.uriTemplate == entry.template.uriTemplate:
+                raise ValueError(f"duplicate resource template registration: {entry.template.uriTemplate}")
+        self.templates.append(entry)
+
+_RESOURCE_REGISTRY_ATTR = "_protoc_gen_mcp_resource_registry"
+_URI_TEMPLATE_PARAM = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
+_MALFORMED_PERCENT_ESCAPE = re.compile(r"%(?![0-9A-Fa-f]{2})")
+
+def _resource_error(message: str, uri: str) -> mcp.shared.exceptions.McpError:
+    return mcp.shared.exceptions.McpError(mcp.types.ErrorData(code=mcp.types.INVALID_PARAMS, message=message, data={"uri": uri}))
+
+def _resource_name(namespace: str | None, name: str) -> str:
+    if not namespace:
+        return name
+    return f"{namespace}_{name}"
+
+def _resource_listing(model: Any, descriptor_json: str, namespace: str | None, name: str) -> Any:
+    descriptor = json.loads(descriptor_json)
+    descriptor["name"] = _resource_name(namespace, name)
+    return model.model_validate(descriptor)
+
+def _compile_uri_template(uri_template: str) -> Any:
+    parts = _URI_TEMPLATE_PARAM.split(uri_template)
+    pattern = "".join(re.escape(part) if index % 2 == 0 else "([^/]+)" for index, part in enumerate(parts))
+    return re.compile(pattern)
+
+def _match_uri_template(entry: Any, uri: str) -> dict[str, str] | None:
+    match = entry.pattern.fullmatch(uri)
+    if match is None:
+        return None
+    params: dict[str, str] = {}
+    for name, raw in zip(entry.names, match.groups()):
+        if _MALFORMED_PERCENT_ESCAPE.search(raw):
+            raise _resource_error(f"mcpruntime: parameter {name!r} in uri {uri!r} has a malformed percent escape", uri)
+        try:
+            value = urllib.parse.unquote(raw, errors="strict")
+        except UnicodeDecodeError as error:
+            raise _resource_error(f"mcpruntime: parameter {name!r} in uri {uri!r}: {error}", uri) from error
+        if value == "":
+            raise _resource_error(f"mcpruntime: parameter {name!r} has empty value in uri {uri!r}", uri)
+        params[name] = value
+    return params
+
+def _identity_resource(value: Any) -> Any:
+    return value
+
+async def _read_resource_contents(
+    result: Any,
+    uri: str,
+    *,
+    mime_type: str,
+    kind: str,
+    content_field: str | None,
+    to_pb: Any,
+    meta: dict[str, Any] | None,
+) -> Any:
+    value = await _maybe_await(result)
+    if value is None:
+        raise RuntimeError(f"mcpruntime: resource {uri!r} handler returned None")
+    if kind == "raw":
+        if not isinstance(value, (str, bytes)):
+            raise RuntimeError(f"mcpruntime: resource {uri!r} handler must return str or bytes, got {type(value).__name__}")
+        content: str | bytes = value
+    else:
+        message = to_pb(value)
+        if kind == "protojson":
+            payload = json.loads(_message_to_json(message))
+            content = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+        elif kind == "text_field":
+            content = str(getattr(message, content_field))
+        else:
+            content = bytes(getattr(message, content_field))
+    return mcp.server.lowlevel.helper_types.ReadResourceContents(content=content, mime_type=mime_type, meta=meta)
+
+def _install_resource_handlers(server: mcp.server.lowlevel.Server) -> Any:
+    registry = getattr(server, _RESOURCE_REGISTRY_ATTR, None)
+    if registry is not None:
+        return registry
+    registry = _ServerResourceRegistry()
+    setattr(server, _RESOURCE_REGISTRY_ATTR, registry)
+
+    @server.list_resources()
+    async def _list_resources() -> list[mcp.types.Resource]:
+        resources = [entry.resource for entry in registry.static.values()]
+        for entry in registry.templates:
+            resources.extend(await _maybe_await(entry.lister()))
+        return resources
+
+    @server.list_resource_templates()
+    async def _list_resource_templates() -> list[mcp.types.ResourceTemplate]:
+        return [entry.template for entry in registry.templates]
+
+    @server.read_resource()
+    async def _read_resource(uri: Any) -> list[Any]:
+        raw_uri = str(uri)
+        entry = registry.static.get(raw_uri)
+        if entry is not None:
+            return [await entry.reader(raw_uri, {})]
+        for template in registry.templates:
+            params = _match_uri_template(template, raw_uri)
+            if params is not None:
+                return [await template.reader(raw_uri, params)]
+        raise _resource_error("Resource not found", raw_uri)
+
+    return registry
+
 
 class ResourcesResourceHandler(Protocol):
     """Handler protocol for MCP resources in internal/testproto/resources/v1/resources.proto."""
-    async def read_server_status(self) -> Any:
+    def read_server_status(self) -> ServerStatus | Awaitable[ServerStatus]:
         ...
-    async def list_user_profiles(self) -> list[mcp.types.Resource]:
+    def list_user_profiles(self) -> list[mcp.types.Resource] | Awaitable[list[mcp.types.Resource]]:
         ...
-    async def read_user_profile(self, user_id: str) -> Any:
+    def read_user_profile(self, user_id: str) -> UserProfile | Awaitable[UserProfile]:
         ...
-    async def list_documents(self) -> list[mcp.types.Resource]:
+    def list_documents(self) -> list[mcp.types.Resource] | Awaitable[list[mcp.types.Resource]]:
         ...
-    async def read_document(self, project_id: str, document_id: str) -> Any:
+    def read_document(self, project_id: str, document_id: str) -> Document | Awaitable[Document]:
         ...
-    async def read_skill_document(self) -> Any:
+    def read_skill_document(self) -> SkillDocument | Awaitable[SkillDocument]:
         ...
-    async def list_plain_texts(self) -> list[mcp.types.Resource]:
+    def list_plain_texts(self) -> list[mcp.types.Resource] | Awaitable[list[mcp.types.Resource]]:
         ...
-    async def read_plain_text(self, name: str) -> Any:
+    def read_plain_text(self, name: str) -> PlainText | Awaitable[PlainText]:
         ...
-    async def read_raw_binary(self) -> Any:
+    def read_raw_binary(self) -> RawBinary | Awaitable[RawBinary]:
         ...
-    async def read_app_page(self) -> Any:
+    def read_app_page(self) -> str | bytes | Awaitable[str | bytes]:
         ...
-
 
 def register_resources_resources(
     server: mcp.server.lowlevel.Server,
@@ -564,6 +698,42 @@ def register_resources_resources(
     """Registers MCP resources for resources."""
     if impl is None:
         raise ValueError("register_resources_resources: impl is nil")
-    # TODO: full Python resource registration using server.read_resource decorator
-    raise NotImplementedError("MCP Resources for Python are not yet fully supported")
+    registry = _install_resource_handlers(server)
+    registry.add_static(_RegisteredResource(
+        resource=_resource_listing(mcp.types.Resource, "{\"annotations\":{\"audience\":[\"user\",\"assistant\"],\"priority\":0.8},\"description\":\"Current server status and health information\",\"icons\":[{\"src\":\"https://example.com/status.svg\"}],\"mimeType\":\"application/json\",\"uri\":\"server://status\"}", namespace, "server_status"),
+        reader=lambda uri, params: _read_resource_contents(impl.read_server_status(), uri, mime_type="application/json", kind="protojson", content_field=None, to_pb=_to_pb_server_status, meta=None),
+    ))
+    registry.add_template(_RegisteredResourceTemplate(
+        template=_resource_listing(mcp.types.ResourceTemplate, "{\"description\":\"User profile information\",\"mimeType\":\"application/json\",\"uriTemplate\":\"users://{user_id}/profile\"}", namespace, "user_profile"),
+        pattern=_compile_uri_template("users://{user_id}/profile"),
+        names=("user_id",),
+        lister=impl.list_user_profiles,
+        reader=lambda uri, params: _read_resource_contents(impl.read_user_profile(params["user_id"]), uri, mime_type="application/json", kind="protojson", content_field=None, to_pb=_to_pb_user_profile, meta=None),
+    ))
+    registry.add_template(_RegisteredResourceTemplate(
+        template=_resource_listing(mcp.types.ResourceTemplate, "{\"annotations\":{\"priority\":0.5},\"description\":\"Project document\",\"mimeType\":\"application/json\",\"uriTemplate\":\"projects://{project_id}/documents/{document_id}\"}", namespace, "document"),
+        pattern=_compile_uri_template("projects://{project_id}/documents/{document_id}"),
+        names=("project_id", "document_id"),
+        lister=impl.list_documents,
+        reader=lambda uri, params: _read_resource_contents(impl.read_document(params["project_id"], params["document_id"]), uri, mime_type="application/json", kind="protojson", content_field=None, to_pb=_to_pb_document, meta=None),
+    ))
+    registry.add_static(_RegisteredResource(
+        resource=_resource_listing(mcp.types.Resource, "{\"description\":\"Instructions for the example MCP skill\",\"mimeType\":\"text/markdown\",\"uri\":\"skill://example/SKILL.md\"}", namespace, "skill_document"),
+        reader=lambda uri, params: _read_resource_contents(impl.read_skill_document(), uri, mime_type="text/markdown", kind="text_field", content_field="markdown", to_pb=_to_pb_skill_document, meta=None),
+    ))
+    registry.add_template(_RegisteredResourceTemplate(
+        template=_resource_listing(mcp.types.ResourceTemplate, "{\"description\":\"PlainText demonstrates parameterized text resources.\",\"mimeType\":\"text/plain\",\"uriTemplate\":\"docs://example/{name}\"}", namespace, "plain_text"),
+        pattern=_compile_uri_template("docs://example/{name}"),
+        names=("name",),
+        lister=impl.list_plain_texts,
+        reader=lambda uri, params: _read_resource_contents(impl.read_plain_text(params["name"]), uri, mime_type="text/plain", kind="text_field", content_field="body", to_pb=_to_pb_plain_text, meta=None),
+    ))
+    registry.add_static(_RegisteredResource(
+        resource=_resource_listing(mcp.types.Resource, "{\"description\":\"RawBinary demonstrates an MCP blob using a bytes content field.\",\"mimeType\":\"application/octet-stream\",\"uri\":\"blob://example/attachment\"}", namespace, "raw_binary"),
+        reader=lambda uri, params: _read_resource_contents(impl.read_raw_binary(), uri, mime_type="application/octet-stream", kind="blob_field", content_field="data", to_pb=_to_pb_raw_binary, meta=None),
+    ))
+    registry.add_static(_RegisteredResource(
+        resource=_resource_listing(mcp.types.Resource, "{\"_meta\":{\"ui\":{\"csp\":{\"connectDomains\":[\"https://api.example.com\"],\"resourceDomains\":[\"https://cdn.example.com\"]},\"permissions\":{\"clipboardWrite\":{}},\"prefersBorder\":true}},\"description\":\"AppPage is an MCP Apps HTML resource generated from a protobuf message.\",\"mimeType\":\"text/html;profile=mcp-app\",\"uri\":\"ui://example/report\"}", namespace, "report_ui"),
+        reader=lambda uri, params: _read_resource_contents(impl.read_app_page(), uri, mime_type="text/html;profile=mcp-app", kind="raw", content_field=None, to_pb=_identity_resource, meta=json.loads("{\"ui\":{\"csp\":{\"connectDomains\":[\"https://api.example.com\"],\"resourceDomains\":[\"https://cdn.example.com\"]},\"permissions\":{\"clipboardWrite\":{}},\"prefersBorder\":true}}")),
+    ))
 

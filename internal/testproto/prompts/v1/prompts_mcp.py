@@ -484,49 +484,100 @@ def _prompt_name(namespace: str | None, prompt_name: str) -> str:
         return _normalize_tool_segment(prompt_name)
     return f"{_normalize_tool_segment(namespace)}_{_normalize_tool_segment(prompt_name)}"
 
+@dataclass(frozen=True)
+class _RegisteredPrompt:
+    prompt: mcp.types.Prompt
+    required: tuple[str, ...]
+    handler: Any
+
+class _ServerPromptRegistry:
+    def __init__(self) -> None:
+        self.prompts: dict[str, Any] = {}
+
+    def add(self, prompt: Any) -> None:
+        if prompt.prompt.name in self.prompts:
+            raise ValueError(f"duplicate prompt registration: {prompt.prompt.name}")
+        self.prompts[prompt.prompt.name] = prompt
+
+_PROMPT_REGISTRY_ATTR = "_protoc_gen_mcp_prompt_registry"
+
+def _prompt_error(message: str) -> mcp.shared.exceptions.McpError:
+    return mcp.shared.exceptions.McpError(mcp.types.ErrorData(code=mcp.types.INVALID_PARAMS, message=message))
+
+def _install_prompt_handlers(server: mcp.server.lowlevel.Server) -> Any:
+    registry = getattr(server, _PROMPT_REGISTRY_ATTR, None)
+    if registry is not None:
+        return registry
+    registry = _ServerPromptRegistry()
+    setattr(server, _PROMPT_REGISTRY_ATTR, registry)
+
+    @server.list_prompts()
+    async def _list_prompts() -> list[mcp.types.Prompt]:
+        return [entry.prompt for entry in registry.prompts.values()]
+
+    @server.get_prompt()
+    async def _get_prompt(name: str, arguments: dict[str, str] | None) -> mcp.types.GetPromptResult:
+        entry = registry.prompts.get(name)
+        if entry is None:
+            raise _prompt_error(f"unknown prompt {name!r}")
+        args = dict(arguments or {})
+        for required in entry.required:
+            if required not in args:
+                raise _prompt_error(f"missing required prompt argument: {required}")
+        return await _maybe_await(entry.handler(args))
+
+    return registry
+
 class PromptsPromptHandler(Protocol):
-    async def code_review(self, arguments: dict[str, str]) -> mcp.types.GetPromptResult:
+    def code_review(self, arguments: dict[str, str]) -> mcp.types.GetPromptResult | Awaitable[mcp.types.GetPromptResult]:
         ...
-    async def summarize(self, arguments: dict[str, str]) -> mcp.types.GetPromptResult:
+    def summarize(self, arguments: dict[str, str]) -> mcp.types.GetPromptResult | Awaitable[mcp.types.GetPromptResult]:
         ...
-    async def explain_error(self, arguments: dict[str, str]) -> mcp.types.GetPromptResult:
+    def explain_error(self, arguments: dict[str, str]) -> mcp.types.GetPromptResult | Awaitable[mcp.types.GetPromptResult]:
         ...
 
 def register_prompts_prompts(server: mcp.server.lowlevel.Server, impl: PromptsPromptHandler, *, namespace: str | None = None) -> None:
     if impl is None:
         raise ValueError("register_prompts_prompts: impl is nil")
-    @server.add_prompt(
-        name=_prompt_name(namespace, "code_review"),
-        description="Analyze code quality and suggest improvements",
-        arguments=[
-            mcp.types.PromptArgument(name="code", description="Source code to review", required=True),
-            mcp.types.PromptArgument(name="language", description="Programming language (go, python, java, etc)", required=True),
-            mcp.types.PromptArgument(name="focusArea", description="Specific area: security, performance, readability", required=False),
-        ],
-    )
-    async def _handle_prompt_code_review(arguments: dict[str, str] | None = None) -> mcp.types.GetPromptResult:
-        return await impl.code_review(arguments or {})
-    @server.add_prompt(
-        name=_prompt_name(namespace, "summarize"),
-        title="Document Summarizer",
-        description="Summarize a document or text",
-        arguments=[
-            mcp.types.PromptArgument(name="content", description="Text content to summarize", required=True),
-            mcp.types.PromptArgument(name="maxLength", description="Maximum length of the summary in words", required=False),
-            mcp.types.PromptArgument(name="format", description="Output format: bullet_points, paragraph, tldr", required=False),
-        ],
-    )
-    async def _handle_prompt_summarize(arguments: dict[str, str] | None = None) -> mcp.types.GetPromptResult:
-        return await impl.summarize(arguments or {})
-    @server.add_prompt(
-        name=_prompt_name(namespace, "explain_error"),
-        description="Explain an error message and suggest fixes",
-        arguments=[
-            mcp.types.PromptArgument(name="errorMessage", description="The error message or stack trace", required=True),
-            mcp.types.PromptArgument(name="language", description="Programming language context", required=True),
-            mcp.types.PromptArgument(name="level", description="Expertise level for the explanation", required=True),
-        ],
-    )
-    async def _handle_prompt_explain_error(arguments: dict[str, str] | None = None) -> mcp.types.GetPromptResult:
-        return await impl.explain_error(arguments or {})
+    registry = _install_prompt_handlers(server)
+    registry.add(_RegisteredPrompt(
+        prompt=mcp.types.Prompt(
+            name=_prompt_name(namespace, "code_review"),
+            description="Analyze code quality and suggest improvements",
+            arguments=[
+                mcp.types.PromptArgument(name="code", description="Source code to review", required=True),
+                mcp.types.PromptArgument(name="language", description="Programming language (go, python, java, etc)", required=True),
+                mcp.types.PromptArgument(name="focusArea", description="Specific area: security, performance, readability", required=False),
+            ],
+        ),
+        required=("code", "language"),
+        handler=impl.code_review,
+    ))
+    registry.add(_RegisteredPrompt(
+        prompt=mcp.types.Prompt(
+            name=_prompt_name(namespace, "summarize"),
+            title="Document Summarizer",
+            description="Summarize a document or text",
+            arguments=[
+                mcp.types.PromptArgument(name="content", description="Text content to summarize", required=True),
+                mcp.types.PromptArgument(name="maxLength", description="Maximum length of the summary in words", required=False),
+                mcp.types.PromptArgument(name="format", description="Output format: bullet_points, paragraph, tldr", required=False),
+            ],
+        ),
+        required=("content",),
+        handler=impl.summarize,
+    ))
+    registry.add(_RegisteredPrompt(
+        prompt=mcp.types.Prompt(
+            name=_prompt_name(namespace, "explain_error"),
+            description="Explain an error message and suggest fixes",
+            arguments=[
+                mcp.types.PromptArgument(name="errorMessage", description="The error message or stack trace", required=True),
+                mcp.types.PromptArgument(name="language", description="Programming language context", required=True),
+                mcp.types.PromptArgument(name="level", description="Expertise level for the explanation", required=True),
+            ],
+        ),
+        required=("errorMessage", "language", "level"),
+        handler=impl.explain_error,
+    ))
 
