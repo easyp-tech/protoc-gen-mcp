@@ -273,6 +273,7 @@ class _RegisteredTool:
     annotations: dict[str, Any] | None
     icons: list[dict[str, Any]] | None
     execution: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = None
 
 class _ServerToolRegistry:
     def __init__(self, server: mcp.server.lowlevel.Server) -> None:
@@ -443,6 +444,7 @@ def _build_tool(tool: _RegisteredTool) -> Any:
         annotations=_tool_annotations(tool.annotations),
         icons=tool.icons,
         execution=_tool_execution(tool.execution),
+        _meta=tool.meta,
     )
 
 async def _maybe_await(result: Any) -> Any:
@@ -1096,6 +1098,7 @@ def register_example_api_tools(server: mcp.server.lowlevel.Server, impl: Example
         annotations=None,
         icons=None,
         execution=None,
+        meta=json.loads("{\"ui\":{\"resourceUri\":\"ui://example/report\",\"visibility\":[\"model\",\"app\"]}}"),
     ))
     registry.add_tool(_RegisteredTool(
         name=_tool_name(resolved_namespace, "Health"),

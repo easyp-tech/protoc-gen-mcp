@@ -79,6 +79,7 @@ func newJVMMethodModel(serviceName string, method MethodModel, descriptorMethod 
 		OutputSchemaJSON: method.OutputSchemaJSON,
 		Annotations:      method.Annotations,
 		Icons:            method.Icons,
+		AppUI:            method.AppUI,
 		TaskSupport:      method.TaskSupport,
 	}
 	if descriptorMethod != nil {

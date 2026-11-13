@@ -70,7 +70,8 @@ public final class ExampleMcp {
             (ctx, request) -> impl.createReport(ctx, (Example.CreateReportRequest) request),
             null,
             List.of(),
-            toolExecutionMapOrNull(null))
+            toolExecutionMapOrNull(null),
+            loadSchema("{\"ui\":{\"resourceUri\":\"ui://example/report\",\"visibility\":[\"model\",\"app\"]}}"))
     );
     registry.registerTool(
         new RegisteredTool(
@@ -84,7 +85,8 @@ public final class ExampleMcp {
             (ctx, request) -> impl.ping(ctx, (Example.PingRequest) request),
             toolAnnotationsMapOrNull(null, Boolean.TRUE, null, Boolean.TRUE, null),
             List.of(),
-            toolExecutionMapOrNull(null))
+            toolExecutionMapOrNull(null),
+            null)
     );
     registry.registerTool(
         new RegisteredTool(
@@ -98,7 +100,8 @@ public final class ExampleMcp {
             (ctx, request) -> impl.describeAdvancedShapes(ctx, (Example.DescribeAdvancedShapesRequest) request),
             null,
             List.of(),
-            toolExecutionMapOrNull(null))
+            toolExecutionMapOrNull(null),
+            null)
     );
     registry.registerTool(
         new RegisteredTool(
@@ -112,7 +115,8 @@ public final class ExampleMcp {
             (ctx, request) -> impl.describeScalarShapes(ctx, (Example.DescribeScalarShapesRequest) request),
             null,
             List.of(),
-            toolExecutionMapOrNull(null))
+            toolExecutionMapOrNull(null),
+            null)
     );
     registry.registerTool(
         new RegisteredTool(
@@ -126,7 +130,8 @@ public final class ExampleMcp {
             (ctx, request) -> impl.hiddenThing(ctx, (Example.HiddenThingRequest) request),
             null,
             List.of(),
-            toolExecutionMapOrNull(null))
+            toolExecutionMapOrNull(null),
+            null)
     );
     installSessionFactory(transportProvider, registry);
   }
@@ -204,6 +209,7 @@ public final class ExampleMcp {
     private final Map<String, Object> annotations;
     private final List<Map<String, Object>> icons;
     private final Map<String, Object> execution;
+    private final Map<String, Object> meta;
 
     private RegisteredTool(
         String name,
@@ -216,7 +222,8 @@ public final class ExampleMcp {
         ToolInvoker handler,
         Map<String, Object> annotations,
         List<Map<String, Object>> icons,
-        Map<String, Object> execution) {
+        Map<String, Object> execution,
+        Map<String, Object> meta) {
       this.name = name;
       this.title = title;
       this.description = description;
@@ -228,6 +235,7 @@ public final class ExampleMcp {
       this.annotations = annotations;
       this.icons = icons;
       this.execution = execution;
+      this.meta = meta;
     }
   }
 
@@ -750,6 +758,7 @@ public final class ExampleMcp {
       protocol.put("icons", tool.icons);
     }
     putIfNotNull(protocol, "execution", tool.execution);
+    putIfNotNull(protocol, "_meta", tool.meta);
     return protocol;
   }
 

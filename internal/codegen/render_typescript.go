@@ -181,6 +181,7 @@ func renderTypeScriptPrivateTypes(generated *protogen.GeneratedFile) {
 	generated.P("  annotations?: ToolAnnotationsMetadata;")
 	generated.P("  icons: ToolIconMetadata[];")
 	generated.P("  execution?: ToolExecutionMetadata;")
+	generated.P("  meta?: Record<string, unknown>;")
 	generated.P("};")
 	generated.P()
 	generated.P("type ServerToolRegistry = {")
@@ -248,6 +249,9 @@ func renderTypeScriptRegisteredTool(generated *protogen.GeneratedFile, model Typ
 	renderTypeScriptAnnotations(generated, method.Annotations)
 	renderTypeScriptIcons(generated, method.Icons)
 	renderTypeScriptExecution(generated, method.TaskSupport)
+	if meta := toolMetaJSON(method.AppUI); meta != "" {
+		generated.P("      meta: JSON.parse(", typescriptStringLiteral(meta), ") as Record<string, unknown>,")
+	}
 }
 
 func renderTypeScriptAnnotations(generated *protogen.GeneratedFile, ann *mcpoptionsv1.ToolAnnotations) {
@@ -366,6 +370,9 @@ func renderTypeScriptPrivateRegistryHelpers(generated *protogen.GeneratedFile) {
 	generated.P("  }")
 	generated.P("  if (tool.execution !== undefined) {")
 	generated.P("    listed.execution = tool.execution;")
+	generated.P("  }")
+	generated.P("  if (tool.meta !== undefined) {")
+	generated.P("    listed._meta = tool.meta;")
 	generated.P("  }")
 	generated.P("  return listed;")
 	generated.P("}")
