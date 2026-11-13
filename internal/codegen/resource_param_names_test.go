@@ -139,7 +139,7 @@ func TestJVMAndTypeScriptResourceSignaturesEscapeReservedNames(t *testing.T) {
 		{LanguageKotlin, "test/v1/items_mcp.kt",
 			"suspend fun readItem(type: String, ctx: String, result: String, params: String, class_: String, function: String, fun_: String, default: String, self: String, param_: String, type_: String)"},
 		{LanguageJava, javaSidecarOutputPath(jvmGeneratedFilenamePrefixForProtoPath("test/v1/items.proto")),
-			"Object readItem(String type, String ctx, String result, String params, String class_, String function, String fun, String default_, String self, String __, String type_)"},
+			"readItem(String type, String ctx, String result, String params, String class_, String function, String fun, String default_, String self, String __, String type_)"},
 	}
 	for _, tt := range tests {
 		plugin := newReservedParamsPlugin(t)
