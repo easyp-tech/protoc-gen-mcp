@@ -369,8 +369,8 @@ func TestGenerate_PythonMultipleHandlersEmitsDataclassAndProtobufSidecars(t *tes
 		"class ExampleAPIToolHandler(Protocol):",
 		"def create_report(self, ctx: ToolRequestContext, req: example_pb2.CreateReportRequest) -> example_pb2.CreateReportResponse | Awaitable[example_pb2.CreateReportResponse]:",
 		"def register_example_api_tools(server: mcp.server.lowlevel.Server, impl: ExampleAPIToolHandler, *, namespace: str | None = None) -> None:",
-		"from_pb=_identity,",
-		"to_pb=_identity,",
+		"from_pb=protoc_gen_mcp_runtime.identity,",
+		"to_pb=protoc_gen_mcp_runtime.identity,",
 	} {
 		if !strings.Contains(protobufGenerated, snippet) {
 			t.Fatalf("protobuf sidecar missing snippet %q\n%s", snippet, protobufGenerated)

@@ -8,6 +8,7 @@ dependencies = [
     "jsonschema>=4,<5",
     "mcp>=1.30,<2",
     "protobuf>=6,<7",
+    "protoc-gen-mcp-runtime>=0.8,<0.9",
 ]
 
 [build-system]

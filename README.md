@@ -149,7 +149,10 @@ Language notes:
   `dataclass+protobuf` emits both. Generation also writes a small
   `mcp/__init__.py` bridge so `mcp.options.*` modules coexist with the official
   `mcp` SDK package. Enable `with_imports: true` on the Python plugin when your
-  protos import other packages.
+  protos import other packages. Generated modules import the
+  `protoc-gen-mcp-runtime` package (`pip install protoc-gen-mcp-runtime`),
+  which holds the tool, prompt and resource registries; it is released with
+  the plugin and checks on import that it matches the generated code.
 - **Java** (`lang=java`) generates one `<ProtoFile>Mcp` sidecar per proto next
   to protobuf Java output. **Kotlin** (`lang=kotlin`) needs Java protobuf
   output, Kotlin protobuf output, and the MCP sidecar together.

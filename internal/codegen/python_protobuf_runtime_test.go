@@ -89,7 +89,7 @@ func runExamplePythonProtobufScript(t *testing.T, script string) {
 
 	tempRoot, repoRoot := prepareExamplePythonProtobufRuntime(t)
 	cmd := pythontest.Command(t, "-c", fmt.Sprintf(
-		"from internal.testproto.example.v1 import example_mcp as module\n"+
+		"import protoc_gen_mcp_runtime\nfrom internal.testproto.example.v1 import example_mcp as module\n"+
 			"from internal.testproto.example.v1 import example_pb2\n%s",
 		script,
 	))
@@ -202,7 +202,7 @@ import json
 class DummyServer:
     pass
 
-registry = module._ServerToolRegistry(DummyServer())
+registry = protoc_gen_mcp_runtime.ToolRegistry(DummyServer())
 seen_requests = []
 
 def handler(_ctx, req):
@@ -216,7 +216,7 @@ def handler(_ctx, req):
         warnings=["protobuf"],
     )
 
-registry.add_tool(module._RegisteredTool(
+registry.add_tool(protoc_gen_mcp_runtime.RegisteredTool(
     name="example_CreateReport",
     title="Create report",
     description="Create a report for a city.",
@@ -224,14 +224,14 @@ registry.add_tool(module._RegisteredTool(
     output_schema_json=module.EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON,
     request_type=example_pb2.CreateReportRequest,
     response_type=example_pb2.CreateReportResponse,
-    from_pb=module._identity,
-    to_pb=module._identity,
+    from_pb=protoc_gen_mcp_runtime.identity,
+    to_pb=protoc_gen_mcp_runtime.identity,
     handler=handler,
     annotations=None,
     icons=None,
 ))
 
-result = asyncio.run(module._dispatch_call(
+result = asyncio.run(protoc_gen_mcp_runtime.dispatch_call(
     registry,
     "example_CreateReport",
     {"city": "Paris", "count": 2, "details": {"label": "today"}},
@@ -258,12 +258,12 @@ import mcp.types
 class DummyServer:
     pass
 
-registry = module._ServerToolRegistry(DummyServer())
+registry = protoc_gen_mcp_runtime.ToolRegistry(DummyServer())
 
 def handler(_ctx, _req):
     raise AssertionError("handler must not run for schema-invalid input")
 
-registry.add_tool(module._RegisteredTool(
+registry.add_tool(protoc_gen_mcp_runtime.RegisteredTool(
     name="example_CreateReport",
     title="Create report",
     description="Create a report for a city.",
@@ -271,8 +271,8 @@ registry.add_tool(module._RegisteredTool(
     output_schema_json=module.EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON,
     request_type=example_pb2.CreateReportRequest,
     response_type=example_pb2.CreateReportResponse,
-    from_pb=module._identity,
-    to_pb=module._identity,
+    from_pb=protoc_gen_mcp_runtime.identity,
+    to_pb=protoc_gen_mcp_runtime.identity,
     handler=handler,
     annotations=None,
     icons=None,
@@ -280,7 +280,7 @@ registry.add_tool(module._RegisteredTool(
 
 async def main():
     try:
-        await module._dispatch_call(
+        await protoc_gen_mcp_runtime.dispatch_call(
             registry,
             "example_CreateReport",
             {
@@ -310,12 +310,12 @@ import mcp.types
 class DummyServer:
     pass
 
-registry = module._ServerToolRegistry(DummyServer())
+registry = protoc_gen_mcp_runtime.ToolRegistry(DummyServer())
 
 def handler(_ctx, _req):
     raise AssertionError("handler must not run for protojson-invalid input")
 
-registry.add_tool(module._RegisteredTool(
+registry.add_tool(protoc_gen_mcp_runtime.RegisteredTool(
     name="example_DescribeScalarShapes",
     title="Describe scalar shapes",
     description="Describe scalar protobuf kinds.",
@@ -323,8 +323,8 @@ registry.add_tool(module._RegisteredTool(
     output_schema_json=module.EXAMPLE_API_DESCRIBE_SCALAR_SHAPES_OUTPUT_SCHEMA_JSON,
     request_type=example_pb2.DescribeScalarShapesRequest,
     response_type=example_pb2.DescribeScalarShapesResponse,
-    from_pb=module._identity,
-    to_pb=module._identity,
+    from_pb=protoc_gen_mcp_runtime.identity,
+    to_pb=protoc_gen_mcp_runtime.identity,
     handler=handler,
     annotations=None,
     icons=None,
@@ -352,7 +352,7 @@ invalid_arguments = {
 
 async def main():
     try:
-        await module._dispatch_call(
+        await protoc_gen_mcp_runtime.dispatch_call(
             registry,
             "example_DescribeScalarShapes",
             invalid_arguments,
@@ -376,7 +376,7 @@ import asyncio
 class DummyServer:
     pass
 
-registry = module._ServerToolRegistry(DummyServer())
+registry = protoc_gen_mcp_runtime.ToolRegistry(DummyServer())
 
 def handler(_ctx, req):
     return example_pb2.CreateReportResponse(
@@ -387,7 +387,7 @@ def handler(_ctx, req):
         warnings=[],
     )
 
-registry.add_tool(module._RegisteredTool(
+registry.add_tool(protoc_gen_mcp_runtime.RegisteredTool(
     name="example_CreateReport",
     title="Create report",
     description="Create a report for a city.",
@@ -395,15 +395,15 @@ registry.add_tool(module._RegisteredTool(
     output_schema_json=module.EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON,
     request_type=example_pb2.CreateReportRequest,
     response_type=example_pb2.CreateReportResponse,
-    from_pb=module._identity,
-    to_pb=module._identity,
+    from_pb=protoc_gen_mcp_runtime.identity,
+    to_pb=protoc_gen_mcp_runtime.identity,
     handler=handler,
     annotations=None,
     icons=None,
 ))
 
 try:
-    asyncio.run(module._dispatch_call(
+    asyncio.run(protoc_gen_mcp_runtime.dispatch_call(
         registry,
         "example_CreateReport",
         {
@@ -427,12 +427,12 @@ import asyncio
 class DummyServer:
     pass
 
-registry = module._ServerToolRegistry(DummyServer())
+registry = protoc_gen_mcp_runtime.ToolRegistry(DummyServer())
 
 async def handler(_ctx, _req):
     return object()
 
-registry.add_tool(module._RegisteredTool(
+registry.add_tool(protoc_gen_mcp_runtime.RegisteredTool(
     name="example_CreateReport",
     title="Create report",
     description="Create a report for a city.",
@@ -440,15 +440,15 @@ registry.add_tool(module._RegisteredTool(
     output_schema_json=module.EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON,
     request_type=example_pb2.CreateReportRequest,
     response_type=example_pb2.CreateReportResponse,
-    from_pb=module._identity,
-    to_pb=module._identity,
+    from_pb=protoc_gen_mcp_runtime.identity,
+    to_pb=protoc_gen_mcp_runtime.identity,
     handler=handler,
     annotations=None,
     icons=None,
 ))
 
 try:
-    asyncio.run(module._dispatch_call(
+    asyncio.run(protoc_gen_mcp_runtime.dispatch_call(
         registry,
         "example_CreateReport",
         {
@@ -472,7 +472,7 @@ import asyncio
 class DummyServer:
     pass
 
-registry = module._ServerToolRegistry(DummyServer())
+registry = protoc_gen_mcp_runtime.ToolRegistry(DummyServer())
 
 async def handler(_ctx, req):
     await asyncio.sleep(0)
@@ -484,7 +484,7 @@ async def handler(_ctx, req):
         details=req.details,
     )
 
-registry.add_tool(module._RegisteredTool(
+registry.add_tool(protoc_gen_mcp_runtime.RegisteredTool(
     name="example_CreateReport",
     title="Create report",
     description="Create a report for a city.",
@@ -492,14 +492,14 @@ registry.add_tool(module._RegisteredTool(
     output_schema_json=module.EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON,
     request_type=example_pb2.CreateReportRequest,
     response_type=example_pb2.CreateReportResponse,
-    from_pb=module._identity,
-    to_pb=module._identity,
+    from_pb=protoc_gen_mcp_runtime.identity,
+    to_pb=protoc_gen_mcp_runtime.identity,
     handler=handler,
     annotations=None,
     icons=None,
 ))
 
-result = asyncio.run(module._dispatch_call(
+result = asyncio.run(protoc_gen_mcp_runtime.dispatch_call(
     registry,
     "example_CreateReport",
     {
@@ -522,12 +522,12 @@ import asyncio
 class DummyServer:
     pass
 
-registry = module._ServerToolRegistry(DummyServer())
+registry = protoc_gen_mcp_runtime.ToolRegistry(DummyServer())
 
 def handler(_ctx, _req):
     raise RuntimeError("boom")
 
-registry.add_tool(module._RegisteredTool(
+registry.add_tool(protoc_gen_mcp_runtime.RegisteredTool(
     name="example_CreateReport",
     title="Create report",
     description="Create a report for a city.",
@@ -535,14 +535,14 @@ registry.add_tool(module._RegisteredTool(
     output_schema_json=module.EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON,
     request_type=example_pb2.CreateReportRequest,
     response_type=example_pb2.CreateReportResponse,
-    from_pb=module._identity,
-    to_pb=module._identity,
+    from_pb=protoc_gen_mcp_runtime.identity,
+    to_pb=protoc_gen_mcp_runtime.identity,
     handler=handler,
     annotations=None,
     icons=None,
 ))
 
-result = asyncio.run(module._dispatch_call(
+result = asyncio.run(protoc_gen_mcp_runtime.dispatch_call(
     registry,
     "example_CreateReport",
     {
@@ -589,7 +589,7 @@ class Handler(module.ExampleAPIToolHandler):
 async def main():
     server = Server("protobuf-runtime-test", version="1.0.0")
     module.register_example_api_tools(server, Handler())
-    registry = module._get_registry(server)
+    registry = protoc_gen_mcp_runtime.install_tool_registry(server)
 
     try:
         await registry.call_tool("missing_tool", {"city": "Paris", "count": 2})
@@ -650,7 +650,7 @@ expected_icons = [{
     "theme": "dark",
 }]
 
-tool = module._build_tool(module._RegisteredTool(
+tool = protoc_gen_mcp_runtime.build_tool(protoc_gen_mcp_runtime.RegisteredTool(
     name="raw_pb_CreateReport",
     title="Create report",
     description="Create a report for a city.",
@@ -658,8 +658,8 @@ tool = module._build_tool(module._RegisteredTool(
     output_schema_json=module.EXAMPLE_API_CREATE_REPORT_OUTPUT_SCHEMA_JSON,
     request_type=example_pb2.CreateReportRequest,
     response_type=example_pb2.CreateReportResponse,
-    from_pb=module._identity,
-    to_pb=module._identity,
+    from_pb=protoc_gen_mcp_runtime.identity,
+    to_pb=protoc_gen_mcp_runtime.identity,
     handler=lambda _ctx, _req: example_pb2.CreateReportResponse(),
     annotations={
         "readOnlyHint": True,

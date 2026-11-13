@@ -49,6 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `protoc-gen-mcp-runtime`, a PyPI package with the tool, prompt and resource
+  registries that generated Python code previously embedded in every
+  `*_mcp.py`. Several generated modules now share one registry per server, and
+  generated code checks the runtime API version on import. Install it next to
+  the generated code.
 - Resources for Python, Kotlin, Java and TypeScript: static and template
   resources, ProtoJSON or raw text/blob content fields, percent-decoded
   template parameters, annotations, icons and MCP Apps `_meta.ui`. A
