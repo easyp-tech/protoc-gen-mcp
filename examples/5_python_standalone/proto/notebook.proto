@@ -47,6 +47,12 @@ service NotebookAPI {
 }
 
 message Note {
+  option (mcp.options.v1.resource) = {
+    name: "note"
+    uri_template: "notebook://notes/{id}"
+    description: "A note from the in-memory notebook, addressed by its id."
+  };
+
   string id = 1 [(mcp.options.v1.field) = {
     read_only: true
     description: "Server-assigned note identifier."
@@ -154,5 +160,21 @@ message HealthResponse {
   int32 note_count = 2 [(mcp.options.v1.field) = {
     read_only: true
     description: "Current number of notes in memory."
+  }];
+}
+
+message ReviewNote {
+  option (mcp.options.v1.prompt) = {
+    name: "review_note"
+    title: "Review note"
+    description: "Ask the model to review a note and suggest a clearer version."
+  };
+
+  string note_id = 1 [(mcp.options.v1.field) = {
+    description: "Identifier of the note to review."
+  }];
+
+  optional string focus = 2 [(mcp.options.v1.field) = {
+    description: "Optional aspect to focus on, for example tone or brevity."
   }];
 }

@@ -56,6 +56,8 @@ func runStandaloneJVMTodoExample(t *testing.T, dir, project string) {
 		t.Fatalf("created task = %v", decodeMap(t, created.StructuredContent))
 	}
 
+	assertTodoResourcesAndPrompts(t, client, task)
+
 	completed, rpcErr := client.callTool("todo_CompleteTask", map[string]any{"id": task["id"]})
 	if rpcErr != nil || completed.IsError {
 		t.Fatalf("CompleteTask failed: rpc=%v result=%+v", rpcErr, completed)

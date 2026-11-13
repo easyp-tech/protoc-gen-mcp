@@ -64,6 +64,7 @@ func runStandaloneNodeNotebookExample(t *testing.T, client *stdioClient, title s
 	if got := note["title"]; got != title {
 		t.Fatalf("created note.title = %v, want %s", got, title)
 	}
+	assertNotebookResourcesAndPrompts(t, client, note)
 
 	searchResult, rpcErr := client.callTool("notebook_SearchNotes", map[string]any{
 		"query": tag,

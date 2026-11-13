@@ -26,7 +26,7 @@ from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__
 from mcp.options.v1 import options_pb2 as mcp_dot_options_dot_v1_dot_options__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14proto/notebook.proto\x12\x0bnotebook.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cmcp/options/v1/options.proto\"\xc6\x04\n\x04Note\x12\x39\n\x02id\x18\x01 \x01(\tB)\xda\xb7,%\n Server-assigned note identifier.\xc0\x02\x01R\x02id\x12W\n\x05title\x18\x02 \x01(\tBA\xda\xb7,=\n Short human-readable note title.\x1a\x15\n\x13Ship Python support`\x01hPR\x05title\x12y\n\x04\x62ody\x18\x03 \x01(\tBe\xda\xb7,a\n\x18Note body in plain text.\x1a@\n>Verify that generated Python MCP bindings are pleasant to use.`\x01h\xd0\x0fR\x04\x62ody\x12S\n\x04tags\x18\x04 \x03(\tB?\xda\xb7,;\n!Optional tags used for filtering.\x1a\x13*\x11\n\x08\n\x06python\n\x05\n\x03mcp\x80\x02\x01R\x04tags\x12\x64\n\x08\x64ue_date\x18\x05 \x01(\tBD\xda\xb7,@\n*Optional due date in ISO 8601 date format.\x1a\x0c\n\n2026-04-30Z\x04\x64\x61teH\x00R\x07\x64ueDate\x88\x01\x01\x12g\n\ncreated_at\x18\x06 \x01(\x0b\x32\x1a.google.protobuf.TimestampB,\xda\xb7,(\n#Server-assigned creation timestamp.\xc0\x02\x01R\tcreatedAtB\x0b\n\t_due_date\"\xaf\x03\n\x11\x43reateNoteRequest\x12W\n\x05title\x18\x01 \x01(\tBA\xda\xb7,=\n Short human-readable note title.\x1a\x15\n\x13Ship Python support`\x01hPR\x05title\x12y\n\x04\x62ody\x18\x02 \x01(\tBe\xda\xb7,a\n\x18Note body in plain text.\x1a@\n>Verify that generated Python MCP bindings are pleasant to use.`\x01h\xd0\x0fR\x04\x62ody\x12S\n\x04tags\x18\x03 \x03(\tB?\xda\xb7,;\n!Optional tags used for filtering.\x1a\x13*\x11\n\x08\n\x06python\n\x05\n\x03mcp\x80\x02\x01R\x04tags\x12\x64\n\x08\x64ue_date\x18\x04 \x01(\tBD\xda\xb7,@\n*Optional due date in ISO 8601 date format.\x1a\x0c\n\n2026-04-30Z\x04\x64\x61teH\x00R\x07\x64ueDate\x88\x01\x01\x42\x0b\n\t_due_date\";\n\x12\x43reateNoteResponse\x12%\n\x04note\x18\x01 \x01(\x0b\x32\x11.notebook.v1.NoteR\x04note\"\xd6\x02\n\x12SearchNotesRequest\x12q\n\x05query\x18\x01 \x01(\tBV\xda\xb7,R\nDOptional case-insensitive text query matched against title and body.\x1a\x08\n\x06python`\x01H\x00R\x05query\x88\x01\x01\x12\\\n\x04tags\x18\x02 \x03(\tBH\xda\xb7,D\n4Optional tags; a note must have every requested tag.\x1a\t*\x07\n\x05\n\x03mcp\x80\x02\x01R\x04tags\x12[\n\x05limit\x18\x03 \x01(\x05\x42@\xda\xb7,<\n\"Maximum number of notes to return.\"\x02\x38\n\xa1\x01\x00\x00\x00\x00\x00\x00\xf0?\xa9\x01\x00\x00\x00\x00\x00\x00I@H\x01R\x05limit\x88\x01\x01\x42\x08\n\x06_queryB\x08\n\x06_limit\">\n\x13SearchNotesResponse\x12\'\n\x05notes\x18\x01 \x03(\x0b\x32\x11.notebook.v1.NoteR\x05notes\"\x0f\n\rHealthRequest\"l\n\x0eHealthResponse\x12\x0e\n\x02ok\x18\x01 \x01(\x08R\x02ok\x12J\n\nnote_count\x18\x02 \x01(\x05\x42+\xda\xb7,\'\n\"Current number of notes in memory.\xc0\x02\x01R\tnoteCount2\x9a\x04\n\x0bNotebookAPI\x12\x96\x01\n\nCreateNote\x12\x1e.notebook.v1.CreateNoteRequest\x1a\x1f.notebook.v1.CreateNoteResponse\"G\xd2\xb7,C\x12\x0b\x43reate note\x1a.Create a note in the local in-memory notebook.R\x04\x10\x00 \x00\x12\x8a\x01\n\x0bSearchNotes\x12\x1f.notebook.v1.SearchNotesRequest\x1a .notebook.v1.SearchNotesResponse\"8\xd2\xb7,4\x12\x0cSearch notes\x1a\x1eSearch notes by text and tags.R\x04\x08\x01 \x00\x12\x8d\x01\n\x06Health\x12\x1a.notebook.v1.HealthRequest\x1a\x1b.notebook.v1.HealthResponse\"J\xd2\xb7,F\x12\x0fNotebook health\x1a-Verify that the notebook MCP server is alive.R\x04\x08\x01 \x00\x1aU\xca\xb7,Q\n\x08notebook\x12\x45\x41 small in-memory notebook service for generated Python MCP bindings.b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x14proto/notebook.proto\x12\x0bnotebook.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cmcp/options/v1/options.proto\"\xa3\x05\n\x04Note\x12\x39\n\x02id\x18\x01 \x01(\tB)\xda\xb7,%\n Server-assigned note identifier.\xc0\x02\x01R\x02id\x12W\n\x05title\x18\x02 \x01(\tBA\xda\xb7,=\n Short human-readable note title.\x1a\x15\n\x13Ship Python support`\x01hPR\x05title\x12y\n\x04\x62ody\x18\x03 \x01(\tBe\xda\xb7,a\n\x18Note body in plain text.\x1a@\n>Verify that generated Python MCP bindings are pleasant to use.`\x01h\xd0\x0fR\x04\x62ody\x12S\n\x04tags\x18\x04 \x03(\tB?\xda\xb7,;\n!Optional tags used for filtering.\x1a\x13*\x11\n\x08\n\x06python\n\x05\n\x03mcp\x80\x02\x01R\x04tags\x12\x64\n\x08\x64ue_date\x18\x05 \x01(\tBD\xda\xb7,@\n*Optional due date in ISO 8601 date format.\x1a\x0c\n\n2026-04-30Z\x04\x64\x61teH\x00R\x07\x64ueDate\x88\x01\x01\x12g\n\ncreated_at\x18\x06 \x01(\x0b\x32\x1a.google.protobuf.TimestampB,\xda\xb7,(\n#Server-assigned creation timestamp.\xc0\x02\x01R\tcreatedAt:[\x8a\xb8,W\x12\x15notebook://notes/{id}\x1a\x04note\"8A note from the in-memory notebook, addressed by its id.B\x0b\n\t_due_date\"\xaf\x03\n\x11\x43reateNoteRequest\x12W\n\x05title\x18\x01 \x01(\tBA\xda\xb7,=\n Short human-readable note title.\x1a\x15\n\x13Ship Python support`\x01hPR\x05title\x12y\n\x04\x62ody\x18\x02 \x01(\tBe\xda\xb7,a\n\x18Note body in plain text.\x1a@\n>Verify that generated Python MCP bindings are pleasant to use.`\x01h\xd0\x0fR\x04\x62ody\x12S\n\x04tags\x18\x03 \x03(\tB?\xda\xb7,;\n!Optional tags used for filtering.\x1a\x13*\x11\n\x08\n\x06python\n\x05\n\x03mcp\x80\x02\x01R\x04tags\x12\x64\n\x08\x64ue_date\x18\x04 \x01(\tBD\xda\xb7,@\n*Optional due date in ISO 8601 date format.\x1a\x0c\n\n2026-04-30Z\x04\x64\x61teH\x00R\x07\x64ueDate\x88\x01\x01\x42\x0b\n\t_due_date\";\n\x12\x43reateNoteResponse\x12%\n\x04note\x18\x01 \x01(\x0b\x32\x11.notebook.v1.NoteR\x04note\"\xd6\x02\n\x12SearchNotesRequest\x12q\n\x05query\x18\x01 \x01(\tBV\xda\xb7,R\nDOptional case-insensitive text query matched against title and body.\x1a\x08\n\x06python`\x01H\x00R\x05query\x88\x01\x01\x12\\\n\x04tags\x18\x02 \x03(\tBH\xda\xb7,D\n4Optional tags; a note must have every requested tag.\x1a\t*\x07\n\x05\n\x03mcp\x80\x02\x01R\x04tags\x12[\n\x05limit\x18\x03 \x01(\x05\x42@\xda\xb7,<\n\"Maximum number of notes to return.\"\x02\x38\n\xa1\x01\x00\x00\x00\x00\x00\x00\xf0?\xa9\x01\x00\x00\x00\x00\x00\x00I@H\x01R\x05limit\x88\x01\x01\x42\x08\n\x06_queryB\x08\n\x06_limit\">\n\x13SearchNotesResponse\x12\'\n\x05notes\x18\x01 \x03(\x0b\x32\x11.notebook.v1.NoteR\x05notes\"\x0f\n\rHealthRequest\"l\n\x0eHealthResponse\x12\x0e\n\x02ok\x18\x01 \x01(\x08R\x02ok\x12J\n\nnote_count\x18\x02 \x01(\x05\x42+\xda\xb7,\'\n\"Current number of notes in memory.\xc0\x02\x01R\tnoteCount\"\x93\x02\n\nReviewNote\x12@\n\x07note_id\x18\x01 \x01(\tB\'\xda\xb7,#\n!Identifier of the note to review.R\x06noteId\x12Z\n\x05\x66ocus\x18\x02 \x01(\tB?\xda\xb7,;\n9Optional aspect to focus on, for example tone or brevity.H\x00R\x05\x66ocus\x88\x01\x01:]\x82\xb8,Y\n\x0breview_note\x12\x0bReview note\x1a=Ask the model to review a note and suggest a clearer version.B\x08\n\x06_focus2\x9a\x04\n\x0bNotebookAPI\x12\x96\x01\n\nCreateNote\x12\x1e.notebook.v1.CreateNoteRequest\x1a\x1f.notebook.v1.CreateNoteResponse\"G\xd2\xb7,C\x12\x0b\x43reate note\x1a.Create a note in the local in-memory notebook.R\x04\x10\x00 \x00\x12\x8a\x01\n\x0bSearchNotes\x12\x1f.notebook.v1.SearchNotesRequest\x1a .notebook.v1.SearchNotesResponse\"8\xd2\xb7,4\x12\x0cSearch notes\x1a\x1eSearch notes by text and tags.R\x04\x08\x01 \x00\x12\x8d\x01\n\x06Health\x12\x1a.notebook.v1.HealthRequest\x1a\x1b.notebook.v1.HealthResponse\"J\xd2\xb7,F\x12\x0fNotebook health\x1a-Verify that the notebook MCP server is alive.R\x04\x08\x01 \x00\x1aU\xca\xb7,Q\n\x08notebook\x12\x45\x41 small in-memory notebook service for generated Python MCP bindings.b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -45,6 +45,8 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_NOTE'].fields_by_name['due_date']._serialized_options = b'\332\267,@\n*Optional due date in ISO 8601 date format.\032\014\n\n2026-04-30Z\004date'
   _globals['_NOTE'].fields_by_name['created_at']._loaded_options = None
   _globals['_NOTE'].fields_by_name['created_at']._serialized_options = b'\332\267,(\n#Server-assigned creation timestamp.\300\002\001'
+  _globals['_NOTE']._loaded_options = None
+  _globals['_NOTE']._serialized_options = b'\212\270,W\022\025notebook://notes/{id}\032\004note\"8A note from the in-memory notebook, addressed by its id.'
   _globals['_CREATENOTEREQUEST'].fields_by_name['title']._loaded_options = None
   _globals['_CREATENOTEREQUEST'].fields_by_name['title']._serialized_options = b'\332\267,=\n Short human-readable note title.\032\025\n\023Ship Python support`\001hP'
   _globals['_CREATENOTEREQUEST'].fields_by_name['body']._loaded_options = None
@@ -61,6 +63,12 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_SEARCHNOTESREQUEST'].fields_by_name['limit']._serialized_options = b'\332\267,<\n\"Maximum number of notes to return.\"\0028\n\241\001\000\000\000\000\000\000\360?\251\001\000\000\000\000\000\000I@'
   _globals['_HEALTHRESPONSE'].fields_by_name['note_count']._loaded_options = None
   _globals['_HEALTHRESPONSE'].fields_by_name['note_count']._serialized_options = b'\332\267,\'\n\"Current number of notes in memory.\300\002\001'
+  _globals['_REVIEWNOTE'].fields_by_name['note_id']._loaded_options = None
+  _globals['_REVIEWNOTE'].fields_by_name['note_id']._serialized_options = b'\332\267,#\n!Identifier of the note to review.'
+  _globals['_REVIEWNOTE'].fields_by_name['focus']._loaded_options = None
+  _globals['_REVIEWNOTE'].fields_by_name['focus']._serialized_options = b'\332\267,;\n9Optional aspect to focus on, for example tone or brevity.'
+  _globals['_REVIEWNOTE']._loaded_options = None
+  _globals['_REVIEWNOTE']._serialized_options = b'\202\270,Y\n\013review_note\022\013Review note\032=Ask the model to review a note and suggest a clearer version.'
   _globals['_NOTEBOOKAPI']._loaded_options = None
   _globals['_NOTEBOOKAPI']._serialized_options = b'\312\267,Q\n\010notebook\022EA small in-memory notebook service for generated Python MCP bindings.'
   _globals['_NOTEBOOKAPI'].methods_by_name['CreateNote']._loaded_options = None
@@ -70,19 +78,21 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_NOTEBOOKAPI'].methods_by_name['Health']._loaded_options = None
   _globals['_NOTEBOOKAPI'].methods_by_name['Health']._serialized_options = b'\322\267,F\022\017Notebook health\032-Verify that the notebook MCP server is alive.R\004\010\001 \000'
   _globals['_NOTE']._serialized_start=101
-  _globals['_NOTE']._serialized_end=683
-  _globals['_CREATENOTEREQUEST']._serialized_start=686
-  _globals['_CREATENOTEREQUEST']._serialized_end=1117
-  _globals['_CREATENOTERESPONSE']._serialized_start=1119
-  _globals['_CREATENOTERESPONSE']._serialized_end=1178
-  _globals['_SEARCHNOTESREQUEST']._serialized_start=1181
-  _globals['_SEARCHNOTESREQUEST']._serialized_end=1523
-  _globals['_SEARCHNOTESRESPONSE']._serialized_start=1525
-  _globals['_SEARCHNOTESRESPONSE']._serialized_end=1587
-  _globals['_HEALTHREQUEST']._serialized_start=1589
-  _globals['_HEALTHREQUEST']._serialized_end=1604
-  _globals['_HEALTHRESPONSE']._serialized_start=1606
-  _globals['_HEALTHRESPONSE']._serialized_end=1714
-  _globals['_NOTEBOOKAPI']._serialized_start=1717
-  _globals['_NOTEBOOKAPI']._serialized_end=2255
+  _globals['_NOTE']._serialized_end=776
+  _globals['_CREATENOTEREQUEST']._serialized_start=779
+  _globals['_CREATENOTEREQUEST']._serialized_end=1210
+  _globals['_CREATENOTERESPONSE']._serialized_start=1212
+  _globals['_CREATENOTERESPONSE']._serialized_end=1271
+  _globals['_SEARCHNOTESREQUEST']._serialized_start=1274
+  _globals['_SEARCHNOTESREQUEST']._serialized_end=1616
+  _globals['_SEARCHNOTESRESPONSE']._serialized_start=1618
+  _globals['_SEARCHNOTESRESPONSE']._serialized_end=1680
+  _globals['_HEALTHREQUEST']._serialized_start=1682
+  _globals['_HEALTHREQUEST']._serialized_end=1697
+  _globals['_HEALTHRESPONSE']._serialized_start=1699
+  _globals['_HEALTHRESPONSE']._serialized_end=1807
+  _globals['_REVIEWNOTE']._serialized_start=1810
+  _globals['_REVIEWNOTE']._serialized_end=2085
+  _globals['_NOTEBOOKAPI']._serialized_start=2088
+  _globals['_NOTEBOOKAPI']._serialized_end=2626
 # @@protoc_insertion_point(module_scope)

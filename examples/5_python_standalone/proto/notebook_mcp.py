@@ -5,12 +5,15 @@ from __future__ import annotations
 import enum
 import inspect
 import json
+import re
+import urllib.parse
 import weakref
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Protocol, TypeAlias
 
 import jsonschema
 import mcp.server.lowlevel
+import mcp.server.lowlevel.helper_types
 import mcp.server.session
 import mcp.shared.exceptions
 import mcp.types
@@ -106,6 +109,7 @@ class _RegisteredTool:
     annotations: dict[str, Any] | None
     icons: list[dict[str, Any]] | None
     execution: dict[str, Any] | None = None
+    meta: dict[str, Any] | None = None
 
 class _ServerToolRegistry:
     def __init__(self, server: mcp.server.lowlevel.Server) -> None:
@@ -276,6 +280,7 @@ def _build_tool(tool: _RegisteredTool) -> Any:
         annotations=_tool_annotations(tool.annotations),
         icons=tool.icons,
         execution=_tool_execution(tool.execution),
+        _meta=tool.meta,
     )
 
 async def _maybe_await(result: Any) -> Any:
@@ -596,3 +601,234 @@ NOTEBOOK_API_SEARCH_NOTES_OUTPUT_SCHEMA_JSON = "{\"type\":\"object\",\"propertie
 NOTEBOOK_API_HEALTH_INPUT_SCHEMA_JSON = "{\"type\":\"object\",\"additionalProperties\":false}"
 
 NOTEBOOK_API_HEALTH_OUTPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"noteCount\":{\"type\":\"integer\",\"description\":\"Current number of notes in memory.\",\"readOnly\":true,\"examples\":[-1]},\"ok\":{\"type\":\"boolean\",\"examples\":[true]}},\"examples\":[{\"noteCount\":-1,\"ok\":true}],\"required\":[\"ok\",\"noteCount\"],\"additionalProperties\":false}"
+
+def _prompt_name(namespace: str | None, prompt_name: str) -> str:
+    if namespace is None or _normalize_tool_segment(namespace) == '':
+        return _normalize_tool_segment(prompt_name)
+    return f"{_normalize_tool_segment(namespace)}_{_normalize_tool_segment(prompt_name)}"
+
+@dataclass(frozen=True)
+class _RegisteredPrompt:
+    prompt: mcp.types.Prompt
+    required: tuple[str, ...]
+    handler: Any
+
+class _ServerPromptRegistry:
+    def __init__(self) -> None:
+        self.prompts: dict[str, Any] = {}
+
+    def add(self, prompt: Any) -> None:
+        if prompt.prompt.name in self.prompts:
+            raise ValueError(f"duplicate prompt registration: {prompt.prompt.name}")
+        self.prompts[prompt.prompt.name] = prompt
+
+_PROMPT_REGISTRY_ATTR = "_protoc_gen_mcp_prompt_registry"
+
+def _prompt_error(message: str) -> mcp.shared.exceptions.McpError:
+    return mcp.shared.exceptions.McpError(mcp.types.ErrorData(code=mcp.types.INVALID_PARAMS, message=message))
+
+def _install_prompt_handlers(server: mcp.server.lowlevel.Server) -> Any:
+    registry = getattr(server, _PROMPT_REGISTRY_ATTR, None)
+    if registry is not None:
+        return registry
+    registry = _ServerPromptRegistry()
+    setattr(server, _PROMPT_REGISTRY_ATTR, registry)
+
+    @server.list_prompts()
+    async def _list_prompts() -> list[mcp.types.Prompt]:
+        return [entry.prompt for entry in registry.prompts.values()]
+
+    @server.get_prompt()
+    async def _get_prompt(name: str, arguments: dict[str, str] | None) -> mcp.types.GetPromptResult:
+        entry = registry.prompts.get(name)
+        if entry is None:
+            raise _prompt_error(f"unknown prompt {name!r}")
+        args = dict(arguments or {})
+        for required in entry.required:
+            if required not in args:
+                raise _prompt_error(f"missing required prompt argument: {required}")
+        return await _maybe_await(entry.handler(args))
+
+    return registry
+
+class NotebookPromptHandler(Protocol):
+    def review_note(self, arguments: dict[str, str]) -> mcp.types.GetPromptResult | Awaitable[mcp.types.GetPromptResult]:
+        ...
+
+def register_notebook_prompts(server: mcp.server.lowlevel.Server, impl: NotebookPromptHandler, *, namespace: str | None = None) -> None:
+    if impl is None:
+        raise ValueError("register_notebook_prompts: impl is nil")
+    registry = _install_prompt_handlers(server)
+    registry.add(_RegisteredPrompt(
+        prompt=mcp.types.Prompt(
+            name=_prompt_name(namespace, "review_note"),
+            title="Review note",
+            description="Ask the model to review a note and suggest a clearer version.",
+            arguments=[
+                mcp.types.PromptArgument(name="noteId", description="Identifier of the note to review.", required=True),
+                mcp.types.PromptArgument(name="focus", description="Optional aspect to focus on, for example tone or brevity.", required=False),
+            ],
+        ),
+        required=("noteId",),
+        handler=impl.review_note,
+    ))
+
+
+@dataclass(frozen=True)
+class _RegisteredResource:
+    resource: mcp.types.Resource
+    reader: Any
+
+@dataclass(frozen=True)
+class _RegisteredResourceTemplate:
+    template: mcp.types.ResourceTemplate
+    pattern: Any
+    names: tuple[str, ...]
+    lister: Any
+    reader: Any
+
+class _ServerResourceRegistry:
+    def __init__(self) -> None:
+        self.static: dict[str, Any] = {}
+        self.templates: list[Any] = []
+
+    def add_static(self, entry: Any) -> None:
+        uri = str(entry.resource.uri)
+        if uri in self.static:
+            raise ValueError(f"duplicate resource registration: {uri}")
+        self.static[uri] = entry
+
+    def add_template(self, entry: Any) -> None:
+        for existing in self.templates:
+            if existing.template.uriTemplate == entry.template.uriTemplate:
+                raise ValueError(f"duplicate resource template registration: {entry.template.uriTemplate}")
+        self.templates.append(entry)
+
+_RESOURCE_REGISTRY_ATTR = "_protoc_gen_mcp_resource_registry"
+_URI_TEMPLATE_PARAM = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
+_MALFORMED_PERCENT_ESCAPE = re.compile(r"%(?![0-9A-Fa-f]{2})")
+
+def _resource_error(message: str, uri: str) -> mcp.shared.exceptions.McpError:
+    return mcp.shared.exceptions.McpError(mcp.types.ErrorData(code=mcp.types.INVALID_PARAMS, message=message, data={"uri": uri}))
+
+def _resource_name(namespace: str | None, name: str) -> str:
+    if not namespace:
+        return name
+    return f"{namespace}_{name}"
+
+def _resource_listing(model: Any, descriptor_json: str, namespace: str | None, name: str) -> Any:
+    descriptor = json.loads(descriptor_json)
+    descriptor["name"] = _resource_name(namespace, name)
+    return model.model_validate(descriptor)
+
+def _compile_uri_template(uri_template: str) -> Any:
+    parts = _URI_TEMPLATE_PARAM.split(uri_template)
+    pattern = "".join(re.escape(part) if index % 2 == 0 else "([^/]+)" for index, part in enumerate(parts))
+    return re.compile(pattern)
+
+def _match_uri_template(entry: Any, uri: str) -> dict[str, str] | None:
+    match = entry.pattern.fullmatch(uri)
+    if match is None:
+        return None
+    params: dict[str, str] = {}
+    for name, raw in zip(entry.names, match.groups()):
+        if _MALFORMED_PERCENT_ESCAPE.search(raw):
+            raise _resource_error(f"mcpruntime: parameter {name!r} in uri {uri!r} has a malformed percent escape", uri)
+        try:
+            value = urllib.parse.unquote(raw, errors="strict")
+        except UnicodeDecodeError as error:
+            raise _resource_error(f"mcpruntime: parameter {name!r} in uri {uri!r}: {error}", uri) from error
+        if value == "":
+            raise _resource_error(f"mcpruntime: parameter {name!r} has empty value in uri {uri!r}", uri)
+        params[name] = value
+    return params
+
+def _identity_resource(value: Any) -> Any:
+    return value
+
+async def _read_resource_contents(
+    result: Any,
+    uri: str,
+    *,
+    mime_type: str,
+    kind: str,
+    content_field: str | None,
+    to_pb: Any,
+    meta: dict[str, Any] | None,
+) -> Any:
+    value = await _maybe_await(result)
+    if value is None:
+        raise RuntimeError(f"mcpruntime: resource {uri!r} handler returned None")
+    if kind == "raw":
+        if not isinstance(value, (str, bytes)):
+            raise RuntimeError(f"mcpruntime: resource {uri!r} handler must return str or bytes, got {type(value).__name__}")
+        content: str | bytes = value
+    else:
+        message = to_pb(value)
+        if kind == "protojson":
+            payload = json.loads(_message_to_json(message))
+            content = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+        elif kind == "text_field":
+            content = str(getattr(message, content_field))
+        else:
+            content = bytes(getattr(message, content_field))
+    return mcp.server.lowlevel.helper_types.ReadResourceContents(content=content, mime_type=mime_type, meta=meta)
+
+def _install_resource_handlers(server: mcp.server.lowlevel.Server) -> Any:
+    registry = getattr(server, _RESOURCE_REGISTRY_ATTR, None)
+    if registry is not None:
+        return registry
+    registry = _ServerResourceRegistry()
+    setattr(server, _RESOURCE_REGISTRY_ATTR, registry)
+
+    @server.list_resources()
+    async def _list_resources() -> list[mcp.types.Resource]:
+        resources = [entry.resource for entry in registry.static.values()]
+        for entry in registry.templates:
+            resources.extend(await _maybe_await(entry.lister()))
+        return resources
+
+    @server.list_resource_templates()
+    async def _list_resource_templates() -> list[mcp.types.ResourceTemplate]:
+        return [entry.template for entry in registry.templates]
+
+    @server.read_resource()
+    async def _read_resource(uri: Any) -> list[Any]:
+        raw_uri = str(uri)
+        entry = registry.static.get(raw_uri)
+        if entry is not None:
+            return [await entry.reader(raw_uri, {})]
+        for template in registry.templates:
+            params = _match_uri_template(template, raw_uri)
+            if params is not None:
+                return [await template.reader(raw_uri, params)]
+        raise _resource_error("Resource not found", raw_uri)
+
+    return registry
+
+
+class NotebookResourceHandler(Protocol):
+    """Handler protocol for MCP resources in proto/notebook.proto."""
+    def list_notes(self) -> list[mcp.types.Resource] | Awaitable[list[mcp.types.Resource]]:
+        ...
+    def read_note(self, id: str) -> Note | Awaitable[Note]:
+        ...
+
+def register_notebook_resources(
+    server: mcp.server.lowlevel.Server,
+    impl: NotebookResourceHandler,
+    *,
+    namespace: str | None = None,
+) -> None:
+    """Registers MCP resources for notebook."""
+    if impl is None:
+        raise ValueError("register_notebook_resources: impl is nil")
+    registry = _install_resource_handlers(server)
+    registry.add_template(_RegisteredResourceTemplate(
+        template=_resource_listing(mcp.types.ResourceTemplate, "{\"description\":\"A note from the in-memory notebook, addressed by its id.\",\"mimeType\":\"application/json\",\"uriTemplate\":\"notebook://notes/{id}\"}", namespace, "note"),
+        pattern=_compile_uri_template("notebook://notes/{id}"),
+        names=("id",),
+        lister=impl.list_notes,
+        reader=lambda uri, params: _read_resource_contents(impl.read_note(params["id"]), uri, mime_type="application/json", kind="protojson", content_field=None, to_pb=_to_pb_note, meta=None),
+    ))
+
