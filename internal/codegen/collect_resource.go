@@ -85,6 +85,7 @@ func collectResources(file *protogen.File) ([]ResourceModel, error) {
 			}
 		}
 		contentField := strings.TrimSpace(opts.GetContentField())
+		contentBytes := false
 		if contentField == "" && sourceFile == "" {
 			if baseMIME != "application/json" && !strings.HasSuffix(baseMIME, "+json") {
 				return nil, fmt.Errorf("resource %s: non-JSON mime_type %q requires content_field to avoid serving ProtoJSON as another format", message.Desc.FullName(), mimeType)
@@ -103,6 +104,7 @@ func collectResources(file *protogen.File) ([]ResourceModel, error) {
 			if field.Kind() == protoreflect.BytesKind && strings.HasPrefix(baseMIME, "text/") {
 				return nil, fmt.Errorf("resource %s: text mime_type %q requires a string content_field, not bytes", message.Desc.FullName(), mimeType)
 			}
+			contentBytes = field.Kind() == protoreflect.BytesKind
 		}
 
 		resource := ResourceModel{
@@ -114,6 +116,7 @@ func collectResources(file *protogen.File) ([]ResourceModel, error) {
 			URITemplate:   uriTemplate,
 			MIMEType:      mimeType,
 			ContentField:  contentField,
+			ContentBytes:  contentBytes,
 			SourceFile:    sourceFile,
 			AppUI:         opts.GetAppUi(),
 			IsTemplate:    isTemplate,
