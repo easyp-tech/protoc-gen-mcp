@@ -270,20 +270,168 @@ private fun toolName(namespace: String, methodName: String): String {
 
 
 interface ResourcesResourceHandler {
-    suspend fun serverStatus(): Any
+    suspend fun readServerStatus(): Resources.ServerStatus
     suspend fun listUserProfiles(): List<io.modelcontextprotocol.kotlin.sdk.types.Resource>
-    suspend fun readUserProfile(user_id: String): Any
+    suspend fun readUserProfile(user_id: String): Resources.UserProfile
     suspend fun listDocuments(): List<io.modelcontextprotocol.kotlin.sdk.types.Resource>
-    suspend fun readDocument(project_id: String, document_id: String): Any
-    suspend fun skillDocument(): Any
+    suspend fun readDocument(project_id: String, document_id: String): Resources.Document
+    suspend fun readSkillDocument(): Resources.SkillDocument
     suspend fun listPlainTexts(): List<io.modelcontextprotocol.kotlin.sdk.types.Resource>
-    suspend fun readPlainText(name: String): Any
-    suspend fun rawBinary(): Any
-    suspend fun appPage(): Any
+    suspend fun readPlainText(name: String): Resources.PlainText
+    suspend fun readRawBinary(): Resources.RawBinary
+    /** Returns the body of testdata/report.html as a String or ByteArray. */
+    suspend fun readAppPage(): Any
 }
 
-fun registerResourcesResources(server: Server, impl: ResourcesResourceHandler, namespace: String? = null) {
-    // TODO: full Kotlin resource registration
-    throw NotImplementedError("MCP Resources for Kotlin are not yet fully supported")
+/**
+ * Registers the resources of internal/testproto/resources/v1/resources.proto on [server], which must declare the resources
+ * capability. Like the Go target, template instances are listed once, at registration.
+ */
+suspend fun registerResourcesResources(server: Server, impl: ResourcesResourceHandler, namespace: String? = null) {
+    server.addResources(
+        listOf(
+            io.modelcontextprotocol.kotlin.sdk.server.RegisteredResource(
+                resourceListing(io.modelcontextprotocol.kotlin.sdk.types.Resource.serializer(), "{\"annotations\":{\"audience\":[\"user\",\"assistant\"],\"priority\":0.8},\"description\":\"Current server status and health information\",\"icons\":[{\"src\":\"https://example.com/status.svg\"}],\"mimeType\":\"application/json\",\"uri\":\"server://status\"}", namespace, "server_status"),
+            ) { request ->
+                val uri = request.params.uri
+                resourceReadResult(impl.readServerStatus(), uri, "application/json", "protojson", null, null)
+            },
+        ),
+    )
+    run {
+        val template = resourceListing(io.modelcontextprotocol.kotlin.sdk.types.ResourceTemplate.serializer(), "{\"description\":\"User profile information\",\"mimeType\":\"application/json\",\"uriTemplate\":\"users://{user_id}/profile\"}", namespace, "user_profile")
+        val matcher = io.modelcontextprotocol.kotlin.sdk.utils.PathSegmentTemplateMatcher(template)
+        val read: suspend (String, Map<String, String>) -> io.modelcontextprotocol.kotlin.sdk.types.ReadResourceResult = { uri, params ->
+            resourceReadResult(impl.readUserProfile(templateParam(params, "user_id", uri)), uri, "application/json", "protojson", null, null)
+        }
+        server.addResourceTemplate(template) { request, params -> read(request.params.uri, params) }
+        server.addResources(
+            impl.listUserProfiles().map { resource ->
+                io.modelcontextprotocol.kotlin.sdk.server.RegisteredResource(resource) { request ->
+                    read(request.params.uri, matcher.match(request.params.uri)?.variables.orEmpty())
+                }
+            },
+        )
+    }
+    run {
+        val template = resourceListing(io.modelcontextprotocol.kotlin.sdk.types.ResourceTemplate.serializer(), "{\"annotations\":{\"priority\":0.5},\"description\":\"Project document\",\"mimeType\":\"application/json\",\"uriTemplate\":\"projects://{project_id}/documents/{document_id}\"}", namespace, "document")
+        val matcher = io.modelcontextprotocol.kotlin.sdk.utils.PathSegmentTemplateMatcher(template)
+        val read: suspend (String, Map<String, String>) -> io.modelcontextprotocol.kotlin.sdk.types.ReadResourceResult = { uri, params ->
+            resourceReadResult(impl.readDocument(templateParam(params, "project_id", uri), templateParam(params, "document_id", uri)), uri, "application/json", "protojson", null, null)
+        }
+        server.addResourceTemplate(template) { request, params -> read(request.params.uri, params) }
+        server.addResources(
+            impl.listDocuments().map { resource ->
+                io.modelcontextprotocol.kotlin.sdk.server.RegisteredResource(resource) { request ->
+                    read(request.params.uri, matcher.match(request.params.uri)?.variables.orEmpty())
+                }
+            },
+        )
+    }
+    server.addResources(
+        listOf(
+            io.modelcontextprotocol.kotlin.sdk.server.RegisteredResource(
+                resourceListing(io.modelcontextprotocol.kotlin.sdk.types.Resource.serializer(), "{\"description\":\"Instructions for the example MCP skill\",\"mimeType\":\"text/markdown\",\"uri\":\"skill://example/SKILL.md\"}", namespace, "skill_document"),
+            ) { request ->
+                val uri = request.params.uri
+                resourceReadResult(impl.readSkillDocument(), uri, "text/markdown", "text_field", "markdown", null)
+            },
+        ),
+    )
+    run {
+        val template = resourceListing(io.modelcontextprotocol.kotlin.sdk.types.ResourceTemplate.serializer(), "{\"description\":\"PlainText demonstrates parameterized text resources.\",\"mimeType\":\"text/plain\",\"uriTemplate\":\"docs://example/{name}\"}", namespace, "plain_text")
+        val matcher = io.modelcontextprotocol.kotlin.sdk.utils.PathSegmentTemplateMatcher(template)
+        val read: suspend (String, Map<String, String>) -> io.modelcontextprotocol.kotlin.sdk.types.ReadResourceResult = { uri, params ->
+            resourceReadResult(impl.readPlainText(templateParam(params, "name", uri)), uri, "text/plain", "text_field", "body", null)
+        }
+        server.addResourceTemplate(template) { request, params -> read(request.params.uri, params) }
+        server.addResources(
+            impl.listPlainTexts().map { resource ->
+                io.modelcontextprotocol.kotlin.sdk.server.RegisteredResource(resource) { request ->
+                    read(request.params.uri, matcher.match(request.params.uri)?.variables.orEmpty())
+                }
+            },
+        )
+    }
+    server.addResources(
+        listOf(
+            io.modelcontextprotocol.kotlin.sdk.server.RegisteredResource(
+                resourceListing(io.modelcontextprotocol.kotlin.sdk.types.Resource.serializer(), "{\"description\":\"RawBinary demonstrates an MCP blob using a bytes content field.\",\"mimeType\":\"application/octet-stream\",\"uri\":\"blob://example/attachment\"}", namespace, "raw_binary"),
+            ) { request ->
+                val uri = request.params.uri
+                resourceReadResult(impl.readRawBinary(), uri, "application/octet-stream", "blob_field", "data", null)
+            },
+        ),
+    )
+    server.addResources(
+        listOf(
+            io.modelcontextprotocol.kotlin.sdk.server.RegisteredResource(
+                resourceListing(io.modelcontextprotocol.kotlin.sdk.types.Resource.serializer(), "{\"_meta\":{\"ui\":{\"csp\":{\"connectDomains\":[\"https://api.example.com\"],\"resourceDomains\":[\"https://cdn.example.com\"]},\"permissions\":{\"clipboardWrite\":{}},\"prefersBorder\":true}},\"description\":\"AppPage is an MCP Apps HTML resource generated from a protobuf message.\",\"mimeType\":\"text/html;profile=mcp-app\",\"uri\":\"ui://example/report\"}", namespace, "report_ui"),
+            ) { request ->
+                val uri = request.params.uri
+                resourceReadResult(impl.readAppPage(), uri, "text/html;profile=mcp-app", "raw", null, Json.parseToJsonElement("{\"ui\":{\"csp\":{\"connectDomains\":[\"https://api.example.com\"],\"resourceDomains\":[\"https://cdn.example.com\"]},\"permissions\":{\"clipboardWrite\":{}},\"prefersBorder\":true}}").jsonObject)
+            },
+        ),
+    )
+}
+
+private fun <T> resourceListing(
+    serializer: kotlinx.serialization.KSerializer<T>,
+    descriptorJson: String,
+    namespace: String?,
+    name: String,
+): T {
+    val descriptor = Json.parseToJsonElement(descriptorJson).jsonObject.toMutableMap()
+    descriptor["name"] = kotlinx.serialization.json.JsonPrimitive(if (namespace.isNullOrEmpty()) name else "${namespace}_$name")
+    return io.modelcontextprotocol.kotlin.sdk.types.McpJson.decodeFromJsonElement(serializer, JsonObject(descriptor))
+}
+
+private fun templateParam(params: Map<String, String>, name: String, uri: String): String {
+    val value = params[name]
+    if (value.isNullOrEmpty()) {
+        throw McpException(
+            code = RPCError.ErrorCode.INVALID_PARAMS,
+            message = "mcpruntime: parameter '$name' has empty value in uri '$uri'",
+        )
+    }
+    return value
+}
+
+private fun resourceReadResult(
+    value: Any?,
+    uri: String,
+    mimeType: String,
+    kind: String,
+    contentField: String?,
+    meta: JsonObject?,
+): io.modelcontextprotocol.kotlin.sdk.types.ReadResourceResult {
+    requireNotNull(value) { "mcpruntime: resource '$uri' handler returned null" }
+    val encoder = java.util.Base64.getEncoder()
+    val contents: io.modelcontextprotocol.kotlin.sdk.types.ResourceContents = when (kind) {
+        "raw" -> when (value) {
+            is String -> io.modelcontextprotocol.kotlin.sdk.types.TextResourceContents(text = value, uri = uri, mimeType = mimeType, meta = meta)
+            is ByteArray -> io.modelcontextprotocol.kotlin.sdk.types.BlobResourceContents(blob = encoder.encodeToString(value), uri = uri, mimeType = mimeType, meta = meta)
+            else -> throw IllegalStateException("mcpruntime: resource '$uri' handler must return a String or ByteArray")
+        }
+        "protojson" -> io.modelcontextprotocol.kotlin.sdk.types.TextResourceContents(
+            text = marshalProtoJson(value as Message).toString(),
+            uri = uri,
+            mimeType = mimeType,
+            meta = meta,
+        )
+        else -> {
+            val message = value as Message
+            val field = message.descriptorForType.findFieldByName(contentField.orEmpty())
+                ?: throw IllegalStateException("mcpruntime: resource content field '$contentField' not found")
+            val fieldValue = message.getField(field)
+            if (kind == "text_field") {
+                io.modelcontextprotocol.kotlin.sdk.types.TextResourceContents(text = fieldValue.toString(), uri = uri, mimeType = mimeType, meta = meta)
+            } else {
+                val bytes = (fieldValue as com.google.protobuf.ByteString).toByteArray()
+                io.modelcontextprotocol.kotlin.sdk.types.BlobResourceContents(blob = encoder.encodeToString(bytes), uri = uri, mimeType = mimeType, meta = meta)
+            }
+        }
+    }
+    return io.modelcontextprotocol.kotlin.sdk.types.ReadResourceResult(contents = listOf(contents))
 }
 

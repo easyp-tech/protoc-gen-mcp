@@ -55,9 +55,9 @@ public final class PromptsMcp {
     if (impl == null) {
       throw new IllegalArgumentException("impl must not be null");
     }
-    // Register prompt: code_review
+    ServerToolRegistry registry = registryFor(transportProvider);
     {
-      String resolvedName = promptName(namespace, "code_review");
+      String resolvedName = toolName(namespace, "code_review");
       Map<String, Object> promptMap = new LinkedHashMap<>();
       promptMap.put("name", resolvedName);
       promptMap.put("description", "Analyze code quality and suggest improvements");
@@ -84,12 +84,10 @@ public final class PromptsMcp {
         argsSpec.add(argMap);
       }
       promptMap.put("arguments", argsSpec);
-      String[] requiredArgs = new String[]{"code", "language"};
-      registerPrompt(transportProvider, resolvedName, promptMap, requiredArgs, (args) -> impl.codeReview(args));
+      registry.registerPrompt(new RegisteredPrompt(resolvedName, promptMap, List.of("code", "language"), impl::codeReview));
     }
-    // Register prompt: summarize
     {
-      String resolvedName = promptName(namespace, "summarize");
+      String resolvedName = toolName(namespace, "summarize");
       Map<String, Object> promptMap = new LinkedHashMap<>();
       promptMap.put("name", resolvedName);
       promptMap.put("title", "Document Summarizer");
@@ -117,12 +115,10 @@ public final class PromptsMcp {
         argsSpec.add(argMap);
       }
       promptMap.put("arguments", argsSpec);
-      String[] requiredArgs = new String[]{"content"};
-      registerPrompt(transportProvider, resolvedName, promptMap, requiredArgs, (args) -> impl.summarize(args));
+      registry.registerPrompt(new RegisteredPrompt(resolvedName, promptMap, List.of("content"), impl::summarize));
     }
-    // Register prompt: explain_error
     {
-      String resolvedName = promptName(namespace, "explain_error");
+      String resolvedName = toolName(namespace, "explain_error");
       Map<String, Object> promptMap = new LinkedHashMap<>();
       promptMap.put("name", resolvedName);
       promptMap.put("description", "Explain an error message and suggest fixes");
@@ -149,55 +145,9 @@ public final class PromptsMcp {
         argsSpec.add(argMap);
       }
       promptMap.put("arguments", argsSpec);
-      String[] requiredArgs = new String[]{"errorMessage", "language", "level"};
-      registerPrompt(transportProvider, resolvedName, promptMap, requiredArgs, (args) -> impl.explainError(args));
+      registry.registerPrompt(new RegisteredPrompt(resolvedName, promptMap, List.of("errorMessage", "language", "level"), impl::explainError));
     }
-  }
-
-  private static String promptName(String namespace, String promptName) {
-    String normalizedNamespace = normalizeToolSegment(namespace != null ? namespace : "");
-    String normalizedPromptName = normalizeToolSegment(promptName);
-    if (normalizedNamespace.isEmpty()) {
-      return normalizedPromptName;
-    }
-    if (normalizedPromptName.isEmpty()) {
-      return normalizedNamespace;
-    }
-    return normalizedNamespace + "_" + normalizedPromptName;
-  }
-
-  @FunctionalInterface
-  private interface PromptInvoker {
-    List<Map<String, Object>> handle(Map<String, String> arguments) throws Exception;
-  }
-
-  private static final class RegisteredPrompt {
-    private final String name;
-    private final Map<String, Object> metadata;
-    private final String[] requiredArgs;
-    private final PromptInvoker handler;
-
-    private RegisteredPrompt(String name, Map<String, Object> metadata, String[] requiredArgs, PromptInvoker handler) {
-      this.name = name;
-      this.metadata = metadata;
-      this.requiredArgs = requiredArgs;
-      this.handler = handler;
-    }
-  }
-
-  private static final Map<McpServerTransportProvider, List<RegisteredPrompt>> PROMPT_REGISTRIES =
-      Collections.synchronizedMap(new WeakHashMap<>());
-
-  private static void registerPrompt(
-      McpServerTransportProvider transportProvider,
-      String name,
-      Map<String, Object> metadata,
-      String[] requiredArgs,
-      PromptInvoker handler) {
-    synchronized (PROMPT_REGISTRIES) {
-      List<RegisteredPrompt> prompts = PROMPT_REGISTRIES.computeIfAbsent(transportProvider, (k) -> new ArrayList<>());
-      prompts.add(new RegisteredPrompt(name, metadata, requiredArgs, handler));
-    }
+    installSessionFactory(transportProvider, registry);
   }
 
   private static final Duration DEFAULT_REQUEST_TIMEOUT = Duration.ofMinutes(5);
@@ -280,8 +230,71 @@ public final class PromptsMcp {
     }
   }
 
+  @FunctionalInterface
+  private interface PromptInvoker {
+    List<Map<String, Object>> handle(Map<String, String> arguments) throws Exception;
+  }
+
+  private static final class RegisteredPrompt {
+    private final String name;
+    private final Map<String, Object> metadata;
+    private final List<String> requiredArgs;
+    private final PromptInvoker handler;
+
+    private RegisteredPrompt(String name, Map<String, Object> metadata, List<String> requiredArgs, PromptInvoker handler) {
+      this.name = name;
+      this.metadata = metadata;
+      this.requiredArgs = requiredArgs;
+      this.handler = handler;
+    }
+  }
+
+  @FunctionalInterface
+  private interface ResourceReader {
+    Map<String, Object> read(String uri, Map<String, String> params) throws Exception;
+  }
+
+  @FunctionalInterface
+  private interface ResourceLister {
+    List<Map<String, Object>> list() throws Exception;
+  }
+
+  private static final class RegisteredResource {
+    private final Map<String, Object> listing;
+    private final ResourceReader reader;
+
+    private RegisteredResource(Map<String, Object> listing, ResourceReader reader) {
+      this.listing = listing;
+      this.reader = reader;
+    }
+  }
+
+  private static final class RegisteredResourceTemplate {
+    private final Map<String, Object> listing;
+    private final java.util.regex.Pattern pattern;
+    private final List<String> names;
+    private final ResourceLister lister;
+    private final ResourceReader reader;
+
+    private RegisteredResourceTemplate(
+        Map<String, Object> listing,
+        java.util.regex.Pattern pattern,
+        List<String> names,
+        ResourceLister lister,
+        ResourceReader reader) {
+      this.listing = listing;
+      this.pattern = pattern;
+      this.names = names;
+      this.lister = lister;
+      this.reader = reader;
+    }
+  }
+
   private static final class ServerToolRegistry {
     private final LinkedHashMap<String, RegisteredTool> toolsByName = new LinkedHashMap<>();
+    private final LinkedHashMap<String, RegisteredPrompt> promptsByName = new LinkedHashMap<>();
+    private final LinkedHashMap<String, RegisteredResource> resourcesByUri = new LinkedHashMap<>();
+    private final List<RegisteredResourceTemplate> resourceTemplates = new ArrayList<>();
     private boolean sessionFactoryInstalled;
 
     private synchronized void registerTool(RegisteredTool tool) {
@@ -297,6 +310,62 @@ public final class PromptsMcp {
 
     private synchronized Collection<RegisteredTool> allTools() {
       return new ArrayList<>(this.toolsByName.values());
+    }
+
+    private synchronized void registerPrompt(RegisteredPrompt prompt) {
+      if (this.promptsByName.containsKey(prompt.name)) {
+        throw new IllegalStateException("duplicate prompt registration: " + prompt.name);
+      }
+      this.promptsByName.put(prompt.name, prompt);
+    }
+
+    private synchronized RegisteredPrompt prompt(String name) {
+      return this.promptsByName.get(name);
+    }
+
+    private synchronized Collection<RegisteredPrompt> allPrompts() {
+      return new ArrayList<>(this.promptsByName.values());
+    }
+
+    private synchronized void registerResource(RegisteredResource resource) {
+      String uri = String.valueOf(resource.listing.get("uri"));
+      if (this.resourcesByUri.containsKey(uri)) {
+        throw new IllegalStateException("duplicate resource registration: " + uri);
+      }
+      this.resourcesByUri.put(uri, resource);
+    }
+
+    private synchronized void registerResourceTemplate(RegisteredResourceTemplate template) {
+      for (RegisteredResourceTemplate existing : this.resourceTemplates) {
+        if (existing.listing.get("uriTemplate").equals(template.listing.get("uriTemplate"))) {
+          throw new IllegalStateException("duplicate resource template registration: " + template.listing.get("uriTemplate"));
+        }
+      }
+      this.resourceTemplates.add(template);
+    }
+
+    private synchronized RegisteredResource resource(String uri) {
+      return this.resourcesByUri.get(uri);
+    }
+
+    private synchronized Collection<RegisteredResource> allResources() {
+      return new ArrayList<>(this.resourcesByUri.values());
+    }
+
+    private synchronized List<RegisteredResourceTemplate> allResourceTemplates() {
+      return new ArrayList<>(this.resourceTemplates);
+    }
+
+    private synchronized boolean hasTools() {
+      return !this.toolsByName.isEmpty();
+    }
+
+    private synchronized boolean hasPrompts() {
+      return !this.promptsByName.isEmpty();
+    }
+
+    private synchronized boolean hasResources() {
+      return !this.resourcesByUri.isEmpty() || !this.resourceTemplates.isEmpty();
     }
 
     private synchronized boolean markSessionFactoryInstalled() {
@@ -319,35 +388,97 @@ public final class PromptsMcp {
     }
   }
 
+  // Every generated sidecar class keeps its own registry, so the request
+  // handlers of all sidecars registered on one transport are shared through a
+  // JVM-wide map holding only JDK and SDK types.
+  private static final String SHARED_HANDLER_SOURCES_KEY = "io.modelcontextprotocol.protoc-gen-mcp.java.handlerSources";
+
+  @SuppressWarnings("unchecked")
+  private static List<Supplier<Map<String, McpRequestHandler<?>>>> sharedHandlerSources(McpServerTransportProvider transportProvider) {
+    Map<McpServerTransportProvider, List<Supplier<Map<String, McpRequestHandler<?>>>>> sources =
+        (Map<McpServerTransportProvider, List<Supplier<Map<String, McpRequestHandler<?>>>>>) System.getProperties()
+            .computeIfAbsent(SHARED_HANDLER_SOURCES_KEY, key -> Collections.synchronizedMap(new WeakHashMap<>()));
+    return sources.computeIfAbsent(transportProvider, key -> Collections.synchronizedList(new ArrayList<>()));
+  }
+
   private static void installSessionFactory(McpServerTransportProvider transportProvider, ServerToolRegistry registry) {
     if (!registry.markSessionFactoryInstalled()) {
       return;
+    }
+    List<Supplier<Map<String, McpRequestHandler<?>>>> sources = sharedHandlerSources(transportProvider);
+    boolean firstSource;
+    synchronized (sources) {
+      firstSource = sources.isEmpty();
+      sources.add(() -> requestHandlers(registry));
+    }
+    if (!firstSource) {
+      // Transports such as stdio open their session inside setSessionFactory,
+      // so it is installed once and later sidecars are found at request time.
+      return;
+    }
+    Map<String, McpRequestHandler<?>> dispatchers = new LinkedHashMap<>();
+    for (String method : List.of(
+        McpSchema.METHOD_TOOLS_LIST,
+        McpSchema.METHOD_TOOLS_CALL,
+        McpSchema.METHOD_PROMPT_LIST,
+        McpSchema.METHOD_PROMPT_GET,
+        McpSchema.METHOD_RESOURCES_LIST,
+        McpSchema.METHOD_RESOURCES_TEMPLATES_LIST,
+        McpSchema.METHOD_RESOURCES_READ)) {
+      dispatchers.put(method, (exchange, params) -> {
+        McpRequestHandler<?> handler = mergedRequestHandlers(sources).get(method);
+        if (handler == null) {
+          return Mono.error(McpError.builder(McpSchema.ErrorCodes.METHOD_NOT_FOUND).message("Method not found: " + method).build());
+        }
+        return handler.handle(exchange, params).map(result -> (Object) result);
+      });
     }
     transportProvider.setSessionFactory(
         sessionTransport -> new McpServerSession(
             UUID.randomUUID().toString(),
             DEFAULT_REQUEST_TIMEOUT,
             sessionTransport,
-            initializeHandler(transportProvider),
-            requestHandlers(registry),
+            initializeHandler(transportProvider, sources),
+            dispatchers,
             notificationHandlers()));
   }
 
-  private static McpInitRequestHandler initializeHandler(McpServerTransportProvider transportProvider) {
-    return request -> Mono.just(
-        new McpSchema.InitializeResult(
-            resolveProtocolVersion(transportProvider),
-            new McpSchema.ServerCapabilities(
-                null,
-                null,
-                null,
-                null,
-                null,
-                new McpSchema.ServerCapabilities.ToolCapabilities(false)),
-            new McpSchema.Implementation("protoc-gen-mcp", "protoc-gen-mcp", "dev"),
-            null));
+  private static Map<String, McpRequestHandler<?>> mergedRequestHandlers(List<Supplier<Map<String, McpRequestHandler<?>>>> sources) {
+    Map<String, McpRequestHandler<?>> handlers = new LinkedHashMap<>();
+    synchronized (sources) {
+      for (Supplier<Map<String, McpRequestHandler<?>>> source : sources) {
+        for (Map.Entry<String, McpRequestHandler<?>> entry : source.get().entrySet()) {
+          if (handlers.putIfAbsent(entry.getKey(), entry.getValue()) != null) {
+            throw new IllegalStateException("protoc-gen-mcp: " + entry.getKey() + " is registered by more than one generated Java sidecar on this transport");
+          }
+        }
+      }
+    }
+    return handlers;
   }
 
+  private static McpInitRequestHandler initializeHandler(
+      McpServerTransportProvider transportProvider,
+      List<Supplier<Map<String, McpRequestHandler<?>>>> sources) {
+    return request -> Mono.fromCallable(() -> {
+      Set<String> methods = mergedRequestHandlers(sources).keySet();
+      McpSchema.ServerCapabilities.Builder capabilities = McpSchema.ServerCapabilities.builder();
+      if (methods.contains(McpSchema.METHOD_TOOLS_LIST)) {
+        capabilities.tools(false);
+      }
+      if (methods.contains(McpSchema.METHOD_PROMPT_LIST)) {
+        capabilities.prompts(false);
+      }
+      if (methods.contains(McpSchema.METHOD_RESOURCES_LIST)) {
+        capabilities.resources(false, false);
+      }
+      return new McpSchema.InitializeResult(
+          resolveProtocolVersion(transportProvider),
+          capabilities.build(),
+          new McpSchema.Implementation("protoc-gen-mcp", "protoc-gen-mcp", "dev"),
+          null);
+    });
+  }
   private static String resolveProtocolVersion(McpServerTransportProvider transportProvider) {
     List<String> protocolVersions = transportProvider.protocolVersions();
     if (protocolVersions == null || protocolVersions.isEmpty()) {
@@ -358,11 +489,240 @@ public final class PromptsMcp {
 
   private static Map<String, McpRequestHandler<?>> requestHandlers(ServerToolRegistry registry) {
     Map<String, McpRequestHandler<?>> requestHandlers = new LinkedHashMap<>();
-    requestHandlers.put(McpSchema.METHOD_TOOLS_LIST, (exchange, params) -> Mono.just(listRegisteredTools(registry)));
-    requestHandlers.put(McpSchema.METHOD_TOOLS_CALL, (exchange, params) -> dispatchToolCall(registry, exchange, params));
+    if (registry.hasTools()) {
+      requestHandlers.put(McpSchema.METHOD_TOOLS_LIST, (exchange, params) -> Mono.just(listRegisteredTools(registry)));
+      requestHandlers.put(McpSchema.METHOD_TOOLS_CALL, (exchange, params) -> dispatchToolCall(registry, exchange, params));
+    }
+    if (registry.hasPrompts()) {
+      requestHandlers.put(McpSchema.METHOD_PROMPT_LIST, (exchange, params) -> Mono.just(listRegisteredPrompts(registry)));
+      requestHandlers.put(McpSchema.METHOD_PROMPT_GET, (exchange, params) -> Mono.fromCallable(() -> getPrompt(registry, params)));
+    }
+    if (registry.hasResources()) {
+      requestHandlers.put(McpSchema.METHOD_RESOURCES_LIST, (exchange, params) -> Mono.fromCallable(() -> listRegisteredResources(registry)));
+      requestHandlers.put(McpSchema.METHOD_RESOURCES_TEMPLATES_LIST, (exchange, params) -> Mono.just(listRegisteredResourceTemplates(registry)));
+      requestHandlers.put(McpSchema.METHOD_RESOURCES_READ, (exchange, params) -> Mono.fromCallable(() -> readResource(registry, params)));
+    }
     return requestHandlers;
   }
 
+  private static Map<String, Object> listRegisteredPrompts(ServerToolRegistry registry) {
+    List<Map<String, Object>> prompts = new ArrayList<>();
+    for (RegisteredPrompt prompt : registry.allPrompts()) {
+      prompts.add(prompt.metadata);
+    }
+    Map<String, Object> result = new LinkedHashMap<>();
+    result.put("prompts", prompts);
+    return result;
+  }
+
+  private static Object getPrompt(ServerToolRegistry registry, Object params) throws Exception {
+    final McpSchema.GetPromptRequest request;
+    try {
+      request = JSON_MAPPER.convertValue(params, McpSchema.GetPromptRequest.class);
+    }
+    catch (Exception error) {
+      throw invalidRequest("invalid prompts/get params: " + error.getMessage(), null);
+    }
+    String name = request.name() == null ? "" : request.name();
+    RegisteredPrompt prompt = registry.prompt(name);
+    if (prompt == null) {
+      throw invalidRequest("unknown prompt '" + name + "'", null);
+    }
+    Map<String, String> arguments = new LinkedHashMap<>();
+    if (request.arguments() != null) {
+      for (Map.Entry<String, Object> entry : request.arguments().entrySet()) {
+        arguments.put(entry.getKey(), entry.getValue() == null ? null : String.valueOf(entry.getValue()));
+      }
+    }
+    for (String required : prompt.requiredArgs) {
+      if (!arguments.containsKey(required)) {
+        throw invalidRequest("missing required prompt argument: " + required, null);
+      }
+    }
+    Map<String, Object> result = new LinkedHashMap<>();
+    result.put("messages", prompt.handler.handle(arguments));
+    return result;
+  }
+
+  private static Map<String, Object> listRegisteredResources(ServerToolRegistry registry) throws Exception {
+    List<Map<String, Object>> resources = new ArrayList<>();
+    for (RegisteredResource resource : registry.allResources()) {
+      resources.add(resource.listing);
+    }
+    for (RegisteredResourceTemplate template : registry.allResourceTemplates()) {
+      resources.addAll(template.lister.list());
+    }
+    Map<String, Object> result = new LinkedHashMap<>();
+    result.put("resources", resources);
+    return result;
+  }
+
+  private static Map<String, Object> listRegisteredResourceTemplates(ServerToolRegistry registry) {
+    List<Map<String, Object>> templates = new ArrayList<>();
+    for (RegisteredResourceTemplate template : registry.allResourceTemplates()) {
+      templates.add(template.listing);
+    }
+    Map<String, Object> result = new LinkedHashMap<>();
+    result.put("resourceTemplates", templates);
+    return result;
+  }
+
+  private static Object readResource(ServerToolRegistry registry, Object params) throws Exception {
+    final McpSchema.ReadResourceRequest request;
+    try {
+      request = JSON_MAPPER.convertValue(params, McpSchema.ReadResourceRequest.class);
+    }
+    catch (Exception error) {
+      throw invalidRequest("invalid resources/read params: " + error.getMessage(), null);
+    }
+    String uri = request.uri() == null ? "" : request.uri();
+    Map<String, Object> contents = null;
+    RegisteredResource resource = registry.resource(uri);
+    if (resource != null) {
+      contents = resource.reader.read(uri, Map.of());
+    }
+    else {
+      for (RegisteredResourceTemplate template : registry.allResourceTemplates()) {
+        Map<String, String> uriParams = matchUriTemplate(template, uri);
+        if (uriParams != null) {
+          contents = template.reader.read(uri, uriParams);
+          break;
+        }
+      }
+    }
+    if (contents == null) {
+      throw invalidRequest("Resource not found", Map.of("uri", uri));
+    }
+    Map<String, Object> result = new LinkedHashMap<>();
+    result.put("contents", List.of(contents));
+    return result;
+  }
+
+  private static McpError invalidRequest(String message, Object data) {
+    return McpError.builder(McpSchema.ErrorCodes.INVALID_PARAMS).message(message).data(data).build();
+  }
+
+  private static Map<String, Object> resourceListing(String descriptorJson, String namespace, String name) {
+    Map<String, Object> listing = loadSchema(descriptorJson);
+    listing.put("name", namespace == null || namespace.isEmpty() ? name : namespace + "_" + name);
+    return listing;
+  }
+
+  private static List<Map<String, Object>> resourceList(List<McpSchema.Resource> resources) {
+    List<Map<String, Object>> listed = new ArrayList<>();
+    if (resources == null) {
+      return listed;
+    }
+    for (McpSchema.Resource resource : resources) {
+      listed.add(JSON_MAPPER.convertValue(resource, MAP_TYPE_REF));
+    }
+    return listed;
+  }
+
+  private static java.util.regex.Pattern compileUriTemplate(String uriTemplate) {
+    java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\{[a-zA-Z_][a-zA-Z0-9_]*\\}").matcher(uriTemplate);
+    StringBuilder pattern = new StringBuilder();
+    int last = 0;
+    while (matcher.find()) {
+      pattern.append(java.util.regex.Pattern.quote(uriTemplate.substring(last, matcher.start())));
+      pattern.append("([^/]+)");
+      last = matcher.end();
+    }
+    pattern.append(java.util.regex.Pattern.quote(uriTemplate.substring(last)));
+    return java.util.regex.Pattern.compile(pattern.toString());
+  }
+
+  private static Map<String, String> matchUriTemplate(RegisteredResourceTemplate template, String uri) throws McpError {
+    java.util.regex.Matcher matcher = template.pattern.matcher(uri);
+    if (!matcher.matches()) {
+      return null;
+    }
+    Map<String, String> params = new LinkedHashMap<>();
+    for (int index = 0; index < template.names.size(); index++) {
+      String name = template.names.get(index);
+      String value = percentDecode(name, uri, matcher.group(index + 1));
+      if (value.isEmpty()) {
+        throw invalidRequest("mcpruntime: parameter '" + name + "' has empty value in uri '" + uri + "'", Map.of("uri", uri));
+      }
+      params.put(name, value);
+    }
+    return params;
+  }
+
+  private static String percentDecode(String name, String uri, String raw) throws McpError {
+    byte[] bytes = raw.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    java.io.ByteArrayOutputStream decoded = new java.io.ByteArrayOutputStream();
+    for (int index = 0; index < bytes.length; index++) {
+      if (bytes[index] != '%') {
+        decoded.write(bytes[index]);
+        continue;
+      }
+      int high = index + 1 < bytes.length ? Character.digit(bytes[index + 1], 16) : -1;
+      int low = index + 2 < bytes.length ? Character.digit(bytes[index + 2], 16) : -1;
+      if (high < 0 || low < 0) {
+        throw invalidRequest("mcpruntime: parameter '" + name + "' in uri '" + uri + "' has a malformed percent escape", Map.of("uri", uri));
+      }
+      decoded.write((high << 4) | low);
+      index += 2;
+    }
+    try {
+      return java.nio.charset.StandardCharsets.UTF_8.newDecoder()
+          .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+          .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+          .decode(java.nio.ByteBuffer.wrap(decoded.toByteArray()))
+          .toString();
+    }
+    catch (java.nio.charset.CharacterCodingException error) {
+      throw invalidRequest("mcpruntime: parameter '" + name + "' in uri '" + uri + "' is not valid UTF-8", Map.of("uri", uri));
+    }
+  }
+
+  private static Map<String, Object> resourceContents(
+      Object value,
+      String uri,
+      String mimeType,
+      String kind,
+      String contentField,
+      Map<String, Object> meta) {
+    if (value == null) {
+      throw new IllegalStateException("mcpruntime: resource '" + uri + "' handler returned null");
+    }
+    Map<String, Object> contents = new LinkedHashMap<>();
+    contents.put("uri", uri);
+    contents.put("mimeType", mimeType);
+    if ("raw".equals(kind)) {
+      if (value instanceof String text) {
+        contents.put("text", text);
+      }
+      else if (value instanceof byte[] blob) {
+        contents.put("blob", java.util.Base64.getEncoder().encodeToString(blob));
+      }
+      else {
+        throw new IllegalStateException("mcpruntime: resource '" + uri + "' handler must return a String or byte[]");
+      }
+    }
+    else if ("protojson".equals(kind)) {
+      contents.put("text", marshalProtoJson((Message) value));
+    }
+    else {
+      Message message = (Message) value;
+      Descriptors.FieldDescriptor field = message.getDescriptorForType().findFieldByName(contentField);
+      if (field == null) {
+        throw new IllegalStateException("mcpruntime: resource content field '" + contentField + "' not found");
+      }
+      Object fieldValue = message.getField(field);
+      if ("text_field".equals(kind)) {
+        contents.put("text", String.valueOf(fieldValue));
+      }
+      else {
+        contents.put("blob", java.util.Base64.getEncoder().encodeToString(((com.google.protobuf.ByteString) fieldValue).toByteArray()));
+      }
+    }
+    if (meta != null) {
+      contents.put("_meta", meta);
+    }
+    return contents;
+  }
   private static Map<String, McpNotificationHandler> notificationHandlers() {
     return new LinkedHashMap<>();
   }

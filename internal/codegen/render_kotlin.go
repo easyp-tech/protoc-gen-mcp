@@ -38,6 +38,17 @@ func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 			}
 		}
 	}
+	resourceTypes := map[string]string{}
+	for _, resource := range model.Resources {
+		if resource.SourceFile != "" {
+			continue
+		}
+		outputType, err := info.kotlinMessageTypeExpr(newJVMTypeRefFromShared(resource.Output), imports, filePackage.Package)
+		if err != nil {
+			return err
+		}
+		resourceTypes[resource.ProtoFullName] = outputType
+	}
 	descriptorAccessors, err := collectJavaDescriptorAccessors(info.file.Desc, filePackage.Package)
 	if err != nil {
 		return err
@@ -169,13 +180,16 @@ func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 	}
 
 	if len(model.Resources) > 0 {
-		renderKotlinResources(generated, model)
+		if err := renderKotlinResources(generated, model, resourceTypes); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func renderKotlinResources(generated *protogen.GeneratedFile, model JVMFileModel) {
+func renderKotlinResources(generated *protogen.GeneratedFile, model JVMFileModel, resourceTypes map[string]string) error {
+	const sdk = "io.modelcontextprotocol.kotlin.sdk"
 	fileBase := jvmFileBaseName(model.ProtoPath)
 	interfaceName := jvmExportedIdentifier(fileBase) + "ResourceHandler"
 	registerName := "register" + jvmExportedIdentifier(fileBase) + "Resources"
@@ -183,32 +197,154 @@ func renderKotlinResources(generated *protogen.GeneratedFile, model JVMFileModel
 	generated.P()
 	generated.P("interface ", interfaceName, " {")
 	for _, resource := range model.Resources {
-		methodName := jvmMethodName(resource.ProtoName)
+		returnType, ok := resourceTypes[resource.ProtoFullName]
+		if !ok {
+			returnType = "Any"
+		}
+		paramList := ""
 		if resource.IsTemplate {
-			generated.P("    suspend fun list", resource.ProtoName, "s(): List<io.modelcontextprotocol.kotlin.sdk.types.Resource>")
-			paramList := ""
+			generated.P("    suspend fun list", resource.ProtoName, "s(): List<", sdk, ".types.Resource>")
 			for i, identifier := range kotlinParamIdentifiers(resource.Params) {
 				if i > 0 {
 					paramList += ", "
 				}
 				paramList += identifier + ": String"
 			}
-			generated.P("    suspend fun read", resource.ProtoName, "(", paramList, "): Any")
-		} else {
-			generated.P("    suspend fun ", methodName, "(): Any")
 		}
+		if resource.SourceFile != "" {
+			generated.P("    /** Returns the body of ", resource.SourceFile, " as a String or ByteArray. */")
+		}
+		generated.P("    suspend fun read", resource.ProtoName, "(", paramList, "): ", returnType)
 	}
 	generated.P("}")
 	generated.P()
 
-	generated.P("fun ", registerName, "(server: Server, impl: ", interfaceName, ", namespace: String? = null) {")
-	generated.P("    // TODO: full Kotlin resource registration")
-	generated.P("    throw NotImplementedError(\"MCP Resources for Kotlin are not yet fully supported\")")
+	generated.P("/**")
+	generated.P(" * Registers the resources of ", model.ProtoPath, " on [server], which must declare the resources")
+	generated.P(" * capability. Like the Go target, template instances are listed once, at registration.")
+	generated.P(" */")
+	generated.P("suspend fun ", registerName, "(server: Server, impl: ", interfaceName, ", namespace: String? = null) {")
+	for _, resource := range model.Resources {
+		descriptor, err := resourceDescriptorJSON(resource)
+		if err != nil {
+			return err
+		}
+		meta := "null"
+		if metaJSON := resourceMetaJSON(resource); metaJSON != "" {
+			meta = "Json.parseToJsonElement(" + kotlinStringLiteral(metaJSON) + ").jsonObject"
+		}
+		field := "null"
+		if resource.ContentField != "" {
+			field = quote(resource.ContentField)
+		}
+		contents := func(call string) string {
+			return "resourceReadResult(" + call + ", uri, " + quote(resource.MIMEType) + ", " + quote(pythonResourceContentKind(resourceContent(resource))) + ", " + field + ", " + meta + ")"
+		}
+		if resource.IsTemplate {
+			args := make([]string, 0, len(resource.Params))
+			for _, param := range resource.Params {
+				args = append(args, "templateParam(params, "+quote(param.Name)+", uri)")
+			}
+			generated.P("    run {")
+			generated.P("        val template = resourceListing(", sdk, ".types.ResourceTemplate.serializer(), ", kotlinStringLiteral(descriptor), ", namespace, ", quote(resource.Name), ")")
+			generated.P("        val matcher = ", sdk, ".utils.PathSegmentTemplateMatcher(template)")
+			generated.P("        val read: suspend (String, Map<String, String>) -> ", sdk, ".types.ReadResourceResult = { uri, params ->")
+			generated.P("            ", contents("impl.read"+resource.ProtoName+"("+strings.Join(args, ", ")+")"))
+			generated.P("        }")
+			generated.P("        server.addResourceTemplate(template) { request, params -> read(request.params.uri, params) }")
+			generated.P("        server.addResources(")
+			generated.P("            impl.list", resource.ProtoName, "s().map { resource ->")
+			generated.P("                ", sdk, ".server.RegisteredResource(resource) { request ->")
+			generated.P("                    read(request.params.uri, matcher.match(request.params.uri)?.variables.orEmpty())")
+			generated.P("                }")
+			generated.P("            },")
+			generated.P("        )")
+			generated.P("    }")
+		} else {
+			generated.P("    server.addResources(")
+			generated.P("        listOf(")
+			generated.P("            ", sdk, ".server.RegisteredResource(")
+			generated.P("                resourceListing(", sdk, ".types.Resource.serializer(), ", kotlinStringLiteral(descriptor), ", namespace, ", quote(resource.Name), "),")
+			generated.P("            ) { request ->")
+			generated.P("                val uri = request.params.uri")
+			generated.P("                ", contents("impl.read"+resource.ProtoName+"()"))
+			generated.P("            },")
+			generated.P("        ),")
+			generated.P("    )")
+		}
+	}
+	generated.P("}")
+	generated.P()
+	renderKotlinResourceRuntime(generated)
+	return nil
+}
+
+func renderKotlinResourceRuntime(generated *protogen.GeneratedFile) {
+	const sdk = "io.modelcontextprotocol.kotlin.sdk"
+	generated.P("private fun <T> resourceListing(")
+	generated.P("    serializer: kotlinx.serialization.KSerializer<T>,")
+	generated.P("    descriptorJson: String,")
+	generated.P("    namespace: String?,")
+	generated.P("    name: String,")
+	generated.P("): T {")
+	generated.P("    val descriptor = Json.parseToJsonElement(descriptorJson).jsonObject.toMutableMap()")
+	generated.P("    descriptor[\"name\"] = kotlinx.serialization.json.JsonPrimitive(if (namespace.isNullOrEmpty()) name else \"${namespace}_$name\")")
+	generated.P("    return ", sdk, ".types.McpJson.decodeFromJsonElement(serializer, JsonObject(descriptor))")
+	generated.P("}")
+	generated.P()
+	generated.P("private fun templateParam(params: Map<String, String>, name: String, uri: String): String {")
+	generated.P("    val value = params[name]")
+	generated.P("    if (value.isNullOrEmpty()) {")
+	generated.P("        throw McpException(")
+	generated.P("            code = RPCError.ErrorCode.INVALID_PARAMS,")
+	generated.P("            message = \"mcpruntime: parameter '$name' has empty value in uri '$uri'\",")
+	generated.P("        )")
+	generated.P("    }")
+	generated.P("    return value")
+	generated.P("}")
+	generated.P()
+	generated.P("private fun resourceReadResult(")
+	generated.P("    value: Any?,")
+	generated.P("    uri: String,")
+	generated.P("    mimeType: String,")
+	generated.P("    kind: String,")
+	generated.P("    contentField: String?,")
+	generated.P("    meta: JsonObject?,")
+	generated.P("): ", sdk, ".types.ReadResourceResult {")
+	generated.P("    requireNotNull(value) { \"mcpruntime: resource '$uri' handler returned null\" }")
+	generated.P("    val encoder = java.util.Base64.getEncoder()")
+	generated.P("    val contents: ", sdk, ".types.ResourceContents = when (kind) {")
+	generated.P("        \"raw\" -> when (value) {")
+	generated.P("            is String -> ", sdk, ".types.TextResourceContents(text = value, uri = uri, mimeType = mimeType, meta = meta)")
+	generated.P("            is ByteArray -> ", sdk, ".types.BlobResourceContents(blob = encoder.encodeToString(value), uri = uri, mimeType = mimeType, meta = meta)")
+	generated.P("            else -> throw IllegalStateException(\"mcpruntime: resource '$uri' handler must return a String or ByteArray\")")
+	generated.P("        }")
+	generated.P("        \"protojson\" -> ", sdk, ".types.TextResourceContents(")
+	generated.P("            text = marshalProtoJson(value as Message).toString(),")
+	generated.P("            uri = uri,")
+	generated.P("            mimeType = mimeType,")
+	generated.P("            meta = meta,")
+	generated.P("        )")
+	generated.P("        else -> {")
+	generated.P("            val message = value as Message")
+	generated.P("            val field = message.descriptorForType.findFieldByName(contentField.orEmpty())")
+	generated.P("                ?: throw IllegalStateException(\"mcpruntime: resource content field '$contentField' not found\")")
+	generated.P("            val fieldValue = message.getField(field)")
+	generated.P("            if (kind == \"text_field\") {")
+	generated.P("                ", sdk, ".types.TextResourceContents(text = fieldValue.toString(), uri = uri, mimeType = mimeType, meta = meta)")
+	generated.P("            } else {")
+	generated.P("                val bytes = (fieldValue as com.google.protobuf.ByteString).toByteArray()")
+	generated.P("                ", sdk, ".types.BlobResourceContents(blob = encoder.encodeToString(bytes), uri = uri, mimeType = mimeType, meta = meta)")
+	generated.P("            }")
+	generated.P("        }")
+	generated.P("    }")
+	generated.P("    return ", sdk, ".types.ReadResourceResult(contents = listOf(contents))")
 	generated.P("}")
 	generated.P()
 }
 
 func renderKotlinPrompts(generated *protogen.GeneratedFile, model JVMFileModel) {
+	const sdk = "io.modelcontextprotocol.kotlin.sdk"
 	fileBase := jvmFileBaseName(model.ProtoPath)
 	interfaceName := jvmExportedIdentifier(fileBase) + "PromptHandler"
 	registerName := "register" + jvmExportedIdentifier(fileBase) + "Prompts"
@@ -216,7 +352,7 @@ func renderKotlinPrompts(generated *protogen.GeneratedFile, model JVMFileModel) 
 	generated.P()
 	generated.P("interface ", interfaceName, " {")
 	for _, prompt := range model.Prompts {
-		generated.P("    suspend fun ", jvmMethodName(prompt.ProtoName), "(arguments: Map<String, String>): List<io.modelcontextprotocol.kotlin.sdk.types.PromptMessage>")
+		generated.P("    suspend fun ", jvmMethodName(prompt.ProtoName), "(arguments: Map<String, String>): List<", sdk, ".types.PromptMessage>")
 	}
 	generated.P("}")
 	generated.P()
@@ -224,26 +360,28 @@ func renderKotlinPrompts(generated *protogen.GeneratedFile, model JVMFileModel) 
 	generated.P("fun ", registerName, "(server: Server, impl: ", interfaceName, ", namespace: String? = null) {")
 	for _, prompt := range model.Prompts {
 		generated.P("    server.addPrompt(")
-		generated.P("        name = promptName(namespace, ", quote(prompt.Name), "),")
-		if prompt.Title != "" {
-			generated.P("        title = ", quote(prompt.Title), ",")
-		}
-		generated.P("        description = ", kotlinNullableString(prompt.Description), ",")
-		generated.P("        arguments = listOf(")
+		generated.P("        ", sdk, ".types.Prompt(")
+		generated.P("            name = promptName(namespace, ", quote(prompt.Name), "),")
+		generated.P("            description = ", kotlinNullableString(prompt.Description), ",")
+		generated.P("            arguments = listOf(")
 		for _, arg := range prompt.Arguments {
-			generated.P("            io.modelcontextprotocol.kotlin.sdk.types.PromptArgument(name = ", quote(arg.Name), ", description = ", kotlinNullableString(arg.Description), ", required = ", fmt.Sprintf("%t", arg.Required), "),")
+			generated.P("                ", sdk, ".types.PromptArgument(name = ", quote(arg.Name), ", description = ", kotlinNullableString(arg.Description), ", required = ", fmt.Sprintf("%t", arg.Required), "),")
+		}
+		generated.P("            ),")
+		if prompt.Title != "" {
+			generated.P("            title = ", quote(prompt.Title), ",")
 		}
 		generated.P("        ),")
 		generated.P("    ) { request ->")
-		generated.P("        val args = request.arguments ?: emptyMap()")
-		// Validate required arguments.
+		generated.P("        val args = request.arguments.orEmpty()")
 		for _, arg := range prompt.Arguments {
 			if arg.Required {
-				generated.P("        require(args.containsKey(", quote(arg.Name), ")) { \"missing required prompt argument: ", arg.Name, "\" }")
+				generated.P("        if (!args.containsKey(", quote(arg.Name), ")) {")
+				generated.P("            throw McpException(code = RPCError.ErrorCode.INVALID_PARAMS, message = \"missing required prompt argument: ", arg.Name, "\")")
+				generated.P("        }")
 			}
 		}
-		generated.P("        val messages = impl.", jvmMethodName(prompt.ProtoName), "(args)")
-		generated.P("        io.modelcontextprotocol.kotlin.sdk.types.GetPromptResult(messages = messages)")
+		generated.P("        ", sdk, ".types.GetPromptResult(messages = impl.", jvmMethodName(prompt.ProtoName), "(args))")
 		generated.P("    }")
 	}
 	generated.P("}")
