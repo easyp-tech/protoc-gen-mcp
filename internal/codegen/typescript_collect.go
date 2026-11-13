@@ -59,6 +59,20 @@ func CollectTypeScriptFileModel(file *protogen.File, model FileModel) (TypeScrip
 		tsModel.Services = append(tsModel.Services, serviceModel)
 	}
 
+	tsModel.ResourceOutputs = map[string]TypeScriptTypeRef{}
+	for _, resource := range model.Resources {
+		if resource.SourceFile != "" {
+			continue
+		}
+		message := findProtogenMessage(file.Messages, resource.Output.ProtoFullName)
+		if message == nil {
+			return TypeScriptFileModel{}, fmt.Errorf("resource %s: message not found for TypeScript render", resource.ProtoFullName)
+		}
+		ref := newTypeScriptTypeRefFromMessage(message, file.Desc.Path())
+		trackTypeScriptTypeRef(ref, imports, registryRefs)
+		tsModel.ResourceOutputs[resource.ProtoFullName] = ref
+	}
+
 	tsModel.Imports = flattenTypeScriptImports(imports)
 	if err := validateTypeScriptImportCollisions(tsModel.Imports); err != nil {
 		return TypeScriptFileModel{}, err
@@ -234,4 +248,16 @@ func sortedStringSet(values map[string]struct{}) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func findProtogenMessage(messages []*protogen.Message, fullName string) *protogen.Message {
+	for _, message := range messages {
+		if string(message.Desc.FullName()) == fullName {
+			return message
+		}
+		if nested := findProtogenMessage(message.Messages, fullName); nested != nil {
+			return nested
+		}
+	}
+	return nil
 }

@@ -13,6 +13,8 @@ type TypeScriptFileModel struct {
 	Services                []TypeScriptServiceModel
 	Prompts                 []PromptModel
 	Resources               []ResourceModel
+	// ResourceOutputs maps a resource message full name to its protobuf-es refs.
+	ResourceOutputs map[string]TypeScriptTypeRef
 }
 
 type TypeScriptServiceModel struct {
