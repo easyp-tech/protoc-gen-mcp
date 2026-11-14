@@ -49,6 +49,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Python serves `option (mcp.options.v1.server).oauth`: an ASGI Streamable
+  HTTP app with RFC 9728 metadata, bearer authentication through the SDK
+  middleware, `403 insufficient_scope` step-up for per-tool `required_scopes`,
+  an in-tool scope guard and an RS256 JWKS verifier ported from Go. A shared
+  HTTP contract (`internal/httpcontract`) checks Go and Python against the same
+  cases.
 - Python, TypeScript, Java and Kotlin generate the server factory declared by
   `option (mcp.options.v1.server)`: proto name and version, the MCP Apps
   capability and registration of the file's tools, prompts and resources.

@@ -37,6 +37,7 @@ class RegisteredTool:
     icons: list[dict[str, Any]] | None
     execution: dict[str, Any] | None = None
     meta: dict[str, Any] | None = None
+    required_scopes: tuple[str, ...] = ()
 
 
 class ToolRegistry:
@@ -61,8 +62,9 @@ class ToolRegistry:
         name: str,
         arguments: dict[str, Any] | None,
         context: ToolRequestContext | None = None,
+        granted_scopes: list[str] | None = None,
     ) -> mcp.types.CallToolResult:
-        return await dispatch_call(self, name, arguments or {}, context)
+        return await dispatch_call(self, name, arguments or {}, context, granted_scopes)
 
 
 _REGISTRIES: weakref.WeakKeyDictionary[mcp.server.lowlevel.Server, ToolRegistry] = weakref.WeakKeyDictionary()
@@ -134,6 +136,7 @@ def install_tool_registry(server: mcp.server.lowlevel.Server) -> ToolRegistry:
             request.params.name,
             request.params.arguments or {},
             server.request_context.session,
+            granted_scopes(server),
         )
         return mcp.types.ServerResult(result)
 
@@ -183,16 +186,35 @@ def build_tool(tool: RegisteredTool) -> mcp.types.Tool:
     )
 
 
+def granted_scopes(server: mcp.server.lowlevel.Server) -> list[str] | None:
+    """Scopes of the bearer token behind the current request, or None without one."""
+    try:
+        request = server.request_context.request
+    except LookupError:
+        return None
+    user = None if request is None else request.scope.get("user")
+    access_token = getattr(user, "access_token", None)
+    return None if access_token is None else list(access_token.scopes)
+
+
 async def dispatch_call(
     registry: ToolRegistry,
     name: str,
     arguments: dict[str, Any],
     context: ToolRequestContext | None,
+    granted: list[str] | None = None,
 ) -> mcp.types.CallToolResult:
-    """Validates, decodes and runs one tool call, then validates its output."""
+    """Checks scopes, validates, decodes and runs one tool call, then validates its output."""
     tool = registry.tools.get(name)
     if tool is None:
         raise invalid_params_error(name, "unknown tool")
+    if tool.required_scopes:
+        # Defence in depth behind the HTTP scope check; stdio has no token.
+        if granted is None:
+            return tool_error_result("permission denied: an authenticated token is required")
+        for scope in tool.required_scopes:
+            if scope not in granted:
+                return tool_error_result(f'permission denied: missing required scope "{scope}"')
     try:
         jsonschema.validate(arguments, json.loads(tool.input_schema_json))
     except jsonschema.ValidationError as error:

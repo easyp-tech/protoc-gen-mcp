@@ -161,6 +161,9 @@ func renderPythonFileForHandler(plugin *protogen.Plugin, model FileModel, handle
 			if meta := toolMetaJSON(method.AppUI); meta != "" {
 				generated.P("        meta=json.loads(", quote(meta), "),")
 			}
+			if len(method.RequiredScopes) > 0 {
+				generated.P("        required_scopes=", pythonStringTupleOf(method.RequiredScopes), ",")
+			}
 			generated.P("    ))")
 		}
 		generated.P()
@@ -232,6 +235,48 @@ func renderPythonServerFactory(generated *protogen.GeneratedFile, model FileMode
 		generated.P("    register_", toSnakeCase(fileBase), "_resources(server, handlers.resources)")
 	}
 	generated.P("    return server")
+
+	if model.ServerConfig == nil {
+		return
+	}
+	generated.P()
+	generated.P()
+	generated.P("def create_", toSnakeCase(fileBase), "_mcp_http_app(server: mcp.server.lowlevel.Server, verifier: Any = None) -> Any:")
+	generated.P("    \"\"\"Serves server over stateless Streamable HTTP with the policy of ", model.ProtoPath, ".")
+	generated.P()
+	generated.P("    Returns an ASGI application. With OAuth, verifier is an SDK TokenVerifier; when")
+	generated.P("    it is None the built-in RS256 JWKS verifier is used.")
+	generated.P("    \"\"\"")
+	oauth := model.ServerConfig.GetOauth()
+	if oauth == nil {
+		generated.P("    return protoc_gen_mcp_runtime.new_http_app(server)")
+		return
+	}
+	generated.P("    oauth = protoc_gen_mcp_runtime.OAuthResourceServer(")
+	generated.P("        resource_url=", quote(oauth.GetResourceUrl()), ",")
+	generated.P("        authorization_servers=", pythonStringTupleOf(oauth.GetAuthorizationServers()), ",")
+	generated.P("        scopes=", pythonStringTupleOf(oauth.GetScopes()), ",")
+	generated.P("        issuer=", quote(oauth.GetIssuer()), ",")
+	generated.P("        audience=", quote(oauth.GetAudience()), ",")
+	generated.P("        jwks_url=", quote(oauth.GetJwksUri()), ",")
+	generated.P("        mcp_path=", quote(oauth.GetMcpPath()), ",")
+	generated.P("    )")
+	generated.P("    return protoc_gen_mcp_runtime.new_http_app(server, oauth, verifier)")
+}
+
+func pythonStringTupleOf(values []string) string {
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, quote(value))
+	}
+	switch len(quoted) {
+	case 0:
+		return "()"
+	case 1:
+		return "(" + quoted[0] + ",)"
+	default:
+		return "(" + strings.Join(quoted, ", ") + ")"
+	}
 }
 
 func renderPythonResources(generated *protogen.GeneratedFile, info pythonRenderInfo, model FileModel, protobufHandlerMode bool) error {

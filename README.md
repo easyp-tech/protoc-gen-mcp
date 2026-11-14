@@ -29,7 +29,7 @@ handlers. JavaScript projects consume the compiled TypeScript output.
 | **Protobuf server factory** | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **MCP Apps UI / CSP** | ✅ | ✅ | ✅¹ | ✅¹ | ✅ |
 | **Markdown, HTML, binary resources** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **OAuth/JWKS and tool scopes** | ✅ | ⛔ Rejected | ⛔ Rejected | ⛔ Rejected | ⛔ Rejected |
+| **OAuth/JWKS and tool scopes** | ✅ | ✅ | ⛔ Rejected | ⛔ Rejected | ⛔ Rejected |
 
 Every target serves the same resources contract: ProtoJSON or raw text/blob
 bodies, percent-decoded template parameters, annotations, icons and the MCP
@@ -158,7 +158,14 @@ Language notes:
   protos import other packages. Generated modules import the
   `protoc-gen-mcp-runtime` package (`pip install protoc-gen-mcp-runtime`),
   which holds the tool, prompt and resource registries; it is released with
-  the plugin and checks on import that it matches the generated code.
+  the plugin and checks on import that it matches the generated code. With
+  `option (mcp.options.v1.server)` a module also exports
+  `create_<file>_mcp_http_app(server, verifier=None)`, an ASGI app (for
+  example for uvicorn) that serves stateless Streamable HTTP through the SDK
+  session manager and, with `oauth`, enforces bearer tokens, RFC 9728
+  metadata and per-tool `required_scopes` exactly like the Go handler;
+  `verifier` is an SDK `TokenVerifier`, and without one the built-in RS256
+  JWKS verifier is used.
 - **Java** (`lang=java`) generates one `<ProtoFile>Mcp` sidecar per proto next
   to protobuf Java output. **Kotlin** (`lang=kotlin`) needs Java protobuf
   output, Kotlin protobuf output, and the MCP sidecar together. Generated
