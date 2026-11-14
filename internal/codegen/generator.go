@@ -15,6 +15,7 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 	case LanguageKotlin:
 	case LanguageJava:
 	case LanguageTypeScript:
+	case LanguageSwift:
 	default:
 		return fmt.Errorf("unsupported lang %q", opts.Language)
 	}
@@ -92,6 +93,21 @@ func Generate(plugin *protogen.Plugin, opts Options) error {
 			}
 		}
 		return nil
+	case LanguageSwift:
+		models, orderedFiles, err := collectSwiftModels(plugin, opts)
+		if err != nil {
+			return err
+		}
+		for _, file := range orderedFiles {
+			model := models[file.Desc.Path()]
+			if len(model.Services) == 0 && len(model.Prompts) == 0 && len(model.Resources) == 0 {
+				continue
+			}
+			if err := renderSwiftFile(plugin, model); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	return generateGoFiles(plugin, opts)
@@ -118,6 +134,27 @@ func collectTypeScriptModels(plugin *protogen.Plugin, opts Options) (map[string]
 		orderedFiles = append(orderedFiles, file)
 	}
 
+	return models, orderedFiles, nil
+}
+
+func collectSwiftModels(plugin *protogen.Plugin, opts Options) (map[string]SwiftFileModel, []*protogen.File, error) {
+	models := make(map[string]SwiftFileModel)
+	orderedFiles := make([]*protogen.File, 0, len(plugin.Files))
+	for _, file := range plugin.Files {
+		if !file.Generate {
+			continue
+		}
+		model, err := CollectFileModel(file, opts)
+		if err != nil {
+			return nil, nil, err
+		}
+		swiftModel, err := CollectSwiftFileModel(file, model)
+		if err != nil {
+			return nil, nil, err
+		}
+		models[file.Desc.Path()] = swiftModel
+		orderedFiles = append(orderedFiles, file)
+	}
 	return models, orderedFiles, nil
 }
 

@@ -100,11 +100,24 @@ func installedJVMServerCommand(root, target string) *exec.Cmd {
 
 func runJVMInvalidInputTest(t *testing.T, target string) {
 	t.Helper()
-
 	root := repoRoot(t)
 	ensureJVMExamplesInstalled(t, root)
+	assertRejectsInvalidInput(t, installedJVMServerCommand(root, target))
+}
 
+func runJVMInvalidOutputTest(t *testing.T, target string) {
+	t.Helper()
+	root := repoRoot(t)
+	ensureJVMExamplesInstalled(t, root)
 	cmd := installedJVMServerCommand(root, target)
+	cmd.Env = append(os.Environ(), "PROTOC_GEN_MCP_JVM_INVALID_OUTPUT=create_report")
+	assertRejectsInvalidOutput(t, cmd)
+}
+
+// assertRejectsInvalidInput checks that example_CreateReport refuses input
+// that breaks its JSON Schema with an invalid-params error naming the tool.
+func assertRejectsInvalidInput(t *testing.T, cmd *exec.Cmd) {
+	t.Helper()
 	client := newStdioClient(t, cmd)
 	client.initialize()
 
@@ -123,15 +136,10 @@ func runJVMInvalidInputTest(t *testing.T, target string) {
 	}
 }
 
-func runJVMInvalidOutputTest(t *testing.T, target string) {
+// assertRejectsInvalidOutput checks that a handler result breaking the
+// output schema fails the call instead of reaching the client.
+func assertRejectsInvalidOutput(t *testing.T, cmd *exec.Cmd) {
 	t.Helper()
-
-	root := repoRoot(t)
-	ensureJVMExamplesInstalled(t, root)
-
-	cmd := installedJVMServerCommand(root, target)
-	cmd.Env = append(os.Environ(), "PROTOC_GEN_MCP_JVM_INVALID_OUTPUT=create_report")
-
 	client := newStdioClient(t, cmd)
 	client.initialize()
 

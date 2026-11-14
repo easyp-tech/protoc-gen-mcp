@@ -151,3 +151,21 @@ func TestJVMAndTypeScriptResourceSignaturesEscapeReservedNames(t *testing.T) {
 		}
 	}
 }
+
+func TestSwiftResourceSignatureEscapesReservedNames(t *testing.T) {
+	plugin := newReservedParamsPlugin(t)
+	if err := Generate(plugin, Options{Language: LanguageSwift}); err != nil {
+		t.Fatalf("Generate swift: %v", err)
+	}
+	got := string(generatedFileContent(t, plugin, "test/v1/items.mcp.swift"))
+	start := strings.Index(got, "func readItem(")
+	if start < 0 {
+		t.Fatalf("Swift output has no readItem:\n%s", got)
+	}
+	line := got[start : start+strings.Index(got[start:], "\n")]
+	for _, label := range []string{"class_: String", "default_: String", "self_: String", "params_: String"} {
+		if !strings.Contains(line, label) {
+			t.Errorf("readItem signature %q lacks %q", line, label)
+		}
+	}
+}
