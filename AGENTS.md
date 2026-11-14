@@ -201,10 +201,8 @@ architecture unless explicitly revised.
   `stdiotest.ContractOptions{AppsCapability: AppsInExperimental}`. After
   changing `runtime/typescript`, rebuild it and rerun `npm ci` in its consumers:
   `npm install` keeps the stale copy of a same-version `file:` package
-- Go, Python, TypeScript and Java implement `option (mcp.options.v1.server).oauth`
-  and per-tool `required_scopes`; Kotlin still rejects them at
-  generation (`validateGoOnlyOptions`) so no tool is served without its scope
-  check. `internal/httpcontract` is the shared HTTP/OAuth contract (metadata,
+- Every target implements `option (mcp.options.v1.server).oauth` and per-tool
+  `required_scopes`. `internal/httpcontract` is the shared HTTP/OAuth contract (metadata,
   401 challenge, 403 step-up with `scope=`, 400/413 preflight) run against the
   config/v1 fixture of each implementing target. Python's HTTP app
   (`protoc_gen_mcp_runtime.new_http_app`) layers the SDK
@@ -222,7 +220,11 @@ architecture unless explicitly revised.
   handlers through the transport context and `McpRuntime.currentAccessToken()`.
   `runtime/jvm/oauth` (`protoc-gen-mcp-runtime-oauth`) holds the JVM-wide
   pieces: `JWKSTokenVerifier` on nimbus-jose-jwt, `OAuthResourceServer`,
-  `ScopeGate` and a strict JSON reader; the Kotlin runtime is meant to reuse it.
+  `ScopeGate` and a strict JSON reader, shared with Kotlin. Kotlin's
+  `installMcpHttp` is a Ktor route: `DoubleReceive` buffers the body for the
+  scope gate and the SDK `StreamableHttpServerTransport` (JSON responses, a
+  fresh `Server` per request); the token is bound to the `ServerSession` and
+  handed to handlers as an `AccessTokenElement` in the coroutine context.
   Method `app_ui` becomes tool `_meta.ui` in every target.
 - Generated OAuth HTTP handlers enforce server-wide and per-tool
   `required_scopes` before dispatch, returning HTTP 403 `insufficient_scope`

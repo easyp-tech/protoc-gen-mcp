@@ -29,7 +29,7 @@ handlers. JavaScript projects consume the compiled TypeScript output.
 | **Protobuf server factory** | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **MCP Apps UI / CSP** | ✅ | ✅ | ✅¹ | ✅¹ | ✅ |
 | **Markdown, HTML, binary resources** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **OAuth/JWKS and tool scopes** | ✅ | ✅ | ⛔ Rejected | ✅ | ✅ |
+| **OAuth/JWKS and tool scopes** | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 Every target serves the same resources contract: ProtoJSON or raw text/blob
 bodies, percent-decoded template parameters, annotations, icons and the MCP
@@ -45,10 +45,10 @@ TypeScript `create<File>MCPServer(handlers)`, Kotlin
 Kotlin SDK 0.11 and the stdio transport of the Java SDK 1.1 cannot express
 `capabilities.extensions`, so they advertise MCP Apps under
 `capabilities.experimental`; Java over HTTP serves `capabilities.extensions`
-like Go. Tools and resources carry `_meta.ui` everywhere.
-"Rejected" means
-`option (mcp.options.v1.server).oauth` and per-tool `required_scopes` fail at
-generation for Kotlin instead of producing a tool that skips the check.
+like Go. Tools and resources carry `_meta.ui` everywhere. Every target serves
+`option (mcp.options.v1.server).oauth` and per-tool `required_scopes` over
+stateless Streamable HTTP with the same metadata, 401 challenge and 403
+step-up, checked by one shared contract.
 
 Each target uses the official MCP SDK of its language: the Go MCP SDK,
 the Python `mcp` SDK with `google.protobuf`, `io.modelcontextprotocol.sdk:mcp`
@@ -184,7 +184,12 @@ Language notes:
   RS256 JWKS verifier (nimbus-jose-jwt, from
   `tech.easyp:protoc-gen-mcp-runtime-oauth`) is used. Handlers read the token
   with `McpRuntime.currentAccessToken()`; the `McpAsyncServerExchange`
-  argument is null over stateless HTTP.
+  argument is null over stateless HTTP. A Kotlin file with the server option
+  exports `Application.install<File>MCPHttp(handlers, verifier = null)` for
+  Ktor: a route that builds a fresh server per request on the SDK
+  `StreamableHttpServerTransport` (as the SDK's own stateless endpoint does)
+  and adds the same metadata, bearer check and scope step-up; suspend
+  handlers read the token with `currentAccessToken()`.
 - **TypeScript** (`lang=typescript`) expects Protobuf-ES `_pb.ts` files in the
   same tree, generated with `import_extension=js` for Node ESM and
   `moduleResolution: NodeNext`. **JavaScript** projects import the compiled

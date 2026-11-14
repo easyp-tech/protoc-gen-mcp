@@ -15,6 +15,7 @@ dependencies {
     implementation("com.google.protobuf:protobuf-kotlin:4.34.1")
     implementation("com.google.protobuf:protobuf-java-util:4.34.1")
     implementation("com.networknt:json-schema-validator:1.5.9")
+    implementation("io.ktor:ktor-server-cio:3.3.3")
     runtimeOnly("org.slf4j:slf4j-nop:2.0.17")
 }
 
@@ -32,6 +33,7 @@ val protocGenMcpBinary = rootProject.layout.buildDirectory.file("tools/protoc-ge
 val stagedProtoDir = layout.buildDirectory.dir("staged-proto")
 val stageProtoSources = tasks.register<Sync>("stageProtoSources") {
     from(repoRoot) {
+        include("internal/testproto/config/v1/server_config.proto")
         include("internal/testproto/example/v1/example.proto")
         include("internal/testproto/prompts/v1/prompts.proto")
         include("internal/testproto/resources/v1/resources.proto")

@@ -12,6 +12,20 @@ dependencies {
     api("com.google.protobuf:protobuf-java:4.34.1")
     api("com.google.protobuf:protobuf-java-util:4.34.1")
     api("com.networknt:json-schema-validator:1.5.9")
+    api(project(":protoc-gen-mcp-runtime-oauth"))
+    implementation("io.ktor:ktor-server-double-receive:3.3.3")
+    implementation("io.ktor:ktor-server-content-negotiation:3.3.3")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:3.3.3")
+
+    testImplementation(kotlin("test"))
+    testImplementation("io.ktor:ktor-server-test-host:3.3.3")
+    testImplementation(platform("org.junit:junit-bom:5.13.4"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 java {

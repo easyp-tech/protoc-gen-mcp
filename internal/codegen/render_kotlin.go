@@ -11,7 +11,7 @@ import (
 
 // kotlinRuntimeImports are the tech.easyp.mcp.runtime.kotlin declarations
 // that generated Kotlin files use.
-var kotlinRuntimeImports = []string{"RegisteredTool", "checkGencodeVersion", "iconThemeOrError", "installMcpHandlers", "newConfiguredServer", "normalizeNamespace", "promptName", "registerProtoFiles", "resourceListing", "resourceReadResult", "templateParam", "toolExecutionOrNull", "toolName"}
+var kotlinRuntimeImports = []string{"RegisteredTool", "checkGencodeVersion", "iconThemeOrError", "installMcpHandlers", "installMcpHttp", "newConfiguredServer", "normalizeNamespace", "promptName", "registerProtoFiles", "resourceListing", "resourceReadResult", "templateParam", "toolExecutionOrNull", "toolName"}
 
 func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 	if model.Language != LanguageKotlin {
@@ -107,6 +107,15 @@ func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 		"java.util.Collections",
 		"java.util.WeakHashMap",
 	}
+	if model.Factory.HTTP {
+		kotlinImports = append(kotlinImports, "io.ktor.server.application.Application")
+		if model.Factory.OAuth != nil {
+			kotlinImports = append(kotlinImports,
+				"tech.easyp.mcp.runtime.oauth.OAuthResourceServer",
+				"tech.easyp.mcp.runtime.oauth.TokenVerifier",
+			)
+		}
+	}
 	for importPath := range imports {
 		kotlinImports = append(kotlinImports, importPath)
 	}
@@ -177,6 +186,9 @@ func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 			generated.P("            execution = ", kotlinTaskSupport(method.TaskSupport), ",")
 			if meta := toolMetaJSON(method.AppUI); meta != "" {
 				generated.P("            meta = Json.parseToJsonElement(", kotlinStringLiteral(meta), ").jsonObject,")
+			}
+			if len(method.RequiredScopes) > 0 {
+				generated.P("            requiredScopes = ", kotlinStringListLiteral(method.RequiredScopes), ",")
 			}
 			generated.P("        ),")
 			generated.P("    )")
@@ -256,6 +268,46 @@ func renderKotlinServerFactory(generated *protogen.GeneratedFile, model JVMFileM
 	}
 	generated.P("    return server")
 	generated.P("}")
+	if !model.Factory.HTTP {
+		return
+	}
+	generated.P()
+	oauth := model.Factory.OAuth
+	if oauth == nil {
+		generated.P("/** Serves ", model.ProtoPath, " over stateless Streamable HTTP on /mcp, building a fresh server per request. */")
+		generated.P("fun Application.install", fileName, "MCPHttp(handlers: ", fileName, "MCPHandlers) {")
+		generated.P("    installMcpHttp(null, null) { new", fileName, "MCPServer(handlers) }")
+		generated.P("}")
+		return
+	}
+	generated.P("/**")
+	generated.P(" * Serves ", model.ProtoPath, " over stateless Streamable HTTP as its declared OAuth")
+	generated.P(" * protected resource, building a fresh server per request. When verifier is null")
+	generated.P(" * the built-in RS256 JWKS verifier is used.")
+	generated.P(" */")
+	generated.P("fun Application.install", fileName, "MCPHttp(handlers: ", fileName, "MCPHandlers, verifier: TokenVerifier? = null) {")
+	generated.P("    val oauth = OAuthResourceServer(")
+	generated.P("        ", quote(oauth.GetResourceUrl()), ",")
+	generated.P("        ", kotlinStringListLiteral(oauth.GetAuthorizationServers()), ",")
+	generated.P("        ", kotlinStringListLiteral(oauth.GetScopes()), ",")
+	generated.P("        ", quote(oauth.GetIssuer()), ",")
+	generated.P("        ", quote(oauth.GetAudience()), ",")
+	generated.P("        ", quote(oauth.GetJwksUri()), ",")
+	generated.P("        ", quote(oauth.GetMcpPath()), ",")
+	generated.P("    )")
+	generated.P("    installMcpHttp(oauth, verifier) { new", fileName, "MCPServer(handlers) }")
+	generated.P("}")
+}
+
+func kotlinStringListLiteral(values []string) string {
+	if len(values) == 0 {
+		return "emptyList()"
+	}
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, quote(value))
+	}
+	return "listOf(" + strings.Join(quoted, ", ") + ")"
 }
 
 func renderKotlinResources(generated *protogen.GeneratedFile, model JVMFileModel, resourceTypes map[string]string) error {

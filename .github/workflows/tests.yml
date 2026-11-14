@@ -119,6 +119,7 @@ jobs:
           go test ./internal/examplemcp -run 'TestJava.*OverStdio' -count=1
           go test ./internal/examplemcp -run 'TestJavaHTTPOAuthContract' -count=1
           go test ./internal/examplemcp -run 'TestKotlin.*OverStdio' -count=1
+          go test ./internal/examplemcp -run 'TestKotlinHTTPOAuthContract' -count=1
 
       - name: Build and run JVM examples
         run: go test ./examples -run 'TestStandalone(Java|Kotlin)ExampleOverStdio' -count=1 -v
