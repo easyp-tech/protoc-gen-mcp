@@ -28,6 +28,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -346,4 +347,40 @@ fun resourceReadResult(
         }
     }
     return io.modelcontextprotocol.kotlin.sdk.types.ReadResourceResult(contents = listOf(contents))
+}
+
+/** MCP Apps extension identifier, as in mcpruntime.AppExtensionID. */
+const val APP_EXTENSION_ID: String = "io.modelcontextprotocol/ui"
+
+/** MCP Apps HTML MIME type, as in mcpruntime.AppHTMLMIMEType. */
+const val APP_HTML_MIME_TYPE: String = "text/html;profile=mcp-app"
+
+/**
+ * Mirrors mcpruntime.NewConfiguredServer for generated server factories. The
+ * Kotlin SDK fixes capabilities when a Server is built, so tools, prompts and
+ * resources are always declared and other generated files can register on the
+ * same server. It models capabilities without `extensions`, so MCP Apps is
+ * advertised under `experimental`.
+ */
+fun newConfiguredServer(name: String, version: String, apps: Boolean): Server {
+    require(name.isNotEmpty()) { "mcpruntime: configured server needs a name" }
+    val experimental = if (apps) {
+        buildJsonObject {
+            put(APP_EXTENSION_ID, buildJsonObject {
+                put("mimeTypes", kotlinx.serialization.json.JsonArray(listOf(kotlinx.serialization.json.JsonPrimitive(APP_HTML_MIME_TYPE))))
+            })
+        }
+    } else {
+        null
+    }
+    val capabilities = io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities(
+        tools = io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities.Tools(listChanged = false),
+        resources = io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities.Resources(listChanged = false, subscribe = false),
+        prompts = io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities.Prompts(listChanged = false),
+        experimental = experimental,
+    )
+    return Server(
+        io.modelcontextprotocol.kotlin.sdk.types.Implementation(name = name, version = version.ifEmpty { "v0.0.1" }),
+        io.modelcontextprotocol.kotlin.sdk.server.ServerOptions(capabilities),
+    )
 }

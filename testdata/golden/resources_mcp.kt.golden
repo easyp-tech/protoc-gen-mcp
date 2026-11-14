@@ -38,6 +38,7 @@ import tech.easyp.mcp.runtime.kotlin.RegisteredTool
 import tech.easyp.mcp.runtime.kotlin.checkGencodeVersion
 import tech.easyp.mcp.runtime.kotlin.iconThemeOrError
 import tech.easyp.mcp.runtime.kotlin.installMcpHandlers
+import tech.easyp.mcp.runtime.kotlin.newConfiguredServer
 import tech.easyp.mcp.runtime.kotlin.normalizeNamespace
 import tech.easyp.mcp.runtime.kotlin.promptName
 import tech.easyp.mcp.runtime.kotlin.registerProtoFiles
@@ -160,3 +161,19 @@ suspend fun registerResourcesResources(server: Server, impl: ResourcesResourceHa
     )
 }
 
+
+/** Business handlers for every MCP primitive in internal/testproto/resources/v1/resources.proto. */
+data class ResourcesMCPHandlers(
+    val resources: ResourcesResourceHandler,
+)
+
+/** Builds the server declared by internal/testproto/resources/v1/resources.proto and registers its primitives. */
+suspend fun newResourcesMCPServer(handlers: ResourcesMCPHandlers): Server {
+    val server = newConfiguredServer(
+        name = "resource-fixture-server",
+        version = "v1.0.0",
+        apps = true,
+    )
+    registerResourcesResources(server, handlers.resources)
+    return server
+}

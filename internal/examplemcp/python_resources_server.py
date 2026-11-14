@@ -91,8 +91,7 @@ class PromptsHandler:
 
 
 def new_server() -> mcp.server.lowlevel.Server:
-    server = mcp.server.lowlevel.Server("protoc-gen-mcp-python-resources-server", version="v0.0.1")
-    resources_mcp.register_resources_resources(server, ResourcesHandler())
+    server = resources_mcp.create_resources_mcp_server(resources_mcp.ResourcesMCPHandlers(resources=ResourcesHandler()))
     prompts_mcp.register_prompts_prompts(server, PromptsHandler())
     return server
 

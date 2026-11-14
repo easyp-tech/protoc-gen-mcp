@@ -21,7 +21,8 @@ final class ResourcesJavaServer {
   static void run() {
     StdioServerTransportProvider transportProvider =
         new StdioServerTransportProvider(McpJsonDefaults.getMapper());
-    ResourcesMcp.registerResourcesResources(transportProvider, new ResourcesHandler(), null);
+    ResourcesMcp.installResourcesMCPServer(
+        transportProvider, new ResourcesMcp.ResourcesMCPHandlers(new ResourcesHandler()));
     PromptsMcp.registerPromptsPrompts(transportProvider, new PromptsHandler(), null);
   }
 

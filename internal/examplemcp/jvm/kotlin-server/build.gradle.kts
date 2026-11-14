@@ -71,6 +71,7 @@ protobuf {
     generateProtoTasks {
         ofSourceSet("main").configureEach {
             dependsOn(rootProject.tasks.named("buildProtocGenMcp"))
+            inputs.file(protocGenMcpBinary)
             dependsOn(stageProtoSources)
             builtins {
                 id("kotlin") {}

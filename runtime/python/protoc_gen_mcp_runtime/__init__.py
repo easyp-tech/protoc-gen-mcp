@@ -16,6 +16,7 @@ from ._resources import (
     read_resource_contents,
     resource_listing,
 )
+from ._server import APP_EXTENSION_ID, APP_HTML_MIME_TYPE, ConfiguredServer, new_configured_server
 from ._tools import (
     RegisteredTool,
     ToolRegistry,
@@ -31,6 +32,10 @@ from ._util import identity, maybe_await, message_to_json
 from ._version import GENCODE_VERSION, __version__, check_gencode_version
 
 __all__ = [
+    "APP_EXTENSION_ID",
+    "APP_HTML_MIME_TYPE",
+    "ConfiguredServer",
+    "new_configured_server",
     "GENCODE_VERSION",
     "PromptRegistry",
     "RegisteredPrompt",

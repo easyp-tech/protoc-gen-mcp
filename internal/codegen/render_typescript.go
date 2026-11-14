@@ -44,7 +44,45 @@ func renderTypeScriptFile(plugin *protogen.Plugin, model TypeScriptFileModel) er
 		}
 		generated.P()
 	}
+
+	if model.Factory.Emit {
+		renderTypeScriptServerFactory(generated, model)
+		generated.P()
+	}
 	return nil
+}
+
+// renderTypeScriptServerFactory mirrors render_go_server.go. Stateless HTTP
+// needs a fresh Server per request, so the factory is the natural entry point.
+func renderTypeScriptServerFactory(generated *protogen.GeneratedFile, model TypeScriptFileModel) {
+	fileName := typescriptExportedIdentifier(typescriptFileBaseName(model.ProtoPath))
+	generated.P("/** Business handlers for every MCP primitive in ", model.ProtoPath, ". */")
+	generated.P("export type ", fileName, "MCPHandlers = {")
+	for _, service := range model.Services {
+		generated.P("  ", typescriptMethodName(service.ProtoName), ": ", service.HandlerName, ";")
+	}
+	if len(model.Prompts) > 0 {
+		generated.P("  prompts: ", fileName, "PromptHandler;")
+	}
+	if len(model.Resources) > 0 {
+		generated.P("  resources: ", fileName, "ResourceHandler;")
+	}
+	generated.P("};")
+	generated.P()
+	generated.P("/** Builds the server declared by ", model.ProtoPath, " and registers its primitives. */")
+	generated.P("export function create", fileName, "MCPServer(handlers: ", fileName, "MCPHandlers): Server {")
+	generated.P("  const server = protocGenMcp.newConfiguredServer(", typescriptStringLiteral(model.Factory.Name), ", ", typescriptStringLiteral(model.Factory.Version), ", ", typescriptBoolLiteral(model.Factory.Apps), ");")
+	for _, service := range model.Services {
+		generated.P("  ", service.RegisterName, "(server, handlers.", typescriptMethodName(service.ProtoName), ");")
+	}
+	if len(model.Prompts) > 0 {
+		generated.P("  register", fileName, "Prompts(server, handlers.prompts);")
+	}
+	if len(model.Resources) > 0 {
+		generated.P("  register", fileName, "Resources(server, handlers.resources);")
+	}
+	generated.P("  return server;")
+	generated.P("}")
 }
 
 // typescriptGencodeVersion must match GENCODE_VERSION in

@@ -368,3 +368,16 @@ def register_resources_resources(
         reader=lambda uri, params: protoc_gen_mcp_runtime.read_resource_contents(impl.read_app_page(), uri, mime_type="text/html;profile=mcp-app", kind="raw", content_field=None, to_pb=protoc_gen_mcp_runtime.identity, meta=json.loads("{\"ui\":{\"csp\":{\"connectDomains\":[\"https://api.example.com\"],\"resourceDomains\":[\"https://cdn.example.com\"]},\"permissions\":{\"clipboardWrite\":{}},\"prefersBorder\":true}}")),
     ))
 
+
+
+@dataclass
+class ResourcesMCPHandlers:
+    """Business handlers for every MCP primitive in internal/testproto/resources/v1/resources.proto."""
+    resources: ResourcesResourceHandler
+
+
+def create_resources_mcp_server(handlers: ResourcesMCPHandlers) -> protoc_gen_mcp_runtime.ConfiguredServer:
+    """Builds the server declared by internal/testproto/resources/v1/resources.proto and registers its primitives."""
+    server = protoc_gen_mcp_runtime.new_configured_server("resource-fixture-server", "v1.0.0", apps=True)
+    register_resources_resources(server, handlers.resources)
+    return server

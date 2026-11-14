@@ -14,6 +14,7 @@ type FileModel struct {
 	Services                []ServiceModel
 	Prompts                 []PromptModel
 	Resources               []ResourceModel
+	Factory                 ServerFactoryModel
 }
 
 type ServiceModel struct {

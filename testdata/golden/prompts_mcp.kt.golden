@@ -38,6 +38,7 @@ import tech.easyp.mcp.runtime.kotlin.RegisteredTool
 import tech.easyp.mcp.runtime.kotlin.checkGencodeVersion
 import tech.easyp.mcp.runtime.kotlin.iconThemeOrError
 import tech.easyp.mcp.runtime.kotlin.installMcpHandlers
+import tech.easyp.mcp.runtime.kotlin.newConfiguredServer
 import tech.easyp.mcp.runtime.kotlin.normalizeNamespace
 import tech.easyp.mcp.runtime.kotlin.promptName
 import tech.easyp.mcp.runtime.kotlin.registerProtoFiles

@@ -1765,6 +1765,7 @@ func writeJavaSDKStubs(t *testing.T, root string) {
 			"    public RegisteredResourceTemplate(Map<String, Object> listing, Pattern pattern, List<String> names, ResourceLister lister, ResourceReader reader) {}",
 			"  }",
 			"  public static final class ServerToolRegistry {",
+			"    public void configureServer(String name, String version, boolean apps) {}",
 			"    public void registerTool(RegisteredTool tool) {}",
 			"    public void registerPrompt(RegisteredPrompt prompt) {}",
 			"    public void registerResource(RegisteredResource resource) {}",

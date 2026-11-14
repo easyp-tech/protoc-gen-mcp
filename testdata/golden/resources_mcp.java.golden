@@ -118,4 +118,15 @@ public final class ResourcesMcp {
         (uri, params) -> resourceContents(impl.readAppPage(), uri, "text/html;profile=mcp-app", "raw", null, loadSchema("{\"ui\":{\"csp\":{\"connectDomains\":[\"https://api.example.com\"],\"resourceDomains\":[\"https://cdn.example.com\"]},\"permissions\":{\"clipboardWrite\":{}},\"prefersBorder\":true}}"))));
     installSessionFactory(transportProvider, registry);
   }
+
+  /** Business handlers for every MCP primitive in internal/testproto/resources/v1/resources.proto. */
+  public record ResourcesMCPHandlers(ResourcesResourceHandler resources) {
+  }
+
+  /** Configures the server declared by internal/testproto/resources/v1/resources.proto on transportProvider and registers its primitives. */
+  public static void installResourcesMCPServer(McpServerTransportProvider transportProvider, ResourcesMCPHandlers handlers) {
+    registryFor(transportProvider).configureServer("resource-fixture-server", "v1.0.0", Boolean.TRUE);
+    registerResourcesResources(transportProvider, handlers.resources(), null);
+    installSessionFactory(transportProvider, registryFor(transportProvider));
+  }
 }

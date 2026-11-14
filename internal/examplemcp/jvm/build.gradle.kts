@@ -15,6 +15,8 @@ tasks.register<Exec>("buildProtocGenMcp") {
     group = "build"
     description = "Build the local protoc-gen-mcp binary used by JVM compile gates."
     outputs.file(protocGenMcpBinary)
+    // go build is incremental; always run it so generation never uses a stale plugin.
+    outputs.upToDateWhen { false }
     doFirst {
         protocGenMcpBinary.get().asFile.parentFile.mkdirs()
     }

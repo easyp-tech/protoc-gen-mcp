@@ -214,6 +214,30 @@ public final class McpRuntime {
     private final LinkedHashMap<String, RegisteredResource> resourcesByUri = new LinkedHashMap<>();
     private final List<RegisteredResourceTemplate> resourceTemplates = new ArrayList<>();
     private boolean sessionFactoryInstalled;
+    private String serverName = "protoc-gen-mcp";
+    private String serverVersion = "dev";
+    private boolean apps;
+
+    /**
+     * Applies the proto-declared server identity and MCP Apps flag; generated
+     * server factories call it before registering anything.
+     */
+    public synchronized void configureServer(String name, String version, boolean apps) {
+      if (name == null || name.isEmpty()) {
+        throw new IllegalArgumentException("mcpruntime: configured server needs a name");
+      }
+      this.serverName = name;
+      this.serverVersion = version == null || version.isEmpty() ? "v0.0.1" : version;
+      this.apps = apps;
+    }
+
+    private synchronized McpSchema.Implementation implementation() {
+      return new McpSchema.Implementation(this.serverName, this.serverName, this.serverVersion);
+    }
+
+    private synchronized boolean appsEnabled() {
+      return this.apps;
+    }
 
     public synchronized void registerTool(RegisteredTool tool) {
       if (this.toolsByName.containsKey(tool.name)) {
@@ -350,7 +374,7 @@ public final class McpRuntime {
             UUID.randomUUID().toString(),
             DEFAULT_REQUEST_TIMEOUT,
             sessionTransport,
-            initializeHandler(transportProvider, sources),
+            initializeHandler(transportProvider, registry, sources),
             dispatchers,
             notificationHandlers()));
   }
@@ -369,8 +393,15 @@ public final class McpRuntime {
     return handlers;
   }
 
+  /** MCP Apps extension identifier, as in mcpruntime.AppExtensionID. */
+  public static final String APP_EXTENSION_ID = "io.modelcontextprotocol/ui";
+
+  /** MCP Apps HTML MIME type, as in mcpruntime.AppHTMLMIMEType. */
+  public static final String APP_HTML_MIME_TYPE = "text/html;profile=mcp-app";
+
   private static McpInitRequestHandler initializeHandler(
       McpServerTransportProvider transportProvider,
+      ServerToolRegistry registry,
       List<Supplier<Map<String, McpRequestHandler<?>>>> sources) {
     return request -> Mono.fromCallable(() -> {
       Set<String> methods = mergedRequestHandlers(sources).keySet();
@@ -384,10 +415,15 @@ public final class McpRuntime {
       if (methods.contains(McpSchema.METHOD_RESOURCES_LIST)) {
         capabilities.resources(false, false);
       }
+      if (registry.appsEnabled()) {
+        // The typed InitializeResult of SDK 1.1 has no capabilities.extensions,
+        // so stdio advertises MCP Apps under experimental.
+        capabilities.experimental(Map.of(APP_EXTENSION_ID, Map.of("mimeTypes", List.of(APP_HTML_MIME_TYPE))));
+      }
       return new McpSchema.InitializeResult(
           resolveProtocolVersion(transportProvider),
           capabilities.build(),
-          new McpSchema.Implementation("protoc-gen-mcp", "protoc-gen-mcp", "dev"),
+          registry.implementation(),
           null);
     });
   }
