@@ -49,7 +49,7 @@ jobs:
       - name: Install Swift
         uses: swift-actions/setup-swift@v2
         with:
-          swift-version: "6.1"
+          swift-version: "6.2"
 
       - name: Install easyp
         run: go install github.com/easyp-tech/easyp/cmd/easyp@v0.15.2-rc1

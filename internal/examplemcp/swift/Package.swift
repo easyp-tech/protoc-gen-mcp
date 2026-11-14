@@ -1,4 +1,4 @@
-// swift-tools-version:6.1
+// swift-tools-version:6.2
 // Fixture servers for the shared stdio and HTTP contracts, built from the
 // lang=swift sidecars of internal/testproto and the in-repo runtime.
 import PackageDescription
