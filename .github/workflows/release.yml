@@ -26,6 +26,18 @@ jobs:
             exit 1
           fi
 
+      - name: Check runtime versions match the tag
+        run: |
+          python_version="$(python3 -c 'import tomllib; print(tomllib.load(open("runtime/python/pyproject.toml", "rb"))["project"]["version"])')"
+          typescript_version="$(node -p 'require("./runtime/typescript/package.json").version')"
+          jvm_version="$(sed -n 's/^ *version = "\(.*\)"/\1/p' runtime/jvm/build.gradle.kts)"
+          for pair in "runtime/python:${python_version}" "runtime/typescript:${typescript_version}" "runtime/jvm:${jvm_version}"; do
+            if [[ "v${pair#*:}" != "${GITHUB_REF_NAME}" ]]; then
+              echo "${pair%%:*} version ${pair#*:} does not match tag ${GITHUB_REF_NAME}" >&2
+              exit 1
+            fi
+          done
+
       - name: Create release
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -34,9 +46,40 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  runtime-artifacts:
+    # Attaches the Python and npm runtime packages to the GitHub release, so
+    # they can be installed from the release before (or without) registries.
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Build runtime packages
+        run: |
+          python -m pip install --upgrade build
+          python -m build runtime/python --outdir dist
+          (cd runtime/typescript && npm ci && npm pack --pack-destination ../../dist)
+
+      - name: Upload to the release
+        run: gh release upload "${GITHUB_REF_NAME}" dist/* --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   python-runtime:
     # PyPI trusted publishing: the protoc-gen-mcp-runtime project must list
-    # this repository and workflow as a trusted publisher.
+    # this repository and workflow as a trusted publisher. Runs once the
+    # repository variable PUBLISH_PYPI is "true".
+    if: vars.PUBLISH_PYPI == 'true'
     needs: release
     runs-on: ubuntu-latest
     environment: pypi
@@ -67,7 +110,9 @@ jobs:
 
   typescript-runtime:
     # npm trusted publishing: @easyp-tech/protoc-gen-mcp-runtime must list this
-    # repository and workflow as a trusted publisher.
+    # repository and workflow as a trusted publisher. Runs once the repository
+    # variable PUBLISH_NPM is "true".
+    if: vars.PUBLISH_NPM == 'true'
     needs: release
     runs-on: ubuntu-latest
     environment: npm
@@ -100,7 +145,9 @@ jobs:
   jvm-runtime:
     # Maven Central (Central Portal) needs the tech.easyp namespace and these
     # secrets: MAVEN_CENTRAL_USERNAME, MAVEN_CENTRAL_PASSWORD (portal token),
-    # SIGNING_KEY (ASCII-armored private key) and SIGNING_KEY_PASSWORD.
+    # SIGNING_KEY (ASCII-armored private key) and SIGNING_KEY_PASSWORD. Runs
+    # once the repository variable PUBLISH_MAVEN_CENTRAL is "true".
+    if: vars.PUBLISH_MAVEN_CENTRAL == 'true'
     needs: release
     runs-on: ubuntu-latest
     environment: maven-central

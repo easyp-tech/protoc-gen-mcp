@@ -4,7 +4,7 @@ plugins {
 }
 
 dependencies {
-    implementation("tech.easyp:protoc-gen-mcp-runtime:0.8.0")
+    implementation("tech.easyp:protoc-gen-mcp-runtime:1.0.0")
     implementation("io.modelcontextprotocol.sdk:mcp:1.1.1")
     implementation("com.google.protobuf:protobuf-java:4.34.1")
     implementation("com.google.protobuf:protobuf-java-util:4.34.1")
