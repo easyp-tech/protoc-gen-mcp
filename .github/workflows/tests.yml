@@ -117,6 +117,7 @@ jobs:
       - name: Run JVM stdio tests
         run: |
           go test ./internal/examplemcp -run 'TestJava.*OverStdio' -count=1
+          go test ./internal/examplemcp -run 'TestJavaHTTPOAuthContract' -count=1
           go test ./internal/examplemcp -run 'TestKotlin.*OverStdio' -count=1
 
       - name: Build and run JVM examples

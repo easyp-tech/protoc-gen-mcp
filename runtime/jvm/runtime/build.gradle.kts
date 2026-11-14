@@ -7,13 +7,16 @@ plugins {
 }
 
 dependencies {
+    api(project(":protoc-gen-mcp-runtime-oauth"))
     api("io.modelcontextprotocol.sdk:mcp:1.1.1")
+    api("jakarta.servlet:jakarta.servlet-api:6.1.0")
     api("com.google.protobuf:protobuf-java:4.34.1")
     api("com.google.protobuf:protobuf-java-util:4.34.1")
 
     testImplementation(platform("org.junit:junit-bom:5.13.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("org.eclipse.jetty.ee10:jetty-ee10-servlet:12.1.12")
 }
 
 tasks.test {

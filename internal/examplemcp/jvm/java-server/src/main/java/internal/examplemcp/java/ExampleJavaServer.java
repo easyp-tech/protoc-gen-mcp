@@ -13,9 +13,13 @@ public final class ExampleJavaServer {
   private ExampleJavaServer() {
   }
 
-  public static void main(String[] args) {
+  public static void main(String[] args) throws Exception {
     if (args.length > 0 && "resources".equals(args[0])) {
       ResourcesJavaServer.run();
+      return;
+    }
+    if (args.length > 0 && "http".equals(args[0])) {
+      HttpJavaServer.run();
       return;
     }
     validateInvalidOutputMode();

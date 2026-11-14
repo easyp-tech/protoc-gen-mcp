@@ -16,6 +16,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "protoc-gen-mcp-runtime-jvm"
 
-include("protoc-gen-mcp-runtime", "protoc-gen-mcp-runtime-kotlin")
+include("protoc-gen-mcp-runtime-oauth", "protoc-gen-mcp-runtime", "protoc-gen-mcp-runtime-kotlin")
+project(":protoc-gen-mcp-runtime-oauth").projectDir = file("oauth")
 project(":protoc-gen-mcp-runtime").projectDir = file("runtime")
 project(":protoc-gen-mcp-runtime-kotlin").projectDir = file("runtime-kotlin")

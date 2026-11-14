@@ -114,6 +114,19 @@ func renderJavaFile(plugin *protogen.Plugin, model JVMFileModel) error {
 		"java.util.function.Supplier",
 		"reactor.core.publisher.Mono",
 	}
+	if model.Factory.HTTP {
+		javaImports = append(javaImports,
+			"jakarta.servlet.http.HttpServlet",
+			"tech.easyp.mcp.runtime.McpHttpServer",
+			"tech.easyp.mcp.runtime.McpHttpServlet",
+		)
+		if model.Factory.OAuth != nil {
+			javaImports = append(javaImports,
+				"tech.easyp.mcp.runtime.oauth.OAuthResourceServer",
+				"tech.easyp.mcp.runtime.oauth.TokenVerifier",
+			)
+		}
+	}
 	for importPath := range imports {
 		javaImports = append(javaImports, importPath)
 	}
@@ -197,10 +210,15 @@ func renderJavaFile(plugin *protogen.Plugin, model JVMFileModel) error {
 			generated.P("            ", javaAnnotations(method.Annotations), ",")
 			generated.P("            ", icons, ",")
 			generated.P("            ", javaTaskSupport(method.TaskSupport), ",")
-			if meta := toolMetaJSON(method.AppUI); meta != "" {
-				generated.P("            loadSchema(", quote(meta), "))")
+			meta := "null"
+			if metaJSON := toolMetaJSON(method.AppUI); metaJSON != "" {
+				meta = "loadSchema(" + quote(metaJSON) + ")"
+			}
+			if len(method.RequiredScopes) > 0 {
+				generated.P("            ", meta, ",")
+				generated.P("            ", javaStringListLiteral(method.RequiredScopes), ")")
 			} else {
-				generated.P("            null)")
+				generated.P("            ", meta, ")")
 			}
 			generated.P("    );")
 		}
@@ -362,6 +380,34 @@ func renderJavaServerFactory(generated *protogen.GeneratedFile, model JVMFileMod
 		generated.P("    register", fileName, "Resources(transportProvider, handlers.resources(), null);")
 	}
 	generated.P("    installSessionFactory(transportProvider, registryFor(transportProvider));")
+	generated.P("  }")
+	if !model.Factory.HTTP {
+		return
+	}
+	generated.P()
+	oauth := model.Factory.OAuth
+	if oauth == nil {
+		generated.P("  /** Serves server, filled by install", fileName, "MCPServer, over stateless Streamable HTTP on /mcp; mount it at \"/*\". */")
+		generated.P("  public static HttpServlet new", fileName, "MCPHttpServlet(McpHttpServer server) {")
+		generated.P("    return McpHttpServlet.open(server);")
+		generated.P("  }")
+		return
+	}
+	generated.P("  /**")
+	generated.P("   * Serves server, filled by install", fileName, "MCPServer, over stateless Streamable HTTP")
+	generated.P("   * as the OAuth protected resource declared by ", model.ProtoPath, "; mount it at \"/*\".")
+	generated.P("   * When verifier is null the built-in RS256 JWKS verifier is used.")
+	generated.P("   */")
+	generated.P("  public static HttpServlet new", fileName, "MCPHttpServlet(McpHttpServer server, TokenVerifier verifier) {")
+	generated.P("    OAuthResourceServer oauth = new OAuthResourceServer(")
+	generated.P("        ", quote(oauth.GetResourceUrl()), ",")
+	generated.P("        ", javaStringListLiteral(oauth.GetAuthorizationServers()), ",")
+	generated.P("        ", javaStringListLiteral(oauth.GetScopes()), ",")
+	generated.P("        ", quote(oauth.GetIssuer()), ",")
+	generated.P("        ", quote(oauth.GetAudience()), ",")
+	generated.P("        ", quote(oauth.GetJwksUri()), ",")
+	generated.P("        ", quote(oauth.GetMcpPath()), ");")
+	generated.P("    return McpHttpServlet.protect(server, oauth, verifier);")
 	generated.P("  }")
 }
 

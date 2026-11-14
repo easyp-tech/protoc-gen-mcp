@@ -49,6 +49,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Java serves `option (mcp.options.v1.server).oauth` through
+  `new<File>MCPHttpServlet(server, verifier)`: the SDK
+  `HttpServletStatelessServerTransport` behind a servlet that adds bearer
+  authentication, RFC 9728 metadata, per-tool `403 insufficient_scope`
+  step-up and MCP Apps under `capabilities.extensions`. The RS256 JWKS
+  verifier lives in the new `tech.easyp:protoc-gen-mcp-runtime-oauth`
+  artifact (nimbus-jose-jwt), shared by the JVM runtimes. Scoped tools are
+  also denied inside the call without a token, including on stdio.
 - TypeScript serves `option (mcp.options.v1.server).oauth` through
   `create<File>MCPHttpHandler`: SDK `requireBearerAuth`, RFC 9728 metadata,
   per-tool `403 insufficient_scope` step-up, an in-tool scope guard and an RS256

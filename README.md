@@ -29,7 +29,7 @@ handlers. JavaScript projects consume the compiled TypeScript output.
 | **Protobuf server factory** | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **MCP Apps UI / CSP** | ✅ | ✅ | ✅¹ | ✅¹ | ✅ |
 | **Markdown, HTML, binary resources** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **OAuth/JWKS and tool scopes** | ✅ | ✅ | ⛔ Rejected | ⛔ Rejected | ✅ |
+| **OAuth/JWKS and tool scopes** | ✅ | ✅ | ⛔ Rejected | ✅ | ✅ |
 
 Every target serves the same resources contract: ProtoJSON or raw text/blob
 bodies, percent-decoded template parameters, annotations, icons and the MCP
@@ -44,10 +44,11 @@ TypeScript `create<File>MCPServer(handlers)`, Kotlin
 `<ProtoFile>Mcp.install<File>MCPServer(transportProvider, handlers)`. ¹ The
 Kotlin SDK 0.11 and the stdio transport of the Java SDK 1.1 cannot express
 `capabilities.extensions`, so they advertise MCP Apps under
-`capabilities.experimental`; tools and resources carry `_meta.ui` everywhere.
+`capabilities.experimental`; Java over HTTP serves `capabilities.extensions`
+like Go. Tools and resources carry `_meta.ui` everywhere.
 "Rejected" means
 `option (mcp.options.v1.server).oauth` and per-tool `required_scopes` fail at
-generation outside Go instead of producing a tool that skips the check.
+generation for Kotlin instead of producing a tool that skips the check.
 
 Each target uses the official MCP SDK of its language: the Go MCP SDK,
 the Python `mcp` SDK with `google.protobuf`, `io.modelcontextprotocol.sdk:mcp`
@@ -172,7 +173,18 @@ Language notes:
   sidecars depend on `tech.easyp:protoc-gen-mcp-runtime` (Java) or
   `tech.easyp:protoc-gen-mcp-runtime-kotlin` (Kotlin), which hold the
   registries and dispatch; sidecars of several proto files share one registry
-  per transport or server.
+  per transport or server. With `option (mcp.options.v1.server)` a Java
+  sidecar also exports `new<File>MCPHttpServlet(server[, verifier])`: fill a
+  `tech.easyp.mcp.runtime.McpHttpServer` with `install<File>MCPServer` and
+  mount the returned servlet at `/*` in any Jakarta Servlet 6 container. MCP
+  is served by the SDK `HttpServletStatelessServerTransport`; with `oauth` the
+  servlet adds bearer authentication, RFC 9728 metadata and the per-tool
+  `required_scopes` step-up of the Go handler. `verifier` is a
+  `tech.easyp.mcp.runtime.oauth.TokenVerifier`; when it is null the built-in
+  RS256 JWKS verifier (nimbus-jose-jwt, from
+  `tech.easyp:protoc-gen-mcp-runtime-oauth`) is used. Handlers read the token
+  with `McpRuntime.currentAccessToken()`; the `McpAsyncServerExchange`
+  argument is null over stateless HTTP.
 - **TypeScript** (`lang=typescript`) expects Protobuf-ES `_pb.ts` files in the
   same tree, generated with `import_extension=js` for Node ESM and
   `moduleResolution: NodeNext`. **JavaScript** projects import the compiled
