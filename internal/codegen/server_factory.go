@@ -1,6 +1,10 @@
 package codegen
 
-import "path"
+import (
+	"path"
+
+	mcpoptionsv1 "github.com/easyp-tech/protoc-gen-mcp/mcp/options/v1"
+)
 
 // appsExtensionID and appsMIMEType mirror mcpruntime.AppExtensionID and
 // mcpruntime.AppHTMLMIMEType.
@@ -17,6 +21,10 @@ type ServerFactoryModel struct {
 	Name    string
 	Version string
 	Apps    bool
+	// HTTP is set when the file declares a server option; the generated HTTP
+	// handler serves it, protected by OAuth when OAuth is non-nil.
+	HTTP  bool
+	OAuth *mcpoptionsv1.OAuthConfig
 }
 
 func newServerFactoryModel(model FileModel) ServerFactoryModel {
@@ -28,6 +36,8 @@ func newServerFactoryModel(model FileModel) ServerFactoryModel {
 		Apps:    apps,
 	}
 	if model.ServerConfig != nil {
+		factory.HTTP = true
+		factory.OAuth = model.ServerConfig.GetOauth()
 		if model.ServerConfig.GetName() != "" {
 			factory.Name = model.ServerConfig.GetName()
 		}

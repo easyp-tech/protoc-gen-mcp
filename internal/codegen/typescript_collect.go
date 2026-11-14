@@ -103,6 +103,7 @@ func newTypeScriptMethodModel(serviceName string, method MethodModel, descriptor
 		Annotations:      method.Annotations,
 		Icons:            method.Icons,
 		AppUI:            method.AppUI,
+		RequiredScopes:   method.RequiredScopes,
 		TaskSupport:      method.TaskSupport,
 	}
 	if descriptorMethod != nil {

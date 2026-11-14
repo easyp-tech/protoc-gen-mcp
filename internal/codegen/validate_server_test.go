@@ -149,7 +149,7 @@ func TestTargetsWithoutOAuthRejectAuthorizationOptions(t *testing.T) {
 			`message CheckRequest { string label = 1; }`,
 			`message CheckResponse { bool allowed = 1; }`,
 		}, "\n")
-		for _, lang := range []Language{LanguageTypeScript, LanguageJava, LanguageKotlin} {
+		for _, lang := range []Language{LanguageJava, LanguageKotlin} {
 			t.Run(name+"/"+string(lang), func(t *testing.T) {
 				plugin := newTempProtogenPlugin(t, map[string]string{"secure/v1/secure.proto": source}, "secure/v1/secure.proto")
 				err := Generate(plugin, Options{Language: lang, PythonRuntime: PythonRuntimeGoogleProtobuf})
@@ -158,7 +158,7 @@ func TestTargetsWithoutOAuthRejectAuthorizationOptions(t *testing.T) {
 				}
 			})
 		}
-		for _, lang := range []Language{LanguageGo, LanguagePython} {
+		for _, lang := range []Language{LanguageGo, LanguagePython, LanguageTypeScript} {
 			t.Run(name+"/"+string(lang), func(t *testing.T) {
 				plugin := newTempProtogenPlugin(t, map[string]string{"secure/v1/secure.proto": source}, "secure/v1/secure.proto")
 				if err := Generate(plugin, Options{Language: lang, PythonRuntime: PythonRuntimeGoogleProtobuf}); err != nil {

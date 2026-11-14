@@ -79,3 +79,12 @@ export function createResourcesMCPServer(handlers: ResourcesMCPHandlers): Server
   return server;
 }
 
+/**
+ * Serves internal/testproto/resources/v1/resources.proto over stateless Streamable HTTP with its declared policy.
+ * A fresh server is built per request; with OAuth, verifier defaults to the
+ * built-in RS256 JWKS verifier.
+ */
+export function createResourcesMCPHttpHandler(handlers: ResourcesMCPHandlers, verifier?: protocGenMcp.TokenVerifier): protocGenMcp.HttpHandler {
+  return protocGenMcp.newHttpHandler(() => createResourcesMCPServer(handlers));
+}
+

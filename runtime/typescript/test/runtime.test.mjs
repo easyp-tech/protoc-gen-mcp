@@ -57,3 +57,13 @@ test("configured servers carry the proto identity and the Apps extension", async
   });
   assert.throws(() => newConfiguredServer("", "v1", false), /needs a name/);
 });
+
+test("scoped tools need a token with every required scope", async () => {
+  const { dispatchToolCall } = await import("../dist/index.js");
+  const tool = { name: "secure", icons: [], requiredScopes: ["reports:write"] };
+  const request = { params: { name: "secure", arguments: {} } };
+  const denied = await dispatchToolCall([tool], request, {});
+  assert.equal(denied.content[0].text, "permission denied: an authenticated token is required");
+  const missing = await dispatchToolCall([tool], request, { authInfo: { scopes: ["reports:read"] } });
+  assert.equal(missing.content[0].text, 'permission denied: missing required scope "reports:write"');
+});
