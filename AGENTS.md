@@ -3,7 +3,7 @@
 ## Scope
 
 This repository implements a protobuf-first MCP generator and runtime for Go,
-Python, Kotlin, Java, and TypeScript MCP server bindings. The MVP is
+Python, Kotlin, Java, TypeScript and Swift MCP server bindings. The MVP is
 intentionally narrow and must stay decision-consistent with the current
 architecture unless explicitly revised.
 
@@ -34,6 +34,9 @@ architecture unless explicitly revised.
 - `@bufbuild/protobuf@2.12.0` as the Protobuf-ES runtime and generated `_pb.ts`
   target for TypeScript bindings
 - `ajv@8.20.0` for the Node raw JSON Schema validation path
+- `modelcontextprotocol/swift-sdk` 0.12.x as the official Swift MCP SDK target,
+  `apple/swift-protobuf` 1.39+ (`protoc-gen-swift`), `vapor/jwt-kit` 5.x for the
+  JWKS verifier and Hummingbird 2 for the Swift fixture and example HTTP servers
 - `github.com/google/jsonschema-go/jsonschema` for JSON Schema parsing and
   validation
 - `github.com/bufbuild/protocompile` for in-process descriptor compilation in
@@ -71,6 +74,17 @@ architecture unless explicitly revised.
   harness and examples 6 and 7 use it through `includeBuild`; contract tests
   read its sources through `withJVMRuntimeSource`. `GENCODE_VERSION` moves with
   `jvmGencodeVersion` in the renderer
+- `Package.swift` (repository root) and `runtime/swift`: the Swift runtime as a
+  SwiftPM package resolved by git tag. `ProtocGenMCPRuntime` holds registries,
+  dispatch, the JSON Schema subset validator, ProtoJSON default completion and
+  `AppsCapabilityTransport`; `ProtocGenMCPHTTP` holds `MCPHTTPHandler`,
+  `OAuthResourceServer`, the strict scope-gate JSON reader and
+  `JWKSTokenVerifier`. XCTest runs through `go test ./runtime/swift`.
+  `GENCODE_VERSION` in `Version.swift` moves with `swiftGencodeVersion`
+- `internal/examplemcp/swift`: SwiftPM fixture server (stdio tools, resources
+  and prompts, HTTP on Hummingbird) built from the committed output of
+  `easyp.test.swift.yaml`; `internal/examplemcp/swift_test.go` runs the shared
+  contracts against it and skips without `swift`
 - `internal/codegen/testdata/node`: pinned npm package (official TypeScript
   SDK, Protobuf-ES, Ajv) used by the TypeScript compile, runtime and stdio tests
 - `runtime/python`: the `protoc-gen-mcp-runtime` PyPI package (module
@@ -82,12 +96,12 @@ architecture unless explicitly revised.
 - `internal/pythontest`: hermetic Python virtualenv bootstrap for Go tests that
   execute generated Python code
 - `internal/stdiotest`: stdio JSON-RPC client and the resources/prompts
-  contract run against the Go, Python, TypeScript, Java and Kotlin servers
+  contract run against the Go, Python, TypeScript, Java, Kotlin and Swift servers
 - `internal/devtools/protobufesnormalize`: normalizer that keeps checked-in
   Protobuf-ES descriptors in `examples/8_typescript_standalone` deterministic
 - `examples`: one runnable project per language — `1_helloworld` and
   `11_protobuf_first_mcp` (Go), `5_python_standalone`, `6_java_standalone`,
-  `7_kotlin_standalone`, `8_typescript_standalone`; `examples/easyp.yaml` and
+  `7_kotlin_standalone`, `8_typescript_standalone`, `9_swift_standalone`; `examples/easyp.yaml` and
   `easyp.lock` resolve `mcp/options/v1` from GitHub, not the local root
 - `easyp.yaml` (shipped options), `easyp.test.yaml` (Go output for test
   fixtures), `easyp.test.python.yaml` (Python output for every fixture except
@@ -178,6 +192,12 @@ architecture unless explicitly revised.
 - Generated TypeScript files expose `<Service>ToolHandler`
 - Generated TypeScript files expose
   `register<Service>Tools(server, impl, namespace?)`
+- Generated Swift files (`<file>.mcp.swift`) expose `<Service>ToolHandler`
+  protocols and `register<Service>Tools(_ server:, _ impl:, namespace:) async throws`;
+  type names follow swift-protobuf NamingUtils (`swift_names.go`), labels use its
+  abbreviation casing (`userID`), and `<file>AnyTypes` registers the file's
+  messages for `google.protobuf.Any`. swift-protobuf cannot emit defaults, so
+  `<file>ProtoJSONShapes` tables complete ProtoJSON like `EmitDefaultValues`
 - Runtime exposes only the minimal registration options used by generated code
 - Go protobuf file option `(mcp.options.v1.server)` generates a typed
   `New<File>MCPServer` constructor and optional configured
@@ -283,6 +303,11 @@ architecture unless explicitly revised.
   `cd runtime/typescript && npm ci && npm run build`, then
   `cd internal/codegen/testdata/node && npm ci && npm run typecheck`
 - Build and test the JVM runtime: `gradle --no-daemon -p runtime/jvm build`
+- Build `protoc-gen-swift`: `swift package resolve && swift build -c release --product protoc-gen-swift --package-path .build/checkouts/swift-protobuf`,
+  then regenerate Swift fixtures with it on `PATH`:
+  `easyp --cfg easyp.test.swift.yaml generate -p internal/testproto -r .`
+- Test the Swift runtime: `swift test`; Swift contracts:
+  `go test ./internal/examplemcp -run TestSwift -count=1`
 - Build and install the JVM test servers:
   `gradle --no-daemon -p internal/examplemcp/jvm :java-server:installDist :kotlin-server:installDist`
 - Run tests: `go test ./...` (TypeScript tests need the harness installed;
