@@ -71,3 +71,11 @@ func TestPythonHTTPOAuthContract(t *testing.T) {
 	cmd.Env = pythontest.Env(t, "PYTHONPATH="+root, "PYTHONUNBUFFERED=1")
 	httpcontract.Run(t, cmd)
 }
+
+func TestJavaHTTPOAuthContract(t *testing.T) {
+	root := repoRoot(t)
+	ensureJVMExamplesInstalled(t, root)
+	cmd := installedJVMServerCommand(root, "java-server")
+	cmd.Args = append(cmd.Args, "http")
+	httpcontract.Run(t, cmd)
+}

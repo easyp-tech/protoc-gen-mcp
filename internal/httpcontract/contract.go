@@ -83,6 +83,29 @@ func Run(t *testing.T, cmd *exec.Cmd) {
 		}
 	})
 
+	t.Run("initialize", func(t *testing.T) {
+		result := call(t, client, base, ReaderToken, rpc(0, "initialize", map[string]any{
+			"protocolVersion": "2025-06-18",
+			"capabilities":    map[string]any{},
+			"clientInfo":      map[string]any{"name": "httpcontract", "version": "v0.0.0"},
+		}))
+		var initialize struct {
+			ProtocolVersion string `json:"protocolVersion"`
+			Capabilities    struct {
+				Tools *struct{} `json:"tools"`
+			} `json:"capabilities"`
+			ServerInfo struct {
+				Name    string `json:"name"`
+				Version string `json:"version"`
+			} `json:"serverInfo"`
+		}
+		decode(t, result, &initialize)
+		if initialize.ProtocolVersion != "2025-06-18" || initialize.Capabilities.Tools == nil ||
+			initialize.ServerInfo.Name != "secure-example" || initialize.ServerInfo.Version != "v2.0.0" {
+			t.Fatalf("initialize = %s", result)
+		}
+	})
+
 	t.Run("tools and scope step-up", func(t *testing.T) {
 		list := call(t, client, base, ReaderToken, rpc(1, "tools/list", map[string]any{}))
 		var tools struct {

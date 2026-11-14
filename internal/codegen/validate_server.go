@@ -122,7 +122,7 @@ func modelNeedsApps(model FileModel) bool {
 // implements, so other targets never silently serve a protected tool.
 func validateGoOnlyOptions(model FileModel) error {
 	lang := model.Options.Language
-	if lang == LanguageGo || lang == LanguagePython || lang == LanguageTypeScript {
+	if lang == LanguageGo || lang == LanguagePython || lang == LanguageTypeScript || lang == LanguageJava {
 		return nil
 	}
 	if oauth := model.ServerConfig.GetOauth(); oauth != nil {

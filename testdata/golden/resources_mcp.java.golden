@@ -19,6 +19,7 @@ import io.modelcontextprotocol.spec.McpSchema;
 import io.modelcontextprotocol.spec.McpServerSession;
 import io.modelcontextprotocol.spec.McpServerTransport;
 import io.modelcontextprotocol.spec.McpServerTransportProvider;
+import jakarta.servlet.http.HttpServlet;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -33,6 +34,8 @@ import java.util.UUID;
 import java.util.WeakHashMap;
 import java.util.function.Supplier;
 import reactor.core.publisher.Mono;
+import tech.easyp.mcp.runtime.McpHttpServer;
+import tech.easyp.mcp.runtime.McpHttpServlet;
 import tech.easyp.mcp.runtime.McpRuntime.RegisteredPrompt;
 import tech.easyp.mcp.runtime.McpRuntime.RegisteredResource;
 import tech.easyp.mcp.runtime.McpRuntime.RegisteredResourceTemplate;
@@ -128,5 +131,10 @@ public final class ResourcesMcp {
     registryFor(transportProvider).configureServer("resource-fixture-server", "v1.0.0", Boolean.TRUE);
     registerResourcesResources(transportProvider, handlers.resources(), null);
     installSessionFactory(transportProvider, registryFor(transportProvider));
+  }
+
+  /** Serves server, filled by installResourcesMCPServer, over stateless Streamable HTTP on /mcp; mount it at "/*". */
+  public static HttpServlet newResourcesMCPHttpServlet(McpHttpServer server) {
+    return McpHttpServlet.open(server);
   }
 }
