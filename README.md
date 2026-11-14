@@ -10,9 +10,7 @@
 </p>
 
 
-`protoc-gen-mcp` generates Go, Python, Kotlin, Java, and TypeScript MCP
-
-`protoc-gen-mcp` generates Go, Python, Kotlin, Java, and TypeScript MCP
+`protoc-gen-mcp` generates Go, Python, Kotlin, Java, TypeScript and Swift MCP
 bindings from protobuf definitions — covering **tools**, **prompts**, and
 **resources**. Protobuf is the source of truth: RPCs become tools, annotated
 messages become prompts and resources, and the generated code validates
@@ -21,15 +19,15 @@ handlers. JavaScript projects consume the compiled TypeScript output.
 
 ## Supported MCP Primitives
 
-| Primitive | Go | Python | Kotlin | Java | TypeScript |
-|-----------|:--:|:------:|:------:|:----:|:----------:|
-| **Tools** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
-| **Prompts** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
-| **Resources** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
-| **Protobuf server factory** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **MCP Apps UI / CSP** | ✅ | ✅ | ✅¹ | ✅¹ | ✅ |
-| **Markdown, HTML, binary resources** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **OAuth/JWKS and tool scopes** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Primitive | Go | Python | Kotlin | Java | TypeScript | Swift |
+|-----------|:--:|:------:|:------:|:----:|:----------:|:-----:|
+| **Tools** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
+| **Prompts** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
+| **Resources** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
+| **Protobuf server factory** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **MCP Apps UI / CSP** | ✅ | ✅ | ✅¹ | ✅¹ | ✅ | ✅ |
+| **Markdown, HTML, binary resources** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **OAuth/JWKS and tool scopes** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 Every target serves the same resources contract: ProtoJSON or raw text/blob
 bodies, percent-decoded template parameters, annotations, icons and the MCP
@@ -39,7 +37,8 @@ body.
 
 Every target generates a file-scoped server factory from
 `option (mcp.options.v1.server)`: Python `create_<file>_mcp_server(handlers)`,
-TypeScript `create<File>MCPServer(handlers)`, Kotlin
+TypeScript `create<File>MCPServer(handlers)`, Swift
+`new<File>MCPServer(handlers) async throws`, Kotlin
 `suspend new<File>MCPServer(handlers)` and Java
 `<ProtoFile>Mcp.install<File>MCPServer(transportProvider, handlers)`. ¹ The
 Kotlin SDK 0.11 and the stdio transport of the Java SDK 1.1 cannot express
@@ -53,7 +52,8 @@ step-up, checked by one shared contract.
 Each target uses the official MCP SDK of its language: the Go MCP SDK,
 the Python `mcp` SDK with `google.protobuf`, `io.modelcontextprotocol.sdk:mcp`
 for Java, `io.modelcontextprotocol:kotlin-sdk-server` for Kotlin, and
-`@modelcontextprotocol/sdk` with Protobuf-ES and Ajv for TypeScript.
+`@modelcontextprotocol/sdk` with Protobuf-ES and Ajv for TypeScript, and
+`modelcontextprotocol/swift-sdk` with swift-protobuf for Swift.
 
 ## Quickstart: run the full Go showcase
 
@@ -214,6 +214,25 @@ pip install https://github.com/easyp-tech/protoc-gen-mcp/releases/download/v1.0.
 npm install https://github.com/easyp-tech/protoc-gen-mcp/releases/download/v1.0.0/easyp-tech-protoc-gen-mcp-runtime-1.0.0.tgz
 ```
 
+- **Swift** (`lang=swift`) writes `<file>.mcp.swift` next to the
+  `<file>.pb.swift` of `protoc-gen-swift` (swift-protobuf 1.39+), in the same
+  module. The runtime ships from this repository as a Swift package, resolved
+  by tag like the Go module, so no registry is involved:
+  `.package(url: "https://github.com/easyp-tech/protoc-gen-mcp.git", from: "1.1.0")`
+  with the products `ProtocGenMCPRuntime` and, for files with a server option,
+  `ProtocGenMCPHTTP`. Handlers are `Sendable` protocols with `async throws`
+  methods that receive a `ToolContext` carrying the bearer token. Start a
+  server with `serve(server, transport:)`, which advertises MCP Apps under
+  `capabilities.extensions` through a transport wrapper because the SDK's typed
+  capabilities cannot express it. `new<File>MCPHTTPHandler(handlers, verifier:)`
+  returns a framework-neutral `MCPHTTPHandler` (SDK `HTTPRequest` in,
+  `MCPHTTPResponse` out) to mount in Hummingbird, Vapor or SwiftNIO; it uses
+  the SDK `StatelessHTTPServerTransport` and, with `oauth`, the RS256 JWKS
+  verifier on jwt-kit. swift-protobuf cannot print default values, so
+  generated field tables complete ProtoJSON output like protojson
+  `EmitDefaultValues`. `TASK_SUPPORT_REQUIRED` is rejected as for Go.
+  See [examples/9_swift_standalone](examples/9_swift_standalone).
+
 JVM projects can build the runtime from a checkout of the release tag with
 `gradle -p runtime/jvm publishToMavenLocal` and add `mavenLocal()` to their
 repositories.
@@ -232,6 +251,7 @@ underscores, so namespace `weather.v1` and RPC `GetForecast` become
 | Kotlin | `<Service>ToolHandler` | `register<Service>Tools(server, impl, namespace: String? = null)` |
 | Java | `<ProtoFile>Mcp.<Service>ToolHandler` | `<ProtoFile>Mcp.register<Service>Tools(transportProvider, impl, namespace)` |
 | TypeScript | `<Service>ToolHandler` | `register<Service>Tools(server, impl, namespace?)` |
+| Swift | `<Service>ToolHandler` protocol | `register<Service>Tools(server, impl, namespace: String? = nil) async throws` |
 
 Prompts and resources are declared on messages, so their Go registration is
 file-scoped: `Register<File>Prompts(server, impl, opts...)` and
@@ -248,6 +268,7 @@ The other targets follow the same shape:
 | Kotlin | `register<File>Prompts(server, impl, namespace)` | `suspend fun register<File>Resources(server, impl, namespace)` |
 | Java | `<ProtoFile>Mcp.register<File>Prompts(transportProvider, impl, namespace)` | `<ProtoFile>Mcp.register<File>Resources(transportProvider, impl, namespace)` |
 | TypeScript | `register<File>Prompts(server, impl, namespace?)` | `register<File>Resources(server, impl, namespace?)` |
+| Swift | `register<File>Prompts(server, impl, namespace:) async throws` | `register<File>Resources(server, impl, namespace:) async throws` |
 
 Resource handlers return the generated message type of the target (a Python
 dataclass or `*_pb2` message, a Protobuf-ES message, a Java/Kotlin protobuf
@@ -441,8 +462,10 @@ go build ./cmd/protoc-gen-mcp
 go test ./...
 ```
 
-JVM tests need JDK 17+ and Gradle 9.2+ and skip otherwise. Fixtures and
-examples are regenerated with `easyp` (`easyp.test.yaml`, `easyp.showcase.yaml`,
+JVM tests need JDK 17+ and Gradle 9.2+ and Swift tests a Swift 6.1+
+toolchain; both skip otherwise. Fixtures and examples are regenerated with
+`easyp` (`easyp.test.yaml`, `easyp.test.swift.yaml` with `protoc-gen-swift` on
+`PATH`, `easyp.showcase.yaml`,
 `examples/Makefile`); [AGENTS.md](AGENTS.md) lists every command and the
 repository layout. Releases publish the `protoc-gen-mcp` binary through
 [GoReleaser](.goreleaser.yaml); downstream projects compile generated sources
