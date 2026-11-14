@@ -5,8 +5,8 @@ import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import type { GetPromptResult, Resource, ResourceTemplate } from "@modelcontextprotocol/sdk/types.js";
 import * as protocGenMcp from "@easyp-tech/protoc-gen-mcp-runtime";
 
-import type { CreateNoteRequest, CreateNoteResponse, HealthRequest, HealthResponse, Note, SearchNotesRequest, SearchNotesResponse } from "./notebook_pb.js";
-import { CreateNoteRequestSchema, CreateNoteResponseSchema, HealthRequestSchema, HealthResponseSchema, NoteSchema, SearchNotesRequestSchema, SearchNotesResponseSchema, file_proto_notebook } from "./notebook_pb.js";
+import type { CreateNoteRequest, CreateNoteResponse, DeleteNoteRequest, DeleteNoteResponse, HealthRequest, HealthResponse, Note, SearchNotesRequest, SearchNotesResponse } from "./notebook_pb.js";
+import { CreateNoteRequestSchema, CreateNoteResponseSchema, DeleteNoteRequestSchema, DeleteNoteResponseSchema, HealthRequestSchema, HealthResponseSchema, NoteSchema, SearchNotesRequestSchema, SearchNotesResponseSchema, file_proto_notebook } from "./notebook_pb.js";
 
 export type ToolRequestContext = protocGenMcp.ToolRequestContext;
 
@@ -21,6 +21,10 @@ export interface NotebookAPIToolHandler {
     ctx: ToolRequestContext,
     request: SearchNotesRequest,
   ): SearchNotesResponse | Promise<SearchNotesResponse>;
+  deleteNote(
+    ctx: ToolRequestContext,
+    request: DeleteNoteRequest,
+  ): DeleteNoteResponse | Promise<DeleteNoteResponse>;
   health(
     ctx: ToolRequestContext,
     request: HealthRequest,
@@ -32,6 +36,9 @@ export const NOTEBOOK_API_CREATE_NOTE_OUTPUT_SCHEMA_JSON = "{\"type\":\"object\"
 
 export const NOTEBOOK_API_SEARCH_NOTES_INPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"limit\":{\"type\":[\"integer\",\"null\"],\"description\":\"Maximum number of notes to return.\",\"examples\":[-1],\"minimum\":1,\"maximum\":50},\"query\":{\"type\":[\"string\",\"null\"],\"description\":\"Optional case-insensitive text query matched against title and body.\",\"examples\":[\"typescript\"],\"minLength\":1},\"tags\":{\"type\":[\"array\",\"null\"],\"items\":{\"type\":\"string\",\"description\":\"Optional tags; a note must have every requested tag.\",\"examples\":[\"example\"]},\"description\":\"Optional tags; a note must have every requested tag.\",\"examples\":[[\"mcp\"]],\"uniqueItems\":true}},\"examples\":[{\"limit\":-1,\"query\":\"example\",\"tags\":[\"example\"]}],\"additionalProperties\":false}";
 export const NOTEBOOK_API_SEARCH_NOTES_OUTPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"notes\":{\"type\":[\"array\",\"null\"],\"items\":{\"type\":\"object\",\"properties\":{\"body\":{\"type\":\"string\",\"description\":\"Note body in plain text.\",\"examples\":[\"Verify that generated TypeScript MCP bindings are pleasant to use.\"],\"minLength\":1,\"maxLength\":2000},\"createdAt\":{\"type\":\"string\",\"description\":\"Server-assigned creation timestamp.\",\"readOnly\":true,\"examples\":[\"2026-03-09T10:11:12Z\"],\"format\":\"date-time\"},\"dueDate\":{\"type\":[\"string\",\"null\"],\"description\":\"Optional due date in ISO 8601 date format.\",\"examples\":[\"2026-05-30\"],\"format\":\"date\"},\"id\":{\"type\":\"string\",\"description\":\"Server-assigned note identifier.\",\"readOnly\":true,\"examples\":[\"note-1\"]},\"tags\":{\"type\":[\"array\",\"null\"],\"items\":{\"type\":\"string\",\"description\":\"Optional tags used for filtering.\",\"examples\":[\"example\"]},\"description\":\"Optional tags used for filtering.\",\"examples\":[[\"typescript\",\"mcp\"]],\"uniqueItems\":true},\"title\":{\"type\":\"string\",\"description\":\"Short human-readable note title.\",\"examples\":[\"Ship TypeScript support\"],\"minLength\":1,\"maxLength\":80}},\"examples\":[{\"body\":\"example\",\"createdAt\":\"2026-03-09T10:11:12Z\",\"dueDate\":\"example\",\"id\":\"example\",\"tags\":[\"example\"],\"title\":\"example\"}],\"required\":[\"id\",\"title\",\"body\",\"createdAt\"],\"additionalProperties\":false},\"examples\":[[{\"body\":\"example\",\"createdAt\":\"2026-03-09T10:11:12Z\",\"dueDate\":\"example\",\"id\":\"example\",\"tags\":[\"example\"],\"title\":\"example\"}]]}},\"examples\":[{\"notes\":[{\"body\":\"example\",\"createdAt\":\"2026-03-09T10:11:12Z\",\"dueDate\":\"example\",\"id\":\"example\",\"tags\":[\"example\"],\"title\":\"example\"}]}],\"additionalProperties\":false}";
+
+export const NOTEBOOK_API_DELETE_NOTE_INPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\",\"description\":\"Identifier of the note to delete.\",\"examples\":[\"example\"],\"minLength\":1}},\"examples\":[{\"id\":\"example\"}],\"required\":[\"id\"],\"additionalProperties\":false}";
+export const NOTEBOOK_API_DELETE_NOTE_OUTPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"deleted\":{\"type\":\"boolean\",\"description\":\"Whether a note with this id existed and was deleted.\",\"examples\":[true]}},\"examples\":[{\"deleted\":true}],\"required\":[\"deleted\"],\"additionalProperties\":false}";
 
 export const NOTEBOOK_API_HEALTH_INPUT_SCHEMA_JSON = "{\"type\":\"object\",\"additionalProperties\":false}";
 export const NOTEBOOK_API_HEALTH_OUTPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"noteCount\":{\"type\":\"integer\",\"description\":\"Current number of notes in memory.\",\"readOnly\":true,\"examples\":[-1]},\"ok\":{\"type\":\"boolean\",\"examples\":[true]}},\"examples\":[{\"noteCount\":-1,\"ok\":true}],\"required\":[\"ok\",\"noteCount\"],\"additionalProperties\":false}";
@@ -81,6 +88,28 @@ export function registerNotebookAPITools(
       icons: [
       ],
       execution: undefined,
+    },
+    {
+      name: protocGenMcp.resolveToolName(namespace, "DeleteNote", "notebook"),
+      title: "Delete note",
+      description: "Delete a note. Needs the notebook:write scope, so it is denied without a token, for example over stdio.",
+      handler: impl.deleteNote.bind(impl),
+      inputSchemaJson: NOTEBOOK_API_DELETE_NOTE_INPUT_SCHEMA_JSON,
+      outputSchemaJson: NOTEBOOK_API_DELETE_NOTE_OUTPUT_SCHEMA_JSON,
+      inputSchema: DeleteNoteRequestSchema,
+      outputSchema: DeleteNoteResponseSchema,
+      registry: protocGenMcp.buildProtoRegistry(file_proto_notebook, file_proto_notebook, file_proto_notebook),
+      validateInput: protocGenMcp.compileSchema(NOTEBOOK_API_DELETE_NOTE_INPUT_SCHEMA_JSON),
+      validateOutput: protocGenMcp.compileSchema(NOTEBOOK_API_DELETE_NOTE_OUTPUT_SCHEMA_JSON),
+      annotations: {
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      icons: [
+      ],
+      execution: undefined,
+      requiredScopes: ["notebook:write"],
     },
     {
       name: protocGenMcp.resolveToolName(namespace, "Health", "notebook"),
@@ -140,5 +169,38 @@ export function registerNotebookResources(server: Server, impl: NotebookResource
     list: async () => await impl.listNotes(),
     read: async (uri, params) => protocGenMcp.resourceContents(await impl.readNote(params["id"] ?? ""), uri, { mimeType: "application/json", meta: undefined, encoding: { kind: "protojson", schema: NoteSchema, registry: protoRegistry } }),
   });
+}
+
+/** Business handlers for every MCP primitive in proto/notebook.proto. */
+export type NotebookMCPHandlers = {
+  notebookAPI: NotebookAPIToolHandler;
+  prompts: NotebookPromptHandler;
+  resources: NotebookResourceHandler;
+};
+
+/** Builds the server declared by proto/notebook.proto and registers its primitives. */
+export function createNotebookMCPServer(handlers: NotebookMCPHandlers): Server {
+  const server = protocGenMcp.newConfiguredServer("standalone-typescript-notebook", "0.1.0", false);
+  registerNotebookAPITools(server, handlers.notebookAPI);
+  registerNotebookPrompts(server, handlers.prompts);
+  registerNotebookResources(server, handlers.resources);
+  return server;
+}
+
+/**
+ * Serves proto/notebook.proto over stateless Streamable HTTP with its declared policy.
+ * A fresh server is built per request; with OAuth, verifier defaults to the
+ * built-in RS256 JWKS verifier.
+ */
+export function createNotebookMCPHttpHandler(handlers: NotebookMCPHandlers, verifier?: protocGenMcp.TokenVerifier): protocGenMcp.HttpHandler {
+  return protocGenMcp.newHttpHandler(() => createNotebookMCPServer(handlers), {
+    resourceUrl: "https://notebook.example.com/mcp",
+    authorizationServers: ["https://auth.example.com"],
+    scopes: ["notebook:read"],
+    issuer: "https://auth.example.com",
+    audience: "https://notebook.example.com/mcp",
+    jwksUrl: "https://auth.example.com/.well-known/jwks.json",
+    mcpPath: "",
+  }, verifier);
 }
 

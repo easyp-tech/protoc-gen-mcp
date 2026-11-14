@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import argparse
+import socket
+import time
 from datetime import datetime, timezone
 
 import anyio
@@ -7,6 +10,8 @@ import mcp.server.lowlevel
 import mcp.server.stdio
 import mcp.shared.exceptions
 import mcp.types
+import uvicorn
+from mcp.server.auth.provider import AccessToken
 
 from proto import notebook_mcp
 
@@ -61,6 +66,13 @@ class Notebook:
 
         return notebook_mcp.SearchNotesResponse(notes=notes)
 
+    def delete_note(
+        self,
+        _ctx: notebook_mcp.ToolRequestContext,
+        req: notebook_mcp.DeleteNoteRequest,
+    ) -> notebook_mcp.DeleteNoteResponse:
+        return notebook_mcp.DeleteNoteResponse(deleted=self._notes.pop(req.id, None) is not None)
+
     def health(
         self,
         _ctx: notebook_mcp.ToolRequestContext,
@@ -92,12 +104,41 @@ class Notebook:
 
 
 def new_server() -> mcp.server.lowlevel.Server:
-    server = mcp.server.lowlevel.Server("standalone-python-notebook", version="0.1.0")
     notebook = Notebook()
-    notebook_mcp.register_notebook_api_tools(server, notebook)
-    notebook_mcp.register_notebook_resources(server, notebook)
-    notebook_mcp.register_notebook_prompts(server, notebook)
-    return server
+    return notebook_mcp.create_notebook_mcp_server(
+        notebook_mcp.NotebookMCPHandlers(notebook_api=notebook, prompts=notebook, resources=notebook)
+    )
+
+
+# Local development tokens for --demo-auth. Never accept static tokens in
+# production: without --demo-auth the server verifies RS256 JWTs against the
+# JWKS declared in notebook.proto.
+_DEMO_SCOPES = {
+    "demo-read": ["notebook:read"],
+    "demo-write": ["notebook:read", "notebook:write"],
+}
+
+
+class DemoVerifier:
+    async def verify_token(self, token: str) -> AccessToken | None:
+        scopes = _DEMO_SCOPES.get(token)
+        if scopes is None:
+            return None
+        return AccessToken(token=token, client_id="demo", scopes=scopes, expires_at=int(time.time()) + 3600)
+
+
+async def run_http_server(addr: str, demo_auth: bool) -> None:
+    host, _, port = addr.rpartition(":")
+    if demo_auth and host not in ("127.0.0.1", "localhost", "::1"):
+        raise SystemExit("--demo-auth only listens on loopback addresses")
+    app = notebook_mcp.create_notebook_mcp_http_app(new_server(), DemoVerifier() if demo_auth else None)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.bind((host, int(port)))
+    bound_host, bound_port = sock.getsockname()[:2]
+    config = uvicorn.Config(app, log_level="warning", lifespan="on")
+    config.load()
+    print(f"listening on http://{bound_host}:{bound_port}", flush=True)
+    await uvicorn.Server(config).serve(sockets=[sock])
 
 
 async def run_stdio_server() -> None:
@@ -111,7 +152,15 @@ async def run_stdio_server() -> None:
 
 
 def main() -> None:
-    anyio.run(run_stdio_server)
+    parser = argparse.ArgumentParser(description="Notebook MCP server generated from proto/notebook.proto.")
+    parser.add_argument("--http", action="store_true", help="serve stateless Streamable HTTP instead of stdio")
+    parser.add_argument("--addr", default="127.0.0.1:8080", help="HTTP listen address")
+    parser.add_argument("--demo-auth", action="store_true", help="accept the local tokens demo-read and demo-write")
+    args = parser.parse_args()
+    if args.http:
+        anyio.run(run_http_server, args.addr, args.demo_auth)
+    else:
+        anyio.run(run_stdio_server)
 
 
 if __name__ == "__main__":

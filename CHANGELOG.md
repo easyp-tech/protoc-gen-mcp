@@ -49,6 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The standalone examples 5–8 (Python, Java, Kotlin, TypeScript) declare an
+  OAuth protected resource and a scoped delete tool in their protos, build the
+  server through the generated factory and serve stateless Streamable HTTP with
+  `--http --demo-auth`; tests check discovery, the 401 challenge and the 403
+  step-up for each, plus the in-call denial over stdio.
 - Kotlin serves `option (mcp.options.v1.server).oauth` through
   `Application.install<File>MCPHttp(handlers, verifier)`, a Ktor route on the
   SDK `StreamableHttpServerTransport` with the same metadata, bearer check,

@@ -18,6 +18,16 @@ func TestStandaloneKotlinExampleOverStdio(t *testing.T) {
 // (Gradle runs easyp and the local plugin) and drives the installed server.
 func runStandaloneJVMTodoExample(t *testing.T, dir, project string) {
 	t.Helper()
+	cmd := buildStandaloneJVMExample(t, dir, project)
+	client := newStdioClient(t, cmd)
+	client.initialize()
+	exerciseTodoExample(t, client)
+}
+
+// buildStandaloneJVMExample installs the example and returns a command that
+// runs its start script in the project directory.
+func buildStandaloneJVMExample(t *testing.T, dir, project string) *exec.Cmd {
+	t.Helper()
 	for _, tool := range []string{"gradle", "java", "javac", "easyp"} {
 		if _, err := exec.LookPath(tool); err != nil {
 			t.Skipf("%s not found in PATH; skipping JVM example", tool)
@@ -38,11 +48,13 @@ func runStandaloneJVMTodoExample(t *testing.T, dir, project string) {
 
 	cmd := exec.Command(filepath.Join(projectDir, "build", "install", project, "bin", project))
 	cmd.Dir = projectDir
-	client := newStdioClient(t, cmd)
-	client.initialize()
+	return cmd
+}
 
+func exerciseTodoExample(t *testing.T, client *stdioClient) {
+	t.Helper()
 	tools := client.listTools()
-	for _, name := range []string{"todo_CreateTask", "todo_ListTasks", "todo_CompleteTask"} {
+	for _, name := range []string{"todo_CreateTask", "todo_ListTasks", "todo_CompleteTask", "todo_DeleteTask"} {
 		findTool(t, tools.Tools, name)
 	}
 
@@ -72,5 +84,11 @@ func runStandaloneJVMTodoExample(t *testing.T, dir, project string) {
 	}
 	if tasks, _ := decodeMap(t, listed.StructuredContent)["tasks"].([]any); len(tasks) != 0 {
 		t.Fatalf("open tasks after completion = %v, want none", tasks)
+	}
+
+	// DeleteTask needs todo:write; stdio carries no token, so the call is denied.
+	denied, rpcErr := client.callTool("todo_DeleteTask", map[string]any{"id": task["id"]})
+	if rpcErr != nil || !denied.IsError {
+		t.Fatalf("DeleteTask over stdio = %+v (rpc %v), want a permission-denied tool error", denied, rpcErr)
 	}
 }

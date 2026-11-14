@@ -96,4 +96,10 @@ func runStandaloneNodeNotebookExample(t *testing.T, client *stdioClient, title s
 	if got := healthStructured["noteCount"]; got != 1.0 {
 		t.Fatalf("health.noteCount = %v, want 1", got)
 	}
+
+	// DeleteNote needs notebook:write; stdio carries no token, so the call is denied.
+	denied, rpcErr := client.callTool("notebook_DeleteNote", map[string]any{"id": "note-1"})
+	if rpcErr != nil || !denied.IsError {
+		t.Fatalf("DeleteNote over stdio = %+v (rpc %v), want a permission-denied tool error", denied, rpcErr)
+	}
 }

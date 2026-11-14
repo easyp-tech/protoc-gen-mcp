@@ -122,7 +122,7 @@ jobs:
           go test ./internal/examplemcp -run 'TestKotlinHTTPOAuthContract' -count=1
 
       - name: Build and run JVM examples
-        run: go test ./examples -run 'TestStandalone(Java|Kotlin)ExampleOverStdio' -count=1 -v
+        run: go test ./examples -run 'TestStandalone(Java|Kotlin)ExampleOver(Stdio|HTTP)' -count=1 -v
 
       - name: Verify runnable protobuf-first showcase
         run: |

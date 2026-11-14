@@ -8,6 +8,7 @@ dependencies {
     implementation("io.modelcontextprotocol.sdk:mcp:1.1.1")
     implementation("com.google.protobuf:protobuf-java:4.34.1")
     implementation("com.google.protobuf:protobuf-java-util:4.34.1")
+    implementation("org.eclipse.jetty.ee10:jetty-ee10-servlet:12.1.12")
 }
 
 java {
