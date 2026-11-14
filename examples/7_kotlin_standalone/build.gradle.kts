@@ -5,6 +5,7 @@ plugins {
 }
 
 dependencies {
+    implementation("tech.easyp:protoc-gen-mcp-runtime-kotlin:0.8.0")
     implementation("io.modelcontextprotocol:kotlin-sdk-server:0.11.1")
     implementation("com.google.protobuf:protobuf-java:4.34.1")
     implementation("com.google.protobuf:protobuf-kotlin:4.34.1")

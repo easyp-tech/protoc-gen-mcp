@@ -49,6 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `tech.easyp:protoc-gen-mcp-runtime` and `protoc-gen-mcp-runtime-kotlin`,
+  Maven artifacts with the registries and dispatch that generated Java and
+  Kotlin sidecars previously embedded. Java sidecars of several proto files now
+  share one registry per transport, so their tools, prompts and resources
+  compose instead of failing.
 - `@easyp-tech/protoc-gen-mcp-runtime`, an npm package with the TypeScript
   registries and dispatch that generated `*_mcp.ts` files previously embedded;
   the SDK, Protobuf-ES and Ajv are peer dependencies.

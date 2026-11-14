@@ -155,7 +155,11 @@ Language notes:
   the plugin and checks on import that it matches the generated code.
 - **Java** (`lang=java`) generates one `<ProtoFile>Mcp` sidecar per proto next
   to protobuf Java output. **Kotlin** (`lang=kotlin`) needs Java protobuf
-  output, Kotlin protobuf output, and the MCP sidecar together.
+  output, Kotlin protobuf output, and the MCP sidecar together. Generated
+  sidecars depend on `tech.easyp:protoc-gen-mcp-runtime` (Java) or
+  `tech.easyp:protoc-gen-mcp-runtime-kotlin` (Kotlin), which hold the
+  registries and dispatch; sidecars of several proto files share one registry
+  per transport or server.
 - **TypeScript** (`lang=typescript`) expects Protobuf-ES `_pb.ts` files in the
   same tree, generated with `import_extension=js` for Node ESM and
   `moduleResolution: NodeNext`. **JavaScript** projects import the compiled

@@ -106,6 +106,9 @@ jobs:
       - name: Run generated Node stdio tests
         run: go test ./internal/codegen -run 'TestTypeScriptGeneratedNodeServer.*OverStdio|TestTypeScriptGeneratedNodeServerRejectsInvalid(Input|Output)OverStdio' -count=1
 
+      - name: Build and test JVM runtime
+        run: gradle --no-daemon -p runtime/jvm build
+
       - name: Build JVM examples
         run: |
           gradle --no-daemon -p internal/examplemcp/jvm :java-server:compileJava :kotlin-server:compileKotlin

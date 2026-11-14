@@ -64,6 +64,13 @@ architecture unless explicitly revised.
   peer dependencies. The harness and example 8 depend on it through `file:`
   with `install-links=true`, so build it first (`npm ci && npm run build`).
   `GENCODE_VERSION` in `src/version.ts` moves with `typescriptGencodeVersion`
+- `runtime/jvm`: Gradle build of `tech.easyp:protoc-gen-mcp-runtime`
+  (`tech.easyp.mcp.runtime.McpRuntime`, Java) and
+  `tech.easyp:protoc-gen-mcp-runtime-kotlin` (`tech.easyp.mcp.runtime.kotlin`),
+  published to Maven Central through `com.vanniktech.maven.publish`. The JVM
+  harness and examples 6 and 7 use it through `includeBuild`; contract tests
+  read its sources through `withJVMRuntimeSource`. `GENCODE_VERSION` moves with
+  `jvmGencodeVersion` in the renderer
 - `internal/codegen/testdata/node`: pinned npm package (official TypeScript
   SDK, Protobuf-ES, Ajv) used by the TypeScript compile, runtime and stdio tests
 - `runtime/python`: the `protoc-gen-mcp-runtime` PyPI package (module
@@ -142,10 +149,10 @@ architecture unless explicitly revised.
   resource is read through a handler returning the file body. Unknown
   resource URIs return Invalid Params (-32602, SEP-2164); Kotlin keeps its
   SDK's -32002
-- Java sidecars on one transport share their request handlers through a
-  JVM-wide per-transport list in `System.getProperties()`, so prompts, resources
-  and tools from different proto files compose; two sidecars serving the same
-  MCP method fail when a session starts
+- Java sidecars on one transport register into one `McpRuntime` registry, so
+  tools, prompts and resources from different proto files compose; the session
+  factory is installed once because stdio opens its session inside
+  `setSessionFactory`
 - Generated Python modules expose `<Service>ToolHandler`
 - Generated Python modules expose `register_<service_name>_tools(server, impl, *, namespace=None)`
 - Generated Python modules default to `python_handler=dataclass`, exposing
@@ -247,6 +254,7 @@ architecture unless explicitly revised.
 - Prepare the TypeScript runtime and harness:
   `cd runtime/typescript && npm ci && npm run build`, then
   `cd internal/codegen/testdata/node && npm ci && npm run typecheck`
+- Build and test the JVM runtime: `gradle --no-daemon -p runtime/jvm build`
 - Build and install the JVM test servers:
   `gradle --no-daemon -p internal/examplemcp/jvm :java-server:installDist :kotlin-server:installDist`
 - Run tests: `go test ./...` (TypeScript tests need the harness installed;

@@ -30,7 +30,7 @@ func TestKotlinContract_LowLevelServerContractShape(t *testing.T) {
 	generated := renderBasicKotlinFixture(t)
 
 	wantSnippets := []string{
-		"private class ServerToolRegistry",
+		"class ServerToolRegistry",
 		"private val serverRegistries = Collections.synchronizedMap(WeakHashMap<Server, ServerToolRegistry>())",
 		"private val serverRegistryInstallLock = Any()",
 		"@Synchronized",
@@ -138,9 +138,9 @@ func TestKotlinContract_UsesNetworkntJsonSchemaValidation(t *testing.T) {
 		"import com.networknt.schema.JsonSchemaFactory",
 		"import com.networknt.schema.SpecVersion",
 		"private val jsonSchemaFactory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)",
-		"private val protoTypeRegistry = buildTypeRegistry()",
-		"registerFileTypes(builder, seenFiles, Example.getDescriptor())",
-		"builder.add(descriptor)",
+		"registerProtoFiles(Example.getDescriptor())",
+		"fun registerProtoFiles(vararg files: Descriptors.FileDescriptor) {",
+		"protoTypes.add(descriptor)",
 		"JsonFormat.parser().usingTypeRegistry(protoTypeRegistry).merge(payload, builder)",
 		"JsonFormat.printer().usingTypeRegistry(protoTypeRegistry).includingDefaultValueFields().print(message)",
 		"jsonSchemaFactory.getSchema(rawSchemaJson).validate(payload.toString(), InputFormat.JSON)",
@@ -279,7 +279,7 @@ func renderRepositoryExampleKotlinFixture(t *testing.T) string {
 		t.Fatalf("Generate: %v", err)
 	}
 
-	return string(generatedFileContent(t, plugin, "internal/testproto/example/v1/example_mcp.kt"))
+	return withJVMRuntimeSource(t, string(generatedFileContent(t, plugin, "internal/testproto/example/v1/example_mcp.kt")), LanguageKotlin)
 }
 
 func renderKotlinFileFromPlugin(t *testing.T, plugin *protogen.Plugin, protoPath string) string {
@@ -301,7 +301,7 @@ func renderKotlinFileFromPlugin(t *testing.T, plugin *protogen.Plugin, protoPath
 		t.Fatalf("renderKotlinFile: %v", err)
 	}
 
-	return string(generatedFileContent(t, plugin, strings.TrimSuffix(protoPath, ".proto")+"_mcp.kt"))
+	return withJVMRuntimeSource(t, string(generatedFileContent(t, plugin, strings.TrimSuffix(protoPath, ".proto")+"_mcp.kt")), LanguageKotlin)
 }
 
 func assertKotlinContains(t *testing.T, generated string, snippets ...string) {
