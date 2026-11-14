@@ -1929,6 +1929,7 @@ func TestWritePromptsGoldenFiles(t *testing.T) {
 		{LanguageKotlin, "internal/testproto/prompts/v1/prompts_mcp.kt", "prompts_mcp.kt.golden"},
 		{LanguageJava, promptsJavaOutputPath(), "prompts_mcp.java.golden"},
 		{LanguageTypeScript, "internal/testproto/prompts/v1/prompts_mcp.ts", "prompts_mcp.ts.golden"},
+		{LanguageSwift, "internal/testproto/prompts/v1/prompts.mcp.swift", "prompts.mcp.swift.golden"},
 	}
 
 	for _, tc := range cases {
@@ -2035,6 +2036,7 @@ func TestWriteResourcesGoldenFiles(t *testing.T) {
 		{LanguageKotlin, "internal/testproto/resources/v1/resources_mcp.kt", "resources_mcp.kt.golden"},
 		{LanguageJava, resourcesJavaOutputPath(), "resources_mcp.java.golden"},
 		{LanguageTypeScript, "internal/testproto/resources/v1/resources_mcp.ts", "resources_mcp.ts.golden"},
+		{LanguageSwift, "internal/testproto/resources/v1/resources.mcp.swift", "resources.mcp.swift.golden"},
 	}
 
 	for _, tc := range cases {
@@ -2071,6 +2073,7 @@ func TestWriteExampleGoldenFiles(t *testing.T) {
 		{Options{Language: LanguageKotlin}, "internal/testproto/example/v1/example_mcp.kt", "example_mcp.kt.golden"},
 		{Options{Language: LanguageJava}, exampleJavaOutputPath(), "example_mcp.java.golden"},
 		{Options{Language: LanguageTypeScript}, "internal/testproto/example/v1/example_mcp.ts", "example_mcp.ts.golden"},
+		{Options{Language: LanguageSwift}, "internal/testproto/example/v1/example.mcp.swift", "example.mcp.swift.golden"},
 	}
 
 	for _, tc := range cases {

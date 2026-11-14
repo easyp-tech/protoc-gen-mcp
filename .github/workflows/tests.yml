@@ -45,12 +45,23 @@ jobs:
         with:
           gradle-version: "9.2.1"
 
+      - name: Install Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.1"
+
       - name: Install easyp
         run: go install github.com/easyp-tech/easyp/cmd/easyp@v0.15.2-rc1
 
       - name: Install protoc plugins
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+
+      - name: Build protoc-gen-swift
+        run: |
+          swift package resolve
+          swift build -c release --product protoc-gen-swift --package-path .build/checkouts/swift-protobuf
+          echo "$PWD/.build/checkouts/swift-protobuf/.build/release" >> "$GITHUB_PATH"
 
       - name: Build TypeScript runtime
         working-directory: runtime/typescript
@@ -63,6 +74,7 @@ jobs:
           easyp --cfg easyp.yaml validate-config
           easyp --cfg easyp.test.yaml validate-config
           easyp --cfg easyp.test.python.yaml validate-config
+          easyp --cfg easyp.test.swift.yaml validate-config
           easyp --cfg easyp.showcase.yaml validate-config
 
       - name: Lint protobuf packages
@@ -76,6 +88,7 @@ jobs:
           easyp --cfg easyp.yaml generate -p mcp -r .
           easyp --cfg easyp.test.yaml generate -p internal/testproto -r .
           easyp --cfg easyp.test.python.yaml generate -p internal/testproto -r .
+          easyp --cfg easyp.test.swift.yaml generate -p internal/testproto -r .
           easyp --cfg easyp.showcase.yaml generate -p examples/11_protobuf_first_mcp/proto -r .
 
       - name: Regenerate example artifacts
@@ -123,6 +136,14 @@ jobs:
 
       - name: Build and run JVM examples
         run: go test ./examples -run 'TestStandalone(Java|Kotlin)ExampleOver(Stdio|HTTP)' -count=1 -v
+
+      - name: Build and test Swift runtime
+        run: swift test
+
+      - name: Run Swift contract tests and example
+        run: |
+          go test ./internal/examplemcp -run 'TestSwift' -count=1 -v
+          go test ./examples -run 'TestStandaloneSwiftExampleOver(Stdio|HTTP)' -count=1 -v
 
       - name: Verify runnable protobuf-first showcase
         run: |

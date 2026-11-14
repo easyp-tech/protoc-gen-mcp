@@ -32,7 +32,7 @@ func TestPrepareRequestForProtogen_SynthesizesGoPackageForPython(t *testing.T) {
 }
 
 func TestPrepareRequestForProtogen_SynthesizesGoPackageForNonGoTargets(t *testing.T) {
-	for _, language := range []Language{LanguageKotlin, LanguageJava, LanguageTypeScript} {
+	for _, language := range []Language{LanguageKotlin, LanguageJava, LanguageTypeScript, LanguageSwift} {
 		t.Run(string(language), func(t *testing.T) {
 			req := &pluginpb.CodeGeneratorRequest{
 				ProtoFile: []*descriptorpb.FileDescriptorProto{
@@ -96,7 +96,7 @@ func TestPrepareRequestForProtogen_PreservesExplicitGoPackage(t *testing.T) {
 }
 
 func TestPrepareRequestForProtogen_AllowsNonGoProtogenNewWithoutGoPackage(t *testing.T) {
-	for _, language := range []Language{LanguagePython, LanguageKotlin, LanguageJava, LanguageTypeScript} {
+	for _, language := range []Language{LanguagePython, LanguageKotlin, LanguageJava, LanguageTypeScript, LanguageSwift} {
 		t.Run(string(language), func(t *testing.T) {
 			req := &pluginpb.CodeGeneratorRequest{
 				Parameter:      proto.String("paths=source_relative,lang=" + string(language)),

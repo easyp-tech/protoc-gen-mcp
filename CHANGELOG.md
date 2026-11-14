@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Swift** target (`lang=swift`) on the official `modelcontextprotocol/swift-sdk`
+  and swift-protobuf, with the parity of the other targets: tools, prompts,
+  resources (ProtoJSON, text and blob fields, raw bodies), the proto-declared
+  server factory, MCP Apps under `capabilities.extensions`, and OAuth over
+  stateless Streamable HTTP with RFC 9728 metadata, the per-tool
+  `required_scopes` step-up, an in-call scope guard and an RS256 JWKS verifier
+  on jwt-kit. The runtime is a Swift package at the repository root
+  (`ProtocGenMCPRuntime`, `ProtocGenMCPHTTP`), resolved by git tag without a
+  registry. The shared stdio and HTTP contracts run against a Swift fixture
+  server, and `examples/9_swift_standalone` shows the notebook over stdio and
+  HTTP.
+
 ## [1.0.0] - 2026-11-14
 
 ### Changed

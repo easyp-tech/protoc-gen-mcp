@@ -32,7 +32,7 @@ func PrepareRequestForProtogen(req *pluginpb.CodeGeneratorRequest, opts Options)
 
 func requiresSyntheticGoPackage(language Language) bool {
 	switch language {
-	case LanguagePython, LanguageKotlin, LanguageJava, LanguageTypeScript:
+	case LanguagePython, LanguageKotlin, LanguageJava, LanguageTypeScript, LanguageSwift:
 		return true
 	default:
 		return false

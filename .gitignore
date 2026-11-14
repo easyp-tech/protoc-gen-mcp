@@ -51,6 +51,8 @@ examples/6_java_standalone/.gradle/
 examples/6_java_standalone/build/
 examples/7_kotlin_standalone/.gradle/
 examples/7_kotlin_standalone/build/
+.build/
+.swiftpm/
 .DS_Store
 .idea/*
 

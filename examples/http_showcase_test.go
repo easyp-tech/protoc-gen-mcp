@@ -46,3 +46,8 @@ func TestStandaloneKotlinExampleOverHTTP(t *testing.T) {
 	cmd.Args = append(cmd.Args, "--http", "--addr", "127.0.0.1:0", "--demo-auth")
 	httpcontract.RunShowcase(t, cmd, todoShowcase)
 }
+
+func TestStandaloneSwiftExampleOverHTTP(t *testing.T) {
+	cmd := standaloneSwiftExampleCommand(t, "--http", "--addr", "127.0.0.1:0", "--demo-auth")
+	httpcontract.RunShowcase(t, cmd, notebookShowcase)
+}
