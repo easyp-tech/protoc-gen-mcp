@@ -201,8 +201,8 @@ architecture unless explicitly revised.
   `stdiotest.ContractOptions{AppsCapability: AppsInExperimental}`. After
   changing `runtime/typescript`, rebuild it and rerun `npm ci` in its consumers:
   `npm install` keeps the stale copy of a same-version `file:` package
-- Go and Python implement `option (mcp.options.v1.server).oauth` and per-tool
-  `required_scopes`; TypeScript, Java and Kotlin still reject them at
+- Go, Python and TypeScript implement `option (mcp.options.v1.server).oauth`
+  and per-tool `required_scopes`; Java and Kotlin still reject them at
   generation (`validateGoOnlyOptions`) so no tool is served without its scope
   check. `internal/httpcontract` is the shared HTTP/OAuth contract (metadata,
   401 challenge, 403 step-up with `scope=`, 400/413 preflight) run against the
@@ -210,7 +210,11 @@ architecture unless explicitly revised.
   (`protoc_gen_mcp_runtime.new_http_app`) layers the SDK
   `StreamableHTTPSessionManager(stateless=True)`, `AuthenticationMiddleware`,
   `BearerAuthBackend` and `RequireAuthMiddleware` with the runtime's scope gate
-  and metadata; `JWKSTokenVerifier` ports `mcpruntime/jwks.go` on PyJWT and httpx
+  and metadata; `JWKSTokenVerifier` ports `mcpruntime/jwks.go` on PyJWT and httpx.
+  TypeScript's `newHttpHandler` is an express app: SDK `requireBearerAuth` before
+  `express.json` (4 MiB), the runtime scope gate, then a fresh `Server` and
+  `StreamableHTTPServerTransport` per request; its public types avoid express
+  and Node typings (`TokenVerifier`, structural `HttpHandler`)
   Method `app_ui` becomes tool `_meta.ui` in every target.
 - Generated OAuth HTTP handlers enforce server-wide and per-tool
   `required_scopes` before dispatch, returning HTTP 403 `insufficient_scope`

@@ -54,6 +54,7 @@ export type RegisteredTool = {
   icons: ToolIconMetadata[];
   execution?: ToolExecutionMetadata;
   meta?: Record<string, unknown>;
+  requiredScopes?: string[];
 };
 
 type ServerToolRegistry = {
@@ -95,6 +96,16 @@ function toolRegistry(server: Server): ServerToolRegistry {
     dispatchToolCall(registry.tools, request, extra as ToolRequestContext),
   );
   return registry;
+}
+
+/** Returns the required scopes of every tool registered on server, by tool name. */
+export function toolScopes(server: Server): Map<string, string[]> {
+  const scopes = new Map<string, string[]>();
+  const registry = (server as Server & { [toolRegistrySymbol]?: ServerToolRegistry })[toolRegistrySymbol];
+  for (const tool of registry?.tools ?? []) {
+    scopes.set(tool.name, [...(tool.requiredScopes ?? [])]);
+  }
+  return scopes;
 }
 
 /** Builds the tools/list entry of a registered tool. */
@@ -170,6 +181,17 @@ export async function dispatchToolCall(
   const tool = tools.find((candidate) => candidate.name === toolName);
   if (tool === undefined) {
     throw new McpError(ErrorCode.InvalidParams, `unknown tool '${toolName}'`);
+  }
+  if (tool.requiredScopes !== undefined && tool.requiredScopes.length > 0) {
+    // Defence in depth behind the HTTP scope check; stdio has no token.
+    const granted = extra.authInfo?.scopes;
+    if (granted === undefined) {
+      return toolErrorResult("permission denied: an authenticated token is required");
+    }
+    const missing = tool.requiredScopes.find((scope) => !granted.includes(scope));
+    if (missing !== undefined) {
+      return toolErrorResult(`permission denied: missing required scope "${missing}"`);
+    }
   }
   const args = (request.params.arguments ?? {}) as JsonValue;
   assertValid(tool.name, "input", tool.validateInput, args);

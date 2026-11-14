@@ -83,6 +83,33 @@ func renderTypeScriptServerFactory(generated *protogen.GeneratedFile, model Type
 	}
 	generated.P("  return server;")
 	generated.P("}")
+
+	if !model.Factory.HTTP {
+		return
+	}
+	generated.P()
+	generated.P("/**")
+	generated.P(" * Serves ", model.ProtoPath, " over stateless Streamable HTTP with its declared policy.")
+	generated.P(" * A fresh server is built per request; with OAuth, verifier defaults to the")
+	generated.P(" * built-in RS256 JWKS verifier.")
+	generated.P(" */")
+	generated.P("export function create", fileName, "MCPHttpHandler(handlers: ", fileName, "MCPHandlers, verifier?: protocGenMcp.TokenVerifier): protocGenMcp.HttpHandler {")
+	oauth := model.Factory.OAuth
+	if oauth == nil {
+		generated.P("  return protocGenMcp.newHttpHandler(() => create", fileName, "MCPServer(handlers));")
+		generated.P("}")
+		return
+	}
+	generated.P("  return protocGenMcp.newHttpHandler(() => create", fileName, "MCPServer(handlers), {")
+	generated.P("    resourceUrl: ", typescriptStringLiteral(oauth.GetResourceUrl()), ",")
+	generated.P("    authorizationServers: ", typescriptStringArrayLiteral(oauth.GetAuthorizationServers()), ",")
+	generated.P("    scopes: ", typescriptStringArrayLiteral(oauth.GetScopes()), ",")
+	generated.P("    issuer: ", typescriptStringLiteral(oauth.GetIssuer()), ",")
+	generated.P("    audience: ", typescriptStringLiteral(oauth.GetAudience()), ",")
+	generated.P("    jwksUrl: ", typescriptStringLiteral(oauth.GetJwksUri()), ",")
+	generated.P("    mcpPath: ", typescriptStringLiteral(oauth.GetMcpPath()), ",")
+	generated.P("  }, verifier);")
+	generated.P("}")
 }
 
 // typescriptGencodeVersion must match GENCODE_VERSION in
@@ -224,6 +251,9 @@ func renderTypeScriptRegisteredTool(generated *protogen.GeneratedFile, model Typ
 	renderTypeScriptExecution(generated, method.TaskSupport)
 	if meta := toolMetaJSON(method.AppUI); meta != "" {
 		generated.P("      meta: JSON.parse(", typescriptStringLiteral(meta), ") as Record<string, unknown>,")
+	}
+	if len(method.RequiredScopes) > 0 {
+		generated.P("      requiredScopes: ", typescriptStringArrayLiteral(method.RequiredScopes), ",")
 	}
 }
 

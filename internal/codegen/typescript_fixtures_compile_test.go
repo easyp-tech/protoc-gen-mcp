@@ -12,9 +12,9 @@ import (
 	"google.golang.org/protobuf/types/pluginpb"
 )
 
-// typeScriptFixtureProtos are the shared fixtures every non-Go target must
-// compile. config/v1 stays Go-only until the other targets implement OAuth.
+// typeScriptFixtureProtos are the shared fixtures every target must compile.
 var typeScriptFixtureProtos = []string{
+	"internal/testproto/config/v1/server_config.proto",
 	"internal/testproto/example/v1/example.proto",
 	"internal/testproto/prompts/v1/prompts.proto",
 	"internal/testproto/resources/v1/resources.proto",
@@ -23,8 +23,11 @@ var typeScriptFixtureProtos = []string{
 // TestTypeScriptFixturesCompileWithProtobufES compiles the generated
 // TypeScript sidecars of every shared fixture against real protoc-gen-es
 // output under the strict NodeNext settings users get.
-func TestTypeScriptFixturesCompileWithProtobufES(t *testing.T) {
-	harness := requireTypeScriptSDKSpike(t)
+// generateTypeScriptFixtureProject writes real protoc-gen-es output and the
+// protoc-gen-mcp TypeScript sidecars of protos into a temporary project under
+// the harness, so it resolves the harness node_modules.
+func generateTypeScriptFixtureProject(t *testing.T, harness string, protos []string) string {
+	t.Helper()
 	protocGenES := filepath.Join(harness, "node_modules", ".bin", "protoc-gen-es")
 	if _, err := os.Stat(protocGenES); err != nil {
 		t.Fatalf("protoc-gen-es is required; run npm ci in internal/codegen/testdata/node: %v", err)
@@ -37,7 +40,7 @@ func TestTypeScriptFixturesCompileWithProtobufES(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(project) })
 
-	esRequest := newCompiledCodeGeneratorRequest(t, append([]string{"mcp/options/v1/options.proto"}, typeScriptFixtureProtos...), resolver)
+	esRequest := newCompiledCodeGeneratorRequest(t, append([]string{"mcp/options/v1/options.proto"}, protos...), resolver)
 	esRequest.Parameter = proto.String("target=ts,import_extension=js")
 	payload, err := proto.Marshal(esRequest)
 	if err != nil {
@@ -60,7 +63,7 @@ func TestTypeScriptFixturesCompileWithProtobufES(t *testing.T) {
 	}
 	files := esResponse.GetFile()
 
-	plugin := newCompiledProtogenPlugin(t, typeScriptFixtureProtos, resolver)
+	plugin := newCompiledProtogenPlugin(t, protos, resolver)
 	if err := Generate(plugin, Options{Language: LanguageTypeScript}); err != nil {
 		t.Fatalf("Generate TypeScript fixtures: %v", err)
 	}
@@ -68,10 +71,10 @@ func TestTypeScriptFixturesCompileWithProtobufES(t *testing.T) {
 	if mcpResponse.GetError() != "" {
 		t.Fatalf("protoc-gen-mcp error: %s", mcpResponse.GetError())
 	}
-	files = append(files, mcpResponse.GetFile()...)
-	if len(mcpResponse.GetFile()) != len(typeScriptFixtureProtos) {
-		t.Fatalf("protoc-gen-mcp produced %d TypeScript files, want %d", len(mcpResponse.GetFile()), len(typeScriptFixtureProtos))
+	if len(mcpResponse.GetFile()) != len(protos) {
+		t.Fatalf("protoc-gen-mcp produced %d TypeScript files, want %d", len(mcpResponse.GetFile()), len(protos))
 	}
+	files = append(files, mcpResponse.GetFile()...)
 
 	for _, file := range files {
 		path := filepath.Join(project, filepath.FromSlash(file.GetName()))
@@ -80,6 +83,12 @@ func TestTypeScriptFixturesCompileWithProtobufES(t *testing.T) {
 		}
 		writeTypeScriptFixtureFile(t, path, []byte(file.GetContent()))
 	}
+	return project
+}
+
+func TestTypeScriptFixturesCompileWithProtobufES(t *testing.T) {
+	harness := requireTypeScriptSDKSpike(t)
+	project := generateTypeScriptFixtureProject(t, harness, typeScriptFixtureProtos)
 	writeTypeScriptFixtureFile(t, filepath.Join(project, "tsconfig.json"), []byte(`{
   "compilerOptions": {
     "target": "ES2022",

@@ -29,7 +29,7 @@ handlers. JavaScript projects consume the compiled TypeScript output.
 | **Protobuf server factory** | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **MCP Apps UI / CSP** | ✅ | ✅ | ✅¹ | ✅¹ | ✅ |
 | **Markdown, HTML, binary resources** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **OAuth/JWKS and tool scopes** | ✅ | ✅ | ⛔ Rejected | ⛔ Rejected | ⛔ Rejected |
+| **OAuth/JWKS and tool scopes** | ✅ | ✅ | ⛔ Rejected | ⛔ Rejected | ✅ |
 
 Every target serves the same resources contract: ProtoJSON or raw text/blob
 bodies, percent-decoded template parameters, annotations, icons and the MCP
@@ -181,7 +181,12 @@ Language notes:
   (`npm install @easyp-tech/protoc-gen-mcp-runtime`), which keeps the tool,
   prompt and resource registries; `@modelcontextprotocol/sdk`,
   `@bufbuild/protobuf` and `ajv` are its peer dependencies, so the server and
-  the runtime share one SDK.
+  the runtime share one SDK. With `option (mcp.options.v1.server)` a file also
+  exports `create<File>MCPHttpHandler(handlers, verifier?)`, a request
+  listener for `node:http` or express that builds a fresh server per request
+  (the stateless SDK transport requires it) and, with `oauth`, uses the SDK
+  `requireBearerAuth` plus the runtime scope gate and RFC 9728 metadata;
+  `verifier` defaults to the built-in RS256 JWKS verifier on `jose`.
 
 ## Generated API
 

@@ -49,6 +49,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- TypeScript serves `option (mcp.options.v1.server).oauth` through
+  `create<File>MCPHttpHandler`: SDK `requireBearerAuth`, RFC 9728 metadata,
+  per-tool `403 insufficient_scope` step-up, an in-tool scope guard and an RS256
+  JWKS verifier on `jose`, checked by the shared HTTP contract.
 - Python serves `option (mcp.options.v1.server).oauth`: an ASGI Streamable
   HTTP app with RFC 9728 metadata, bearer authentication through the SDK
   middleware, `403 insufficient_scope` step-up for per-tool `required_scopes`,
