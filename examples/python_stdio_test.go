@@ -236,6 +236,12 @@ func runStandaloneNotebookExample(t *testing.T, client *stdioClient) {
 	}
 	assertNotebookResourcesAndPrompts(t, client, note)
 
+	// DeleteNote needs notebook:write; stdio carries no token, so the call is denied.
+	denied, rpcErr := client.callTool("notebook_DeleteNote", map[string]any{"id": note["id"]})
+	if rpcErr != nil || !denied.IsError {
+		t.Fatalf("DeleteNote over stdio = %+v (rpc %v), want a permission-denied tool error", denied, rpcErr)
+	}
+
 	searchResult, rpcErr := client.callTool("notebook_SearchNotes", map[string]any{
 		"query": "python",
 		"tags":  []any{"mcp"},

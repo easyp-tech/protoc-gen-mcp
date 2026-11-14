@@ -80,6 +80,14 @@ class SearchNotesResponse:
     notes: list[Note] = field(default_factory=list)
 
 @dataclass(slots=True)
+class DeleteNoteRequest:
+    id: str
+
+@dataclass(slots=True)
+class DeleteNoteResponse:
+    deleted: bool
+
+@dataclass(slots=True)
 class HealthRequest:
     pass
 
@@ -273,6 +281,26 @@ def _to_pb_search_notes_response(value: SearchNotesResponse) -> notebook_pb2.Sea
     message.notes.extend(_to_pb_note(item) for item in value.notes)
     return message
 
+def _from_pb_delete_note_request(message: notebook_pb2.DeleteNoteRequest) -> DeleteNoteRequest:
+    return DeleteNoteRequest(
+        id=message.id,
+    )
+
+def _to_pb_delete_note_request(value: DeleteNoteRequest) -> notebook_pb2.DeleteNoteRequest:
+    message = notebook_pb2.DeleteNoteRequest()
+    message.id = value.id
+    return message
+
+def _from_pb_delete_note_response(message: notebook_pb2.DeleteNoteResponse) -> DeleteNoteResponse:
+    return DeleteNoteResponse(
+        deleted=message.deleted,
+    )
+
+def _to_pb_delete_note_response(value: DeleteNoteResponse) -> notebook_pb2.DeleteNoteResponse:
+    message = notebook_pb2.DeleteNoteResponse()
+    message.deleted = value.deleted
+    return message
+
 def _from_pb_health_request(message: notebook_pb2.HealthRequest) -> HealthRequest:
     return HealthRequest(
     )
@@ -297,6 +325,8 @@ class NotebookAPIToolHandler(Protocol):
     def create_note(self, ctx: ToolRequestContext, req: CreateNoteRequest) -> CreateNoteResponse | Awaitable[CreateNoteResponse]:
         ...
     def search_notes(self, ctx: ToolRequestContext, req: SearchNotesRequest) -> SearchNotesResponse | Awaitable[SearchNotesResponse]:
+        ...
+    def delete_note(self, ctx: ToolRequestContext, req: DeleteNoteRequest) -> DeleteNoteResponse | Awaitable[DeleteNoteResponse]:
         ...
     def health(self, ctx: ToolRequestContext, req: HealthRequest) -> HealthResponse | Awaitable[HealthResponse]:
         ...
@@ -337,6 +367,22 @@ def register_notebook_api_tools(server: mcp.server.lowlevel.Server, impl: Notebo
         execution=None,
     ))
     registry.add_tool(protoc_gen_mcp_runtime.RegisteredTool(
+        name=protoc_gen_mcp_runtime.tool_name(resolved_namespace, "DeleteNote"),
+        title="Delete note",
+        description="Delete a note. Needs the notebook:write scope, so it is denied without a token, for example over stdio.",
+        input_schema_json=NOTEBOOK_API_DELETE_NOTE_INPUT_SCHEMA_JSON,
+        output_schema_json=NOTEBOOK_API_DELETE_NOTE_OUTPUT_SCHEMA_JSON,
+        request_type=notebook_pb2.DeleteNoteRequest,
+        response_type=notebook_pb2.DeleteNoteResponse,
+        from_pb=_from_pb_delete_note_request,
+        to_pb=_to_pb_delete_note_response,
+        handler=impl.delete_note,
+        annotations={"destructiveHint": True, "idempotentHint": True, "openWorldHint": False},
+        icons=None,
+        execution=None,
+        required_scopes=("notebook:write",),
+    ))
+    registry.add_tool(protoc_gen_mcp_runtime.RegisteredTool(
         name=protoc_gen_mcp_runtime.tool_name(resolved_namespace, "Health"),
         title="Notebook health",
         description="Verify that the notebook MCP server is alive.",
@@ -359,6 +405,10 @@ NOTEBOOK_API_CREATE_NOTE_OUTPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties
 NOTEBOOK_API_SEARCH_NOTES_INPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"limit\":{\"type\":[\"integer\",\"null\"],\"description\":\"Maximum number of notes to return.\",\"examples\":[-1],\"minimum\":1,\"maximum\":50},\"query\":{\"type\":[\"string\",\"null\"],\"description\":\"Optional case-insensitive text query matched against title and body.\",\"examples\":[\"python\"],\"minLength\":1},\"tags\":{\"type\":[\"array\",\"null\"],\"items\":{\"type\":\"string\",\"description\":\"Optional tags; a note must have every requested tag.\",\"examples\":[\"example\"]},\"description\":\"Optional tags; a note must have every requested tag.\",\"examples\":[[\"mcp\"]],\"uniqueItems\":true}},\"examples\":[{\"limit\":-1,\"query\":\"example\",\"tags\":[\"example\"]}],\"additionalProperties\":false}"
 
 NOTEBOOK_API_SEARCH_NOTES_OUTPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"notes\":{\"type\":[\"array\",\"null\"],\"items\":{\"type\":\"object\",\"properties\":{\"body\":{\"type\":\"string\",\"description\":\"Note body in plain text.\",\"examples\":[\"Verify that generated Python MCP bindings are pleasant to use.\"],\"minLength\":1,\"maxLength\":2000},\"createdAt\":{\"type\":\"string\",\"description\":\"Server-assigned creation timestamp.\",\"readOnly\":true,\"examples\":[\"2026-03-09T10:11:12Z\"],\"format\":\"date-time\"},\"dueDate\":{\"type\":[\"string\",\"null\"],\"description\":\"Optional due date in ISO 8601 date format.\",\"examples\":[\"2026-04-30\"],\"format\":\"date\"},\"id\":{\"type\":\"string\",\"description\":\"Server-assigned note identifier.\",\"readOnly\":true,\"examples\":[\"example\"]},\"tags\":{\"type\":[\"array\",\"null\"],\"items\":{\"type\":\"string\",\"description\":\"Optional tags used for filtering.\",\"examples\":[\"example\"]},\"description\":\"Optional tags used for filtering.\",\"examples\":[[\"python\",\"mcp\"]],\"uniqueItems\":true},\"title\":{\"type\":\"string\",\"description\":\"Short human-readable note title.\",\"examples\":[\"Ship Python support\"],\"minLength\":1,\"maxLength\":80}},\"examples\":[{\"body\":\"example\",\"createdAt\":\"2026-03-09T10:11:12Z\",\"dueDate\":\"example\",\"id\":\"example\",\"tags\":[\"example\"],\"title\":\"example\"}],\"required\":[\"id\",\"title\",\"body\",\"createdAt\"],\"additionalProperties\":false},\"examples\":[[{\"body\":\"example\",\"createdAt\":\"2026-03-09T10:11:12Z\",\"dueDate\":\"example\",\"id\":\"example\",\"tags\":[\"example\"],\"title\":\"example\"}]]}},\"examples\":[{\"notes\":[{\"body\":\"example\",\"createdAt\":\"2026-03-09T10:11:12Z\",\"dueDate\":\"example\",\"id\":\"example\",\"tags\":[\"example\"],\"title\":\"example\"}]}],\"additionalProperties\":false}"
+
+NOTEBOOK_API_DELETE_NOTE_INPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\",\"description\":\"Identifier of the note to delete.\",\"examples\":[\"example\"],\"minLength\":1}},\"examples\":[{\"id\":\"example\"}],\"required\":[\"id\"],\"additionalProperties\":false}"
+
+NOTEBOOK_API_DELETE_NOTE_OUTPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"deleted\":{\"type\":\"boolean\",\"description\":\"Whether a note with this id existed and was deleted.\",\"examples\":[true]}},\"examples\":[{\"deleted\":true}],\"required\":[\"deleted\"],\"additionalProperties\":false}"
 
 NOTEBOOK_API_HEALTH_INPUT_SCHEMA_JSON = "{\"type\":\"object\",\"additionalProperties\":false}"
 
@@ -411,3 +461,38 @@ def register_notebook_resources(
         reader=lambda uri, params: protoc_gen_mcp_runtime.read_resource_contents(impl.read_note(params["id"]), uri, mime_type="application/json", kind="protojson", content_field=None, to_pb=_to_pb_note, meta=None),
     ))
 
+
+
+@dataclass
+class NotebookMCPHandlers:
+    """Business handlers for every MCP primitive in proto/notebook.proto."""
+    notebook_api: NotebookAPIToolHandler
+    prompts: NotebookPromptHandler
+    resources: NotebookResourceHandler
+
+
+def create_notebook_mcp_server(handlers: NotebookMCPHandlers) -> protoc_gen_mcp_runtime.ConfiguredServer:
+    """Builds the server declared by proto/notebook.proto and registers its primitives."""
+    server = protoc_gen_mcp_runtime.new_configured_server("standalone-python-notebook", "0.1.0", apps=False)
+    register_notebook_api_tools(server, handlers.notebook_api)
+    register_notebook_prompts(server, handlers.prompts)
+    register_notebook_resources(server, handlers.resources)
+    return server
+
+
+def create_notebook_mcp_http_app(server: mcp.server.lowlevel.Server, verifier: Any = None) -> Any:
+    """Serves server over stateless Streamable HTTP with the policy of proto/notebook.proto.
+
+    Returns an ASGI application. With OAuth, verifier is an SDK TokenVerifier; when
+    it is None the built-in RS256 JWKS verifier is used.
+    """
+    oauth = protoc_gen_mcp_runtime.OAuthResourceServer(
+        resource_url="https://notebook.example.com/mcp",
+        authorization_servers=("https://auth.example.com",),
+        scopes=("notebook:read",),
+        issuer="https://auth.example.com",
+        audience="https://notebook.example.com/mcp",
+        jwks_url="https://auth.example.com/.well-known/jwks.json",
+        mcp_path="",
+    )
+    return protoc_gen_mcp_runtime.new_http_app(server, oauth, verifier)

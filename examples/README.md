@@ -7,10 +7,10 @@ One runnable example per target language. Each standalone project has its own
 |---|---|---|
 | [1_helloworld](./1_helloworld) | Go | Minimal quickstart: one RPC, generated bindings, `mcp.Server` wiring. |
 | [11_protobuf_first_mcp](./11_protobuf_first_mcp/README.md) | Go | Full showcase: generated server factory, prompts, raw/UI resources, OAuth and scoped tools. |
-| [5_python_standalone](./5_python_standalone) | Python | Python-only project with `pyproject.toml`, generated dataclass handlers and a stdio server. |
-| [6_java_standalone](./6_java_standalone) | Java | Gradle project with a generated `lang=java` sidecar and a stdio server. |
-| [7_kotlin_standalone](./7_kotlin_standalone) | Kotlin | Gradle project with Java + Kotlin protobuf output and a `lang=kotlin` sidecar. |
-| [8_typescript_standalone](./8_typescript_standalone) | TypeScript | npm project with Protobuf-ES output, a `lang=typescript` sidecar and a stdio server. JavaScript projects consume its compiled `.js` and `.d.ts` output. |
+| [5_python_standalone](./5_python_standalone) | Python | Python-only project with `pyproject.toml`, generated dataclass handlers, stdio and an OAuth-protected HTTP mode. |
+| [6_java_standalone](./6_java_standalone) | Java | Gradle project with a generated `lang=java` sidecar, stdio and an OAuth-protected Jetty servlet. |
+| [7_kotlin_standalone](./7_kotlin_standalone) | Kotlin | Gradle project with Java + Kotlin protobuf output and a `lang=kotlin` sidecar, stdio and an OAuth-protected Ktor route. |
+| [8_typescript_standalone](./8_typescript_standalone) | TypeScript | npm project with Protobuf-ES output, a `lang=typescript` sidecar, stdio and an OAuth-protected HTTP mode. JavaScript projects consume its compiled `.js` and `.d.ts` output. |
 
 ## Prerequisites
 
