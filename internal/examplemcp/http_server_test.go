@@ -79,3 +79,11 @@ func TestJavaHTTPOAuthContract(t *testing.T) {
 	cmd.Args = append(cmd.Args, "http")
 	httpcontract.Run(t, cmd)
 }
+
+func TestKotlinHTTPOAuthContract(t *testing.T) {
+	root := repoRoot(t)
+	ensureJVMExamplesInstalled(t, root)
+	cmd := installedJVMServerCommand(root, "kotlin-server")
+	cmd.Args = append(cmd.Args, "http")
+	httpcontract.Run(t, cmd)
+}

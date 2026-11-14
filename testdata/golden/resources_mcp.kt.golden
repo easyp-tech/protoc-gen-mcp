@@ -9,6 +9,7 @@ import com.google.protobuf.util.JsonFormat
 import com.networknt.schema.InputFormat
 import com.networknt.schema.JsonSchemaFactory
 import com.networknt.schema.SpecVersion
+import io.ktor.server.application.Application
 import io.modelcontextprotocol.kotlin.sdk.server.ClientConnection
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolRequest
@@ -38,6 +39,7 @@ import tech.easyp.mcp.runtime.kotlin.RegisteredTool
 import tech.easyp.mcp.runtime.kotlin.checkGencodeVersion
 import tech.easyp.mcp.runtime.kotlin.iconThemeOrError
 import tech.easyp.mcp.runtime.kotlin.installMcpHandlers
+import tech.easyp.mcp.runtime.kotlin.installMcpHttp
 import tech.easyp.mcp.runtime.kotlin.newConfiguredServer
 import tech.easyp.mcp.runtime.kotlin.normalizeNamespace
 import tech.easyp.mcp.runtime.kotlin.promptName
@@ -176,4 +178,9 @@ suspend fun newResourcesMCPServer(handlers: ResourcesMCPHandlers): Server {
     )
     registerResourcesResources(server, handlers.resources)
     return server
+}
+
+/** Serves internal/testproto/resources/v1/resources.proto over stateless Streamable HTTP on /mcp, building a fresh server per request. */
+fun Application.installResourcesMCPHttp(handlers: ResourcesMCPHandlers) {
+    installMcpHttp(null, null) { newResourcesMCPServer(handlers) }
 }

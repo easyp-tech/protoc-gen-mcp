@@ -23,6 +23,9 @@ import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
 import io.modelcontextprotocol.kotlin.sdk.types.ToolExecution
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import java.util.Collections
+import kotlinx.coroutines.withContext
+import tech.easyp.mcp.runtime.oauth.AccessToken
+import tech.easyp.mcp.runtime.oauth.ScopeGate
 import java.util.WeakHashMap
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -56,6 +59,8 @@ data class RegisteredTool(
     val icons: List<Icon>,
     val execution: ToolExecution?,
     val meta: JsonObject? = null,
+    /** Scopes a call needs: 403 over HTTP without them, denied in the call without a token. */
+    val requiredScopes: List<String> = emptyList(),
 )
 
 class ServerToolRegistry {
@@ -88,6 +93,8 @@ class ServerToolRegistry {
 }
 
 private val serverRegistries = Collections.synchronizedMap(WeakHashMap<Server, ServerToolRegistry>())
+
+internal fun registryOf(server: Server): ServerToolRegistry? = serverRegistries[server]
 private val serverRegistryInstallLock = Any()
 private val jsonSchemaFactory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)
 
@@ -143,7 +150,7 @@ private fun installSessionHandlers(server: Server, registry: ServerToolRegistry)
             listRegisteredTools(registry, request)
         }
         session.setRequestHandler(Method.Defined.ToolsCall) { request: CallToolRequest, _ ->
-            dispatchToolCall(registry, server.clientConnection(session.sessionId), request)
+            dispatchToolCall(registry, server.clientConnection(session.sessionId), request, accessTokenOf(session))
         }
     }
 }
@@ -152,8 +159,17 @@ private suspend fun listRegisteredTools(registry: ServerToolRegistry, request: L
     return ListToolsResult(tools = registry.allTools().map { buildListTool(it) }, nextCursor = null)
 }
 
-private suspend fun dispatchToolCall(registry: ServerToolRegistry, ctx: ClientConnection, request: CallToolRequest): CallToolResult {
+private suspend fun dispatchToolCall(
+    registry: ServerToolRegistry,
+    ctx: ClientConnection,
+    request: CallToolRequest,
+    token: AccessToken?,
+): CallToolResult {
     val tool = registry.tool(request.params.name) ?: invalidParams(request.params.name, "unknown tool")
+    // Defence in depth behind the HTTP scope check; stdio has no token.
+    ScopeGate.toolGuardError(tool.requiredScopes, token)?.let { denied ->
+        return CallToolResult(content = listOf(TextContent(text = denied)), isError = true)
+    }
     val arguments = request.params.arguments ?: buildJsonObject {}
     try {
         validateJson(tool.inputSchemaJson, arguments)
@@ -166,7 +182,7 @@ private suspend fun dispatchToolCall(registry: ServerToolRegistry, ctx: ClientCo
         invalidParams(tool.name, error.message ?: error.toString())
     }
     val responseMessage = try {
-        tool.handler(ctx, requestMessage)
+        if (token == null) tool.handler(ctx, requestMessage) else withContext(AccessTokenElement(token)) { tool.handler(ctx, requestMessage) }
     } catch (error: Exception) {
         return CallToolResult(content = listOf(TextContent(text = error.message ?: error.toString())), isError = true)
     }

@@ -117,23 +117,3 @@ func modelNeedsApps(model FileModel) bool {
 	}
 	return false
 }
-
-// validateGoOnlyOptions rejects authorization options that only the Go target
-// implements, so other targets never silently serve a protected tool.
-func validateGoOnlyOptions(model FileModel) error {
-	lang := model.Options.Language
-	if lang == LanguageGo || lang == LanguagePython || lang == LanguageTypeScript || lang == LanguageJava {
-		return nil
-	}
-	if oauth := model.ServerConfig.GetOauth(); oauth != nil {
-		return fmt.Errorf("file %s: option (mcp.options.v1.server).oauth is not supported by lang=%s yet; only lang=go generates the OAuth resource server", model.ProtoPath, lang)
-	}
-	for _, service := range model.Services {
-		for _, method := range service.Methods {
-			if len(method.RequiredScopes) > 0 {
-				return fmt.Errorf("method %s: required_scopes is not supported by lang=%s yet; only lang=go enforces them", method.ProtoFullName, lang)
-			}
-		}
-	}
-	return nil
-}

@@ -49,6 +49,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Kotlin serves `option (mcp.options.v1.server).oauth` through
+  `Application.install<File>MCPHttp(handlers, verifier)`, a Ktor route on the
+  SDK `StreamableHttpServerTransport` with the same metadata, bearer check,
+  scope step-up and JVM JWKS verifier; handlers read the token with
+  `currentAccessToken()`. No target rejects `oauth` or `required_scopes` at
+  generation any more.
 - Java serves `option (mcp.options.v1.server).oauth` through
   `new<File>MCPHttpServlet(server, verifier)`: the SDK
   `HttpServletStatelessServerTransport` behind a servlet that adds bearer
