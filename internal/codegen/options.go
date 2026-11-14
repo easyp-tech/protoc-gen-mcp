@@ -13,6 +13,7 @@ const (
 	LanguageKotlin     Language = "kotlin"
 	LanguageJava       Language = "java"
 	LanguageTypeScript Language = "typescript"
+	LanguageSwift      Language = "swift"
 )
 
 type PythonRuntime string
@@ -89,7 +90,7 @@ func (p *OptionsParser) Options() (Options, error) {
 		if p.sawPythonHandler {
 			return Options{}, fmt.Errorf("python_handler is only supported when lang=python")
 		}
-	case LanguageKotlin, LanguageJava, LanguageTypeScript:
+	case LanguageKotlin, LanguageJava, LanguageTypeScript, LanguageSwift:
 		if p.sawPythonRuntime {
 			return Options{}, fmt.Errorf("python_runtime is only supported when lang=python")
 		}
