@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-__version__ = "0.8.0"
+__version__ = "1.0.0"
 
 # GENCODE_VERSION is bumped whenever generated code needs a newer runtime API.
 GENCODE_VERSION = 1

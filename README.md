@@ -205,6 +205,19 @@ Language notes:
   `requireBearerAuth` plus the runtime scope gate and RFC 9728 metadata;
   `verifier` defaults to the built-in RS256 JWKS verifier on `jose`.
 
+Runtime packages are released with the plugin under the same version. Every
+GitHub release also carries the Python wheel and the npm tarball, so they can
+be installed straight from the release while a registry is not available:
+
+```bash
+pip install https://github.com/easyp-tech/protoc-gen-mcp/releases/download/v1.0.0/protoc_gen_mcp_runtime-1.0.0-py3-none-any.whl
+npm install https://github.com/easyp-tech/protoc-gen-mcp/releases/download/v1.0.0/easyp-tech-protoc-gen-mcp-runtime-1.0.0.tgz
+```
+
+JVM projects can build the runtime from a checkout of the release tag with
+`gradle -p runtime/jvm publishToMavenLocal` and add `mavenLocal()` to their
+repositories.
+
 ## Generated API
 
 Every target exposes a typed handler interface per service and a registration
