@@ -134,6 +134,8 @@ async def run_http_server(addr: str, demo_auth: bool) -> None:
     app = notebook_mcp.create_notebook_mcp_http_app(new_server(), DemoVerifier() if demo_auth else None)
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind((host, int(port)))
+    # Listen before announcing the address so clients never race uvicorn's startup.
+    sock.listen(128)
     bound_host, bound_port = sock.getsockname()[:2]
     config = uvicorn.Config(app, log_level="warning", lifespan="on")
     config.load()
