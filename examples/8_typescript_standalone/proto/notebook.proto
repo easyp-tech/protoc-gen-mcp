@@ -5,6 +5,22 @@ package standalone.notebook.v1;
 import "google/protobuf/timestamp.proto";
 import "mcp/options/v1/options.proto";
 
+// Over HTTP the notebook is an OAuth protected resource: every request needs
+// notebook:read, and DeleteNote also needs notebook:write. Run the server with
+// --http --demo-auth to try it with the local tokens demo-read and demo-write.
+option (mcp.options.v1.server) = {
+  name: "standalone-typescript-notebook"
+  version: "0.1.0"
+  oauth: {
+    resource_url: "https://notebook.example.com/mcp"
+    authorization_servers: "https://auth.example.com"
+    scopes: "notebook:read"
+    issuer: "https://auth.example.com"
+    jwks_uri: "https://auth.example.com/.well-known/jwks.json"
+    audience: "https://notebook.example.com/mcp"
+  }
+};
+
 service NotebookAPI {
   option (mcp.options.v1.service) = {
     namespace: "notebook"
@@ -34,6 +50,19 @@ service NotebookAPI {
     };
   }
 
+  rpc DeleteNote(DeleteNoteRequest) returns (DeleteNoteResponse) {
+    option (mcp.options.v1.method) = {
+      title: "Delete note"
+      description: "Delete a note. Needs the notebook:write scope, so it is denied without a token, for example over stdio."
+      required_scopes: "notebook:write"
+      annotations: {
+        destructive_hint: true
+        idempotent_hint: true
+        open_world_hint: false
+      }
+    };
+  }
+
   rpc Health(HealthRequest) returns (HealthResponse) {
     option (mcp.options.v1.method) = {
       title: "Notebook health"
@@ -47,6 +76,12 @@ service NotebookAPI {
 }
 
 message Note {
+  option (mcp.options.v1.resource) = {
+    name: "note"
+    uri_template: "notebook://notes/{id}"
+    description: "A note from the in-memory notebook, addressed by its id."
+  };
+
   string id = 1 [(mcp.options.v1.field) = {
     read_only: true
     description: "Server-assigned note identifier."
@@ -148,6 +183,19 @@ message SearchNotesResponse {
   repeated Note notes = 1;
 }
 
+message DeleteNoteRequest {
+  string id = 1 [(mcp.options.v1.field) = {
+    description: "Identifier of the note to delete."
+    min_length: 1
+  }];
+}
+
+message DeleteNoteResponse {
+  bool deleted = 1 [(mcp.options.v1.field) = {
+    description: "Whether a note with this id existed and was deleted."
+  }];
+}
+
 message HealthRequest {}
 
 message HealthResponse {
@@ -155,5 +203,21 @@ message HealthResponse {
   int32 note_count = 2 [(mcp.options.v1.field) = {
     read_only: true
     description: "Current number of notes in memory."
+  }];
+}
+
+message ReviewNote {
+  option (mcp.options.v1.prompt) = {
+    name: "review_note"
+    title: "Review note"
+    description: "Ask the model to review a note and suggest a clearer version."
+  };
+
+  string note_id = 1 [(mcp.options.v1.field) = {
+    description: "Identifier of the note to review."
+  }];
+
+  optional string focus = 2 [(mcp.options.v1.field) = {
+    description: "Optional aspect to focus on, for example tone or brevity."
   }];
 }

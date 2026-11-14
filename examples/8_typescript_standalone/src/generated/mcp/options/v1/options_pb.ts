@@ -21,7 +21,7 @@
 
 import type { GenEnum, GenExtension, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import { enumDesc, extDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
-import type { EnumOptions as EnumOptions$1, EnumValueOptions as EnumValueOptions$1, FieldOptions as FieldOptions$1, MessageOptions as MessageOptions$1, MethodOptions as MethodOptions$1, OneofOptions as OneofOptions$1, ServiceOptions as ServiceOptions$1 } from "../../../google/protobuf/descriptor_pb.js";
+import type { EnumOptions as EnumOptions$1, EnumValueOptions as EnumValueOptions$1, FieldOptions as FieldOptions$1, FileOptions, MessageOptions as MessageOptions$1, MethodOptions as MethodOptions$1, OneofOptions as OneofOptions$1, ServiceOptions as ServiceOptions$1 } from "../../../google/protobuf/descriptor_pb.js";
 import { file_google_protobuf_descriptor } from "../../../google/protobuf/descriptor_pb.js";
 import type { Message } from "@bufbuild/protobuf";
 
@@ -29,7 +29,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file mcp/options/v1/options.proto.
  */
 export const file_mcp_options_v1_options: GenFile = /*@__PURE__*/
-  fileDesc("ChxtY3Avb3B0aW9ucy92MS9vcHRpb25zLnByb3RvEg5tY3Aub3B0aW9ucy52MSJdCg5TZXJ2aWNlT3B0aW9ucxIRCgluYW1lc3BhY2UYASABKAkSEwoLZGVzY3JpcHRpb24YAiABKAkSIwoFaWNvbnMYAyADKAsyFC5tY3Aub3B0aW9ucy52MS5JY29uIuEBCg1NZXRob2RPcHRpb25zEgwKBG5hbWUYASABKAkSDQoFdGl0bGUYAiABKAkSEwoLZGVzY3JpcHRpb24YAyABKAkSDgoGaGlkZGVuGAQgASgIEjQKC2Fubm90YXRpb25zGAogASgLMh8ubWNwLm9wdGlvbnMudjEuVG9vbEFubm90YXRpb25zEiMKBWljb25zGAsgAygLMhQubWNwLm9wdGlvbnMudjEuSWNvbhIzCglleGVjdXRpb24YDCABKAsyIC5tY3Aub3B0aW9ucy52MS5FeGVjdXRpb25PcHRpb25zIsgECgxGaWVsZE9wdGlvbnMSEwoLZGVzY3JpcHRpb24YASABKAkSLgoIZXhhbXBsZXMYAyADKAsyHC5tY3Aub3B0aW9ucy52MS5FeGFtcGxlVmFsdWUSMwoNZGVmYXVsdF92YWx1ZRgEIAEoCzIcLm1jcC5vcHRpb25zLnYxLkV4YW1wbGVWYWx1ZRIPCgdwYXR0ZXJuGAogASgJEg4KBmZvcm1hdBgLIAEoCRIXCgptaW5fbGVuZ3RoGAwgASgNSACIAQESFwoKbWF4X2xlbmd0aBgNIAEoDUgBiAEBEhQKB21pbmltdW0YFCABKAFIAogBARIUCgdtYXhpbXVtGBUgASgBSAOIAQESHgoRZXhjbHVzaXZlX21pbmltdW0YFiABKAFIBIgBARIeChFleGNsdXNpdmVfbWF4aW11bRgXIAEoAUgFiAEBEhgKC211bHRpcGxlX29mGBggASgBSAaIAQESFgoJbWluX2l0ZW1zGB4gASgNSAeIAQESFgoJbWF4X2l0ZW1zGB8gASgNSAiIAQESFAoMdW5pcXVlX2l0ZW1zGCAgASgIEhEKCXJlYWRfb25seRgoIAEoCEINCgtfbWluX2xlbmd0aEINCgtfbWF4X2xlbmd0aEIKCghfbWluaW11bUIKCghfbWF4aW11bUIUChJfZXhjbHVzaXZlX21pbmltdW1CFAoSX2V4Y2x1c2l2ZV9tYXhpbXVtQg4KDF9tdWx0aXBsZV9vZkIMCgpfbWluX2l0ZW1zQgwKCl9tYXhfaXRlbXMi9wEKDEV4YW1wbGVWYWx1ZRIWCgxzdHJpbmdfdmFsdWUYASABKAlIABIWCgxudW1iZXJfdmFsdWUYAiABKAFIABIUCgpib29sX3ZhbHVlGAMgASgISAASNQoMb2JqZWN0X3ZhbHVlGAQgASgLMh0ubWNwLm9wdGlvbnMudjEuRXhhbXBsZU9iamVjdEgAEjMKC2FycmF5X3ZhbHVlGAUgASgLMhwubWNwLm9wdGlvbnMudjEuRXhhbXBsZUFycmF5SAASFAoKbnVsbF92YWx1ZRgGIAEoCEgAEhcKDWludGVnZXJfdmFsdWUYByABKANIAEIGCgRraW5kIqMBCg1FeGFtcGxlT2JqZWN0EkEKCnByb3BlcnRpZXMYASADKAsyLS5tY3Aub3B0aW9ucy52MS5FeGFtcGxlT2JqZWN0LlByb3BlcnRpZXNFbnRyeRpPCg9Qcm9wZXJ0aWVzRW50cnkSCwoDa2V5GAEgASgJEisKBXZhbHVlGAIgASgLMhwubWNwLm9wdGlvbnMudjEuRXhhbXBsZVZhbHVlOgI4ASI7CgxFeGFtcGxlQXJyYXkSKwoFaXRlbXMYASADKAsyHC5tY3Aub3B0aW9ucy52MS5FeGFtcGxlVmFsdWUitwEKD1Rvb2xBbm5vdGF0aW9ucxIWCg5yZWFkX29ubHlfaGludBgBIAEoCBIdChBkZXN0cnVjdGl2ZV9oaW50GAIgASgISACIAQESFwoPaWRlbXBvdGVudF9oaW50GAMgASgIEhwKD29wZW5fd29ybGRfaGludBgEIAEoCEgBiAEBEg0KBXRpdGxlGAUgASgJQhMKEV9kZXN0cnVjdGl2ZV9oaW50QhIKEF9vcGVuX3dvcmxkX2hpbnQiRAoESWNvbhILCgNzcmMYASABKAkSEQoJbWltZV90eXBlGAIgASgJEg0KBXNpemVzGAMgAygJEg0KBXRoZW1lGAQgASgJIkUKEEV4ZWN1dGlvbk9wdGlvbnMSMQoMdGFza19zdXBwb3J0GAEgASgOMhsubWNwLm9wdGlvbnMudjEuVGFza1N1cHBvcnQiNQoMT25lb2ZPcHRpb25zEhMKC2Rlc2NyaXB0aW9uGAEgASgJEhAKCHJlcXVpcmVkGAIgASgIImUKDk1lc3NhZ2VPcHRpb25zEg0KBXRpdGxlGAEgASgJEhMKC2Rlc2NyaXB0aW9uGAIgASgJEi8KCGV4YW1wbGVzGAMgAygLMh0ubWNwLm9wdGlvbnMudjEuRXhhbXBsZU9iamVjdCIxCgtFbnVtT3B0aW9ucxINCgV0aXRsZRgBIAEoCRITCgtkZXNjcmlwdGlvbhgCIAEoCSI3ChBFbnVtVmFsdWVPcHRpb25zEhMKC2Rlc2NyaXB0aW9uGAEgASgJEg4KBmhpZGRlbhgCIAEoCCpaCgtUYXNrU3VwcG9ydBIVChFUQVNLX1NVUFBPUlRfTk9ORRAAEhkKFVRBU0tfU1VQUE9SVF9PUFRJT05BTBABEhkKFVRBU0tfU1VQUE9SVF9SRVFVSVJFRBACOlsKB3NlcnZpY2USHy5nb29nbGUucHJvdG9idWYuU2VydmljZU9wdGlvbnMY+cYFIAEoCzIeLm1jcC5vcHRpb25zLnYxLlNlcnZpY2VPcHRpb25zUgdzZXJ2aWNlOlcKBm1ldGhvZBIeLmdvb2dsZS5wcm90b2J1Zi5NZXRob2RPcHRpb25zGPrGBSABKAsyHS5tY3Aub3B0aW9ucy52MS5NZXRob2RPcHRpb25zUgZtZXRob2Q6UwoFZmllbGQSHS5nb29nbGUucHJvdG9idWYuRmllbGRPcHRpb25zGPvGBSABKAsyHC5tY3Aub3B0aW9ucy52MS5GaWVsZE9wdGlvbnNSBWZpZWxkOlsKB21lc3NhZ2USHy5nb29nbGUucHJvdG9idWYuTWVzc2FnZU9wdGlvbnMY/MYFIAEoCzIeLm1jcC5vcHRpb25zLnYxLk1lc3NhZ2VPcHRpb25zUgdtZXNzYWdlOk8KBGVudW0SHC5nb29nbGUucHJvdG9idWYuRW51bU9wdGlvbnMY/cYFIAEoCzIbLm1jcC5vcHRpb25zLnYxLkVudW1PcHRpb25zUgRlbnVtOmQKCmVudW1fdmFsdWUSIS5nb29nbGUucHJvdG9idWYuRW51bVZhbHVlT3B0aW9ucxj+xgUgASgLMiAubWNwLm9wdGlvbnMudjEuRW51bVZhbHVlT3B0aW9uc1IJZW51bVZhbHVlOlMKBW9uZW9mEh0uZ29vZ2xlLnByb3RvYnVmLk9uZW9mT3B0aW9ucxj/xgUgASgLMhwubWNwLm9wdGlvbnMudjEuT25lb2ZPcHRpb25zUgVvbmVvZkI/Wj1naXRodWIuY29tL2Vhc3lwLXRlY2gvcHJvdG9jLWdlbi1tY3AvbWNwL29wdGlvbnMvdjE7b3B0aW9uc3YxYgZwcm90bzM", [file_google_protobuf_descriptor]);
+  fileDesc("ChxtY3Avb3B0aW9ucy92MS9vcHRpb25zLnByb3RvEg5tY3Aub3B0aW9ucy52MSJdCg5TZXJ2aWNlT3B0aW9ucxIRCgluYW1lc3BhY2UYASABKAkSEwoLZGVzY3JpcHRpb24YAiABKAkSIwoFaWNvbnMYAyADKAsyFC5tY3Aub3B0aW9ucy52MS5JY29uIqgCCg1NZXRob2RPcHRpb25zEgwKBG5hbWUYASABKAkSDQoFdGl0bGUYAiABKAkSEwoLZGVzY3JpcHRpb24YAyABKAkSDgoGaGlkZGVuGAQgASgIEjQKC2Fubm90YXRpb25zGAogASgLMh8ubWNwLm9wdGlvbnMudjEuVG9vbEFubm90YXRpb25zEiMKBWljb25zGAsgAygLMhQubWNwLm9wdGlvbnMudjEuSWNvbhIzCglleGVjdXRpb24YDCABKAsyIC5tY3Aub3B0aW9ucy52MS5FeGVjdXRpb25PcHRpb25zEiwKBmFwcF91aRgNIAEoCzIcLm1jcC5vcHRpb25zLnYxLkFwcFVJT3B0aW9ucxIXCg9yZXF1aXJlZF9zY29wZXMYDiADKAkiOAoMQXBwVUlPcHRpb25zEhQKDHJlc291cmNlX3VyaRgBIAEoCRISCgp2aXNpYmlsaXR5GAIgAygJIsgECgxGaWVsZE9wdGlvbnMSEwoLZGVzY3JpcHRpb24YASABKAkSLgoIZXhhbXBsZXMYAyADKAsyHC5tY3Aub3B0aW9ucy52MS5FeGFtcGxlVmFsdWUSMwoNZGVmYXVsdF92YWx1ZRgEIAEoCzIcLm1jcC5vcHRpb25zLnYxLkV4YW1wbGVWYWx1ZRIPCgdwYXR0ZXJuGAogASgJEg4KBmZvcm1hdBgLIAEoCRIXCgptaW5fbGVuZ3RoGAwgASgNSACIAQESFwoKbWF4X2xlbmd0aBgNIAEoDUgBiAEBEhQKB21pbmltdW0YFCABKAFIAogBARIUCgdtYXhpbXVtGBUgASgBSAOIAQESHgoRZXhjbHVzaXZlX21pbmltdW0YFiABKAFIBIgBARIeChFleGNsdXNpdmVfbWF4aW11bRgXIAEoAUgFiAEBEhgKC211bHRpcGxlX29mGBggASgBSAaIAQESFgoJbWluX2l0ZW1zGB4gASgNSAeIAQESFgoJbWF4X2l0ZW1zGB8gASgNSAiIAQESFAoMdW5pcXVlX2l0ZW1zGCAgASgIEhEKCXJlYWRfb25seRgoIAEoCEINCgtfbWluX2xlbmd0aEINCgtfbWF4X2xlbmd0aEIKCghfbWluaW11bUIKCghfbWF4aW11bUIUChJfZXhjbHVzaXZlX21pbmltdW1CFAoSX2V4Y2x1c2l2ZV9tYXhpbXVtQg4KDF9tdWx0aXBsZV9vZkIMCgpfbWluX2l0ZW1zQgwKCl9tYXhfaXRlbXMi9wEKDEV4YW1wbGVWYWx1ZRIWCgxzdHJpbmdfdmFsdWUYASABKAlIABIWCgxudW1iZXJfdmFsdWUYAiABKAFIABIUCgpib29sX3ZhbHVlGAMgASgISAASNQoMb2JqZWN0X3ZhbHVlGAQgASgLMh0ubWNwLm9wdGlvbnMudjEuRXhhbXBsZU9iamVjdEgAEjMKC2FycmF5X3ZhbHVlGAUgASgLMhwubWNwLm9wdGlvbnMudjEuRXhhbXBsZUFycmF5SAASFAoKbnVsbF92YWx1ZRgGIAEoCEgAEhcKDWludGVnZXJfdmFsdWUYByABKANIAEIGCgRraW5kIqMBCg1FeGFtcGxlT2JqZWN0EkEKCnByb3BlcnRpZXMYASADKAsyLS5tY3Aub3B0aW9ucy52MS5FeGFtcGxlT2JqZWN0LlByb3BlcnRpZXNFbnRyeRpPCg9Qcm9wZXJ0aWVzRW50cnkSCwoDa2V5GAEgASgJEisKBXZhbHVlGAIgASgLMhwubWNwLm9wdGlvbnMudjEuRXhhbXBsZVZhbHVlOgI4ASI7CgxFeGFtcGxlQXJyYXkSKwoFaXRlbXMYASADKAsyHC5tY3Aub3B0aW9ucy52MS5FeGFtcGxlVmFsdWUitwEKD1Rvb2xBbm5vdGF0aW9ucxIWCg5yZWFkX29ubHlfaGludBgBIAEoCBIdChBkZXN0cnVjdGl2ZV9oaW50GAIgASgISACIAQESFwoPaWRlbXBvdGVudF9oaW50GAMgASgIEhwKD29wZW5fd29ybGRfaGludBgEIAEoCEgBiAEBEg0KBXRpdGxlGAUgASgJQhMKEV9kZXN0cnVjdGl2ZV9oaW50QhIKEF9vcGVuX3dvcmxkX2hpbnQiRAoESWNvbhILCgNzcmMYASABKAkSEQoJbWltZV90eXBlGAIgASgJEg0KBXNpemVzGAMgAygJEg0KBXRoZW1lGAQgASgJIkUKEEV4ZWN1dGlvbk9wdGlvbnMSMQoMdGFza19zdXBwb3J0GAEgASgOMhsubWNwLm9wdGlvbnMudjEuVGFza1N1cHBvcnQiNQoMT25lb2ZPcHRpb25zEhMKC2Rlc2NyaXB0aW9uGAEgASgJEhAKCHJlcXVpcmVkGAIgASgIImUKDk1lc3NhZ2VPcHRpb25zEg0KBXRpdGxlGAEgASgJEhMKC2Rlc2NyaXB0aW9uGAIgASgJEi8KCGV4YW1wbGVzGAMgAygLMh0ubWNwLm9wdGlvbnMudjEuRXhhbXBsZU9iamVjdCIxCgtFbnVtT3B0aW9ucxINCgV0aXRsZRgBIAEoCRITCgtkZXNjcmlwdGlvbhgCIAEoCSI3ChBFbnVtVmFsdWVPcHRpb25zEhMKC2Rlc2NyaXB0aW9uGAEgASgJEg4KBmhpZGRlbhgCIAEoCCJmCg1Qcm9tcHRPcHRpb25zEgwKBG5hbWUYASABKAkSDQoFdGl0bGUYAiABKAkSEwoLZGVzY3JpcHRpb24YAyABKAkSIwoFaWNvbnMYBCADKAsyFC5tY3Aub3B0aW9ucy52MS5JY29uIm0KE1Jlc291cmNlQW5ub3RhdGlvbnMSMgoIYXVkaWVuY2UYASADKA4yIC5tY3Aub3B0aW9ucy52MS5SZXNvdXJjZUF1ZGllbmNlEhUKCHByaW9yaXR5GAIgASgBSACIAQFCCwoJX3ByaW9yaXR5IqkCCg9SZXNvdXJjZU9wdGlvbnMSCwoDdXJpGAEgASgJEhQKDHVyaV90ZW1wbGF0ZRgCIAEoCRIMCgRuYW1lGAMgASgJEhMKC2Rlc2NyaXB0aW9uGAQgASgJEhEKCW1pbWVfdHlwZRgFIAEoCRI4Cgthbm5vdGF0aW9ucxgGIAEoCzIjLm1jcC5vcHRpb25zLnYxLlJlc291cmNlQW5ub3RhdGlvbnMSIwoFaWNvbnMYByADKAsyFC5tY3Aub3B0aW9ucy52MS5JY29uEhUKDWNvbnRlbnRfZmllbGQYCCABKAkSEwoLc291cmNlX2ZpbGUYCSABKAkSMgoGYXBwX3VpGAogASgLMiIubWNwLm9wdGlvbnMudjEuQXBwUmVzb3VyY2VPcHRpb25zIoMBCgxTZXJ2ZXJDb25maWcSDAoEbmFtZRgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEigKBGFwcHMYAyABKAsyGi5tY3Aub3B0aW9ucy52MS5BcHBzQ29uZmlnEioKBW9hdXRoGAQgASgLMhsubWNwLm9wdGlvbnMudjEuT0F1dGhDb25maWciLgoKQXBwc0NvbmZpZxIUCgdlbmFibGVkGAEgASgISACIAQFCCgoIX2VuYWJsZWQimAEKC09BdXRoQ29uZmlnEhQKDHJlc291cmNlX3VybBgBIAEoCRIdChVhdXRob3JpemF0aW9uX3NlcnZlcnMYAiADKAkSDgoGc2NvcGVzGAMgAygJEg4KBmlzc3VlchgEIAEoCRIQCghqd2tzX3VyaRgFIAEoCRIQCghhdWRpZW5jZRgGIAEoCRIQCghtY3BfcGF0aBgHIAEoCSJ0Cg5BcHBSZXNvdXJjZUNTUBIXCg9jb25uZWN0X2RvbWFpbnMYASADKAkSGAoQcmVzb3VyY2VfZG9tYWlucxgCIAMoCRIVCg1mcmFtZV9kb21haW5zGAMgAygJEhgKEGJhc2VfdXJpX2RvbWFpbnMYBCADKAkiagoWQXBwUmVzb3VyY2VQZXJtaXNzaW9ucxIOCgZjYW1lcmEYASABKAgSEgoKbWljcm9waG9uZRgCIAEoCBITCgtnZW9sb2NhdGlvbhgDIAEoCBIXCg9jbGlwYm9hcmRfd3JpdGUYBCABKAgivgEKEkFwcFJlc291cmNlT3B0aW9ucxIrCgNjc3AYASABKAsyHi5tY3Aub3B0aW9ucy52MS5BcHBSZXNvdXJjZUNTUBI7CgtwZXJtaXNzaW9ucxgCIAEoCzImLm1jcC5vcHRpb25zLnYxLkFwcFJlc291cmNlUGVybWlzc2lvbnMSDgoGZG9tYWluGAMgASgJEhsKDnByZWZlcnNfYm9yZGVyGAQgASgISACIAQFCEQoPX3ByZWZlcnNfYm9yZGVyKloKC1Rhc2tTdXBwb3J0EhUKEVRBU0tfU1VQUE9SVF9OT05FEAASGQoVVEFTS19TVVBQT1JUX09QVElPTkFMEAESGQoVVEFTS19TVVBQT1JUX1JFUVVJUkVEEAIqawoQUmVzb3VyY2VBdWRpZW5jZRIaChZSRVNPVVJDRV9BVURJRU5DRV9OT05FEAASGgoWUkVTT1VSQ0VfQVVESUVOQ0VfVVNFUhABEh8KG1JFU09VUkNFX0FVRElFTkNFX0FTU0lTVEFOVBACOlsKB3NlcnZpY2USHy5nb29nbGUucHJvdG9idWYuU2VydmljZU9wdGlvbnMY+cYFIAEoCzIeLm1jcC5vcHRpb25zLnYxLlNlcnZpY2VPcHRpb25zUgdzZXJ2aWNlOlcKBm1ldGhvZBIeLmdvb2dsZS5wcm90b2J1Zi5NZXRob2RPcHRpb25zGPrGBSABKAsyHS5tY3Aub3B0aW9ucy52MS5NZXRob2RPcHRpb25zUgZtZXRob2Q6UwoFZmllbGQSHS5nb29nbGUucHJvdG9idWYuRmllbGRPcHRpb25zGPvGBSABKAsyHC5tY3Aub3B0aW9ucy52MS5GaWVsZE9wdGlvbnNSBWZpZWxkOlsKB21lc3NhZ2USHy5nb29nbGUucHJvdG9idWYuTWVzc2FnZU9wdGlvbnMY/MYFIAEoCzIeLm1jcC5vcHRpb25zLnYxLk1lc3NhZ2VPcHRpb25zUgdtZXNzYWdlOk8KBGVudW0SHC5nb29nbGUucHJvdG9idWYuRW51bU9wdGlvbnMY/cYFIAEoCzIbLm1jcC5vcHRpb25zLnYxLkVudW1PcHRpb25zUgRlbnVtOmQKCmVudW1fdmFsdWUSIS5nb29nbGUucHJvdG9idWYuRW51bVZhbHVlT3B0aW9ucxj+xgUgASgLMiAubWNwLm9wdGlvbnMudjEuRW51bVZhbHVlT3B0aW9uc1IJZW51bVZhbHVlOlMKBW9uZW9mEh0uZ29vZ2xlLnByb3RvYnVmLk9uZW9mT3B0aW9ucxj/xgUgASgLMhwubWNwLm9wdGlvbnMudjEuT25lb2ZPcHRpb25zUgVvbmVvZjpYCgZwcm9tcHQSHy5nb29nbGUucHJvdG9idWYuTWVzc2FnZU9wdGlvbnMYgMcFIAEoCzIdLm1jcC5vcHRpb25zLnYxLlByb21wdE9wdGlvbnNSBnByb21wdDpeCghyZXNvdXJjZRIfLmdvb2dsZS5wcm90b2J1Zi5NZXNzYWdlT3B0aW9ucxiBxwUgASgLMh8ubWNwLm9wdGlvbnMudjEuUmVzb3VyY2VPcHRpb25zUghyZXNvdXJjZTpUCgZzZXJ2ZXISHC5nb29nbGUucHJvdG9idWYuRmlsZU9wdGlvbnMYgscFIAEoCzIcLm1jcC5vcHRpb25zLnYxLlNlcnZlckNvbmZpZ1IGc2VydmVyQj9aPWdpdGh1Yi5jb20vZWFzeXAtdGVjaC9wcm90b2MtZ2VuLW1jcC9tY3Avb3B0aW9ucy92MTtvcHRpb25zdjFiBnByb3RvMw", [file_google_protobuf_descriptor]);
 
 /**
  * ServiceOptions defines MCP metadata attached to a protobuf service via
@@ -209,6 +209,21 @@ export type MethodOptions = Message<"mcp.options.v1.MethodOptions"> & {
    * @generated from field: mcp.options.v1.ExecutionOptions execution = 12;
    */
   execution?: ExecutionOptions | undefined;
+
+  /**
+   * app_ui links the generated tool to a standard MCP Apps ui:// resource.
+   * Hosts without the UI extension continue using the normal tool output.
+   *
+   * @generated from field: mcp.options.v1.AppUIOptions app_ui = 13;
+   */
+  appUi?: AppUIOptions | undefined;
+
+  /**
+   * required_scopes are verified by the generated MCP tool handler.
+   *
+   * @generated from field: repeated string required_scopes = 14;
+   */
+  requiredScopes: string[];
 };
 
 /**
@@ -217,6 +232,35 @@ export type MethodOptions = Message<"mcp.options.v1.MethodOptions"> & {
  */
 export const MethodOptionsSchema: GenMessage<MethodOptions> = /*@__PURE__*/
   messageDesc(file_mcp_options_v1_options, 1);
+
+/**
+ * AppUIOptions carries the MCP Apps Tool._meta.ui metadata.
+ *
+ * @generated from message mcp.options.v1.AppUIOptions
+ */
+export type AppUIOptions = Message<"mcp.options.v1.AppUIOptions"> & {
+  /**
+   * The URI must use the ui:// scheme and be registered as an HTML app
+   * resource by the server (see mcpruntime.RegisterAppResource).
+   *
+   * @generated from field: string resource_uri = 1;
+   */
+  resourceUri: string;
+
+  /**
+   * Client surface visibility. Values: "model", "app"; empty means default.
+   *
+   * @generated from field: repeated string visibility = 2;
+   */
+  visibility: string[];
+};
+
+/**
+ * Describes the message mcp.options.v1.AppUIOptions.
+ * Use `create(AppUIOptionsSchema)` to create a new message.
+ */
+export const AppUIOptionsSchema: GenMessage<AppUIOptions> = /*@__PURE__*/
+  messageDesc(file_mcp_options_v1_options, 2);
 
 /**
  * FieldOptions defines MCP metadata attached to a protobuf field via
@@ -422,7 +466,7 @@ export type FieldOptions = Message<"mcp.options.v1.FieldOptions"> & {
  * Use `create(FieldOptionsSchema)` to create a new message.
  */
 export const FieldOptionsSchema: GenMessage<FieldOptions> = /*@__PURE__*/
-  messageDesc(file_mcp_options_v1_options, 2);
+  messageDesc(file_mcp_options_v1_options, 3);
 
 /**
  * ExampleValue represents a typed JSON value for examples and defaults
@@ -510,7 +554,7 @@ export type ExampleValue = Message<"mcp.options.v1.ExampleValue"> & {
  * Use `create(ExampleValueSchema)` to create a new message.
  */
 export const ExampleValueSchema: GenMessage<ExampleValue> = /*@__PURE__*/
-  messageDesc(file_mcp_options_v1_options, 3);
+  messageDesc(file_mcp_options_v1_options, 4);
 
 /**
  * ExampleObject represents a JSON object structure for examples.
@@ -540,7 +584,7 @@ export type ExampleObject = Message<"mcp.options.v1.ExampleObject"> & {
  * Use `create(ExampleObjectSchema)` to create a new message.
  */
 export const ExampleObjectSchema: GenMessage<ExampleObject> = /*@__PURE__*/
-  messageDesc(file_mcp_options_v1_options, 4);
+  messageDesc(file_mcp_options_v1_options, 5);
 
 /**
  * ExampleArray represents a JSON array structure for examples.
@@ -570,7 +614,7 @@ export type ExampleArray = Message<"mcp.options.v1.ExampleArray"> & {
  * Use `create(ExampleArraySchema)` to create a new message.
  */
 export const ExampleArraySchema: GenMessage<ExampleArray> = /*@__PURE__*/
-  messageDesc(file_mcp_options_v1_options, 5);
+  messageDesc(file_mcp_options_v1_options, 6);
 
 /**
  * ToolAnnotations provides optional behavioral hints for a generated MCP tool.
@@ -653,7 +697,7 @@ export type ToolAnnotations = Message<"mcp.options.v1.ToolAnnotations"> & {
  * Use `create(ToolAnnotationsSchema)` to create a new message.
  */
 export const ToolAnnotationsSchema: GenMessage<ToolAnnotations> = /*@__PURE__*/
-  messageDesc(file_mcp_options_v1_options, 6);
+  messageDesc(file_mcp_options_v1_options, 7);
 
 /**
  * Icon represents a visual identifier for an MCP entity (tool, service),
@@ -710,7 +754,7 @@ export type Icon = Message<"mcp.options.v1.Icon"> & {
  * Use `create(IconSchema)` to create a new message.
  */
 export const IconSchema: GenMessage<Icon> = /*@__PURE__*/
-  messageDesc(file_mcp_options_v1_options, 7);
+  messageDesc(file_mcp_options_v1_options, 8);
 
 /**
  * ExecutionOptions describes execution-related properties for a generated
@@ -737,7 +781,7 @@ export type ExecutionOptions = Message<"mcp.options.v1.ExecutionOptions"> & {
  * Use `create(ExecutionOptionsSchema)` to create a new message.
  */
 export const ExecutionOptionsSchema: GenMessage<ExecutionOptions> = /*@__PURE__*/
-  messageDesc(file_mcp_options_v1_options, 8);
+  messageDesc(file_mcp_options_v1_options, 9);
 
 /**
  * OneofOptions defines MCP metadata attached to a protobuf oneof group via
@@ -784,7 +828,7 @@ export type OneofOptions = Message<"mcp.options.v1.OneofOptions"> & {
  * Use `create(OneofOptionsSchema)` to create a new message.
  */
 export const OneofOptionsSchema: GenMessage<OneofOptions> = /*@__PURE__*/
-  messageDesc(file_mcp_options_v1_options, 9);
+  messageDesc(file_mcp_options_v1_options, 10);
 
 /**
  * MessageOptions defines MCP metadata attached to a protobuf message via
@@ -846,7 +890,7 @@ export type MessageOptions = Message<"mcp.options.v1.MessageOptions"> & {
  * Use `create(MessageOptionsSchema)` to create a new message.
  */
 export const MessageOptionsSchema: GenMessage<MessageOptions> = /*@__PURE__*/
-  messageDesc(file_mcp_options_v1_options, 10);
+  messageDesc(file_mcp_options_v1_options, 11);
 
 /**
  * EnumOptions defines MCP metadata attached to a protobuf enum via
@@ -892,7 +936,7 @@ export type EnumOptions = Message<"mcp.options.v1.EnumOptions"> & {
  * Use `create(EnumOptionsSchema)` to create a new message.
  */
 export const EnumOptionsSchema: GenMessage<EnumOptions> = /*@__PURE__*/
-  messageDesc(file_mcp_options_v1_options, 11);
+  messageDesc(file_mcp_options_v1_options, 12);
 
 /**
  * EnumValueOptions defines MCP metadata attached to an individual protobuf
@@ -954,7 +998,481 @@ export type EnumValueOptions = Message<"mcp.options.v1.EnumValueOptions"> & {
  * Use `create(EnumValueOptionsSchema)` to create a new message.
  */
 export const EnumValueOptionsSchema: GenMessage<EnumValueOptions> = /*@__PURE__*/
-  messageDesc(file_mcp_options_v1_options, 12);
+  messageDesc(file_mcp_options_v1_options, 13);
+
+/**
+ * PromptOptions marks a proto message as an MCP Prompt.
+ * Each field of the message becomes a prompt argument.
+ * Requiredness follows proto3 rules:
+ *   - singular field → required argument
+ *   - optional field → optional argument
+ *
+ * Nested messages, repeated, map, and oneof fields are not allowed
+ * in prompt messages — the generator will produce a fail-fast error.
+ *
+ * Example:
+ *   message CodeReview {
+ *     option (mcp.options.v1.prompt) = {
+ *       name: "code_review"
+ *       description: "Review code quality"
+ *     };
+ *     string code = 1;
+ *     optional string focus = 2;
+ *   }
+ *
+ * @generated from message mcp.options.v1.PromptOptions
+ */
+export type PromptOptions = Message<"mcp.options.v1.PromptOptions"> & {
+  /**
+   * name overrides the prompt name.
+   * Default: snake_case of the message name.
+   * Final name: "{namespace}_{name}" (same logic as tools).
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * title sets the human-readable title for the prompt.
+   *
+   * @generated from field: string title = 2;
+   */
+  title: string;
+
+  /**
+   * description of the prompt shown to clients and agents.
+   *
+   * @generated from field: string description = 3;
+   */
+  description: string;
+
+  /**
+   * icons for the prompt.
+   *
+   * @generated from field: repeated mcp.options.v1.Icon icons = 4;
+   */
+  icons: Icon[];
+};
+
+/**
+ * Describes the message mcp.options.v1.PromptOptions.
+ * Use `create(PromptOptionsSchema)` to create a new message.
+ */
+export const PromptOptionsSchema: GenMessage<PromptOptions> = /*@__PURE__*/
+  messageDesc(file_mcp_options_v1_options, 14);
+
+/**
+ * ResourceAnnotations carries MCP-level metadata for a resource.
+ * These map to the MCP spec's Annotations object (audience + priority),
+ * which is distinct from ToolAnnotations (hints).
+ *
+ * @generated from message mcp.options.v1.ResourceAnnotations
+ */
+export type ResourceAnnotations = Message<"mcp.options.v1.ResourceAnnotations"> & {
+  /**
+   * audience lists the intended consumers (user, assistant, or both).
+   *
+   * @generated from field: repeated mcp.options.v1.ResourceAudience audience = 1;
+   */
+  audience: ResourceAudience[];
+
+  /**
+   * priority is a hint for ordering in resource lists (0.0–1.0).
+   *
+   * @generated from field: optional double priority = 2;
+   */
+  priority?: number | undefined;
+};
+
+/**
+ * Describes the message mcp.options.v1.ResourceAnnotations.
+ * Use `create(ResourceAnnotationsSchema)` to create a new message.
+ */
+export const ResourceAnnotationsSchema: GenMessage<ResourceAnnotations> = /*@__PURE__*/
+  messageDesc(file_mcp_options_v1_options, 15);
+
+/**
+ * ResourceOptions defines MCP resource metadata attached to a proto message.
+ *
+ * Exactly one of `uri` or `uri_template` must be set:
+ *   - `uri`:          static resource, registered via server.AddResource().
+ *   - `uri_template`: parameterised resource (RFC 6570 simple-string),
+ *                     registered via server.AddResourceTemplate().
+ *
+ * Message fields describe the output schema — they are serialised via
+ * ProtoJSON when a client reads the resource.
+ *
+ * Usage:
+ *
+ *   message AppConfig {
+ *     option (mcp.options.v1.resource) = {
+ *       uri: "config://app"
+ *       name: "app_config"
+ *       description: "Application configuration"
+ *     };
+ *     string version = 1;
+ *     string environment = 2;
+ *   }
+ *
+ *   message UserProfile {
+ *     option (mcp.options.v1.resource) = {
+ *       uri_template: "users://{user_id}/profile"
+ *       description: "User profile data"
+ *     };
+ *     string user_id = 1;
+ *     string display_name = 2;
+ *   }
+ *
+ * @generated from message mcp.options.v1.ResourceOptions
+ */
+export type ResourceOptions = Message<"mcp.options.v1.ResourceOptions"> & {
+  /**
+   * uri is the fixed URI for a static resource.
+   * Mutually exclusive with uri_template.
+   *
+   * @generated from field: string uri = 1;
+   */
+  uri: string;
+
+  /**
+   * uri_template is a parameterised URI (RFC 6570 simple-string)
+   * for a template resource. Must contain at least one {param}.
+   * Mutually exclusive with uri.
+   *
+   * @generated from field: string uri_template = 2;
+   */
+  uriTemplate: string;
+
+  /**
+   * name overrides the display name of the resource.
+   * Default: snake_case of the message name.
+   *
+   * @generated from field: string name = 3;
+   */
+  name: string;
+
+  /**
+   * description of the resource shown to clients and agents.
+   *
+   * @generated from field: string description = 4;
+   */
+  description: string;
+
+  /**
+   * mime_type specifies the MIME type of resource content.
+   * Default: "application/json".
+   *
+   * @generated from field: string mime_type = 5;
+   */
+  mimeType: string;
+
+  /**
+   * annotations carries MCP-level resource metadata (audience, priority).
+   *
+   * @generated from field: mcp.options.v1.ResourceAnnotations annotations = 6;
+   */
+  annotations?: ResourceAnnotations | undefined;
+
+  /**
+   * icons for the resource.
+   *
+   * @generated from field: repeated mcp.options.v1.Icon icons = 7;
+   */
+  icons: Icon[];
+
+  /**
+   * content_field selects a singular string or bytes field of this message
+   * as the raw resource body instead of serializing the whole message using
+   * ProtoJSON. String fields become MCP text; bytes fields become MCP blob.
+   * Required for non-JSON MIME types such as text/markdown, text/plain,
+   * text/html;profile=mcp-app and application/octet-stream.
+   * Use the protobuf field name (for example "markdown"), not its JSON name.
+   *
+   * @generated from field: string content_field = 8;
+   */
+  contentField: string;
+
+  /**
+   * source_file embeds a compiled static file from the generated Go package.
+   * The path is relative to the directory containing the generated *.mcp.go,
+   * and must not contain parent traversal. Static resources only.
+   * Mutually exclusive with content_field; no handler method is required.
+   *
+   * @generated from field: string source_file = 9;
+   */
+  sourceFile: string;
+
+  /**
+   * app_ui emits MCP Apps resource metadata (CSP, sandbox permissions).
+   *
+   * @generated from field: mcp.options.v1.AppResourceOptions app_ui = 10;
+   */
+  appUi?: AppResourceOptions | undefined;
+};
+
+/**
+ * Describes the message mcp.options.v1.ResourceOptions.
+ * Use `create(ResourceOptionsSchema)` to create a new message.
+ */
+export const ResourceOptionsSchema: GenMessage<ResourceOptions> = /*@__PURE__*/
+  messageDesc(file_mcp_options_v1_options, 16);
+
+/**
+ * ServerConfig is attached to a protobuf file and controls the generated
+ * Go server constructor and Streamable HTTP resource-server configuration.
+ *
+ * @generated from message mcp.options.v1.ServerConfig
+ */
+export type ServerConfig = Message<"mcp.options.v1.ServerConfig"> & {
+  /**
+   * Server implementation name used during MCP initialization.
+   *
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * Server software version used during MCP initialization.
+   *
+   * @generated from field: string version = 2;
+   */
+  version: string;
+
+  /**
+   * MCP Apps extension configuration, including an explicit opt-out.
+   *
+   * @generated from field: mcp.options.v1.AppsConfig apps = 3;
+   */
+  apps?: AppsConfig | undefined;
+
+  /**
+   * OAuth protected-resource and token-verification configuration.
+   *
+   * @generated from field: mcp.options.v1.OAuthConfig oauth = 4;
+   */
+  oauth?: OAuthConfig | undefined;
+};
+
+/**
+ * Describes the message mcp.options.v1.ServerConfig.
+ * Use `create(ServerConfigSchema)` to create a new message.
+ */
+export const ServerConfigSchema: GenMessage<ServerConfig> = /*@__PURE__*/
+  messageDesc(file_mcp_options_v1_options, 17);
+
+/**
+ * AppsConfig configures the standard MCP Apps capability.
+ * If omitted, the generator enables Apps when a tool's app_ui or a
+ * text/html;profile=mcp-app resource exists in the file.
+ *
+ * @generated from message mcp.options.v1.AppsConfig
+ */
+export type AppsConfig = Message<"mcp.options.v1.AppsConfig"> & {
+  /**
+   * Enables or disables MCP Apps; unset automatically follows tool/resource usage.
+   *
+   * @generated from field: optional bool enabled = 1;
+   */
+  enabled?: boolean | undefined;
+};
+
+/**
+ * Describes the message mcp.options.v1.AppsConfig.
+ * Use `create(AppsConfigSchema)` to create a new message.
+ */
+export const AppsConfigSchema: GenMessage<AppsConfig> = /*@__PURE__*/
+  messageDesc(file_mcp_options_v1_options, 18);
+
+/**
+ * OAuthConfig is public server policy, not user credentials. An external
+ * identity provider issues tokens; the generated handler verifies bearer
+ * tokens through JWKS or an application-provided TokenVerifier.
+ *
+ * @generated from message mcp.options.v1.OAuthConfig
+ */
+export type OAuthConfig = Message<"mcp.options.v1.OAuthConfig"> & {
+  /**
+   * Public HTTPS identifier of this protected MCP resource.
+   *
+   * @generated from field: string resource_url = 1;
+   */
+  resourceUrl: string;
+
+  /**
+   * HTTPS authorization servers that can issue acceptable tokens.
+   *
+   * @generated from field: repeated string authorization_servers = 2;
+   */
+  authorizationServers: string[];
+
+  /**
+   * Scopes required for any authenticated request to the MCP HTTP endpoint.
+   *
+   * @generated from field: repeated string scopes = 3;
+   */
+  scopes: string[];
+
+  /**
+   * Expected issuer claim when validating signed access JWTs.
+   *
+   * @generated from field: string issuer = 4;
+   */
+  issuer: string;
+
+  /**
+   * HTTPS JWKS endpoint containing public RSA verification keys.
+   *
+   * @generated from field: string jwks_uri = 5;
+   */
+  jwksUri: string;
+
+  /**
+   * Expected resource audience claim in JWT access tokens.
+   *
+   * @generated from field: string audience = 6;
+   */
+  audience: string;
+
+  /**
+   * Route under which the MCP Streamable HTTP endpoint is exposed.
+   *
+   * @generated from field: string mcp_path = 7;
+   */
+  mcpPath: string;
+};
+
+/**
+ * Describes the message mcp.options.v1.OAuthConfig.
+ * Use `create(OAuthConfigSchema)` to create a new message.
+ */
+export const OAuthConfigSchema: GenMessage<OAuthConfig> = /*@__PURE__*/
+  messageDesc(file_mcp_options_v1_options, 19);
+
+/**
+ * AppResourceCSP declares the origins allowed by the MCP Apps sandbox.
+ *
+ * @generated from message mcp.options.v1.AppResourceCSP
+ */
+export type AppResourceCSP = Message<"mcp.options.v1.AppResourceCSP"> & {
+  /**
+   * Origins permitted for fetch, WebSocket and other network calls.
+   *
+   * @generated from field: repeated string connect_domains = 1;
+   */
+  connectDomains: string[];
+
+  /**
+   * Origins permitted for external scripts, styles, images and fonts.
+   *
+   * @generated from field: repeated string resource_domains = 2;
+   */
+  resourceDomains: string[];
+
+  /**
+   * Origins permitted for nested frames embedded inside the app.
+   *
+   * @generated from field: repeated string frame_domains = 3;
+   */
+  frameDomains: string[];
+
+  /**
+   * Origins permitted in the embedded document base URI.
+   *
+   * @generated from field: repeated string base_uri_domains = 4;
+   */
+  baseUriDomains: string[];
+};
+
+/**
+ * Describes the message mcp.options.v1.AppResourceCSP.
+ * Use `create(AppResourceCSPSchema)` to create a new message.
+ */
+export const AppResourceCSPSchema: GenMessage<AppResourceCSP> = /*@__PURE__*/
+  messageDesc(file_mcp_options_v1_options, 20);
+
+/**
+ * AppResourcePermissions declares optional browser capabilities for a UI resource.
+ *
+ * @generated from message mcp.options.v1.AppResourcePermissions
+ */
+export type AppResourcePermissions = Message<"mcp.options.v1.AppResourcePermissions"> & {
+  /**
+   * Requests browser camera access from supporting MCP Apps hosts.
+   *
+   * @generated from field: bool camera = 1;
+   */
+  camera: boolean;
+
+  /**
+   * Requests browser microphone access from supporting MCP Apps hosts.
+   *
+   * @generated from field: bool microphone = 2;
+   */
+  microphone: boolean;
+
+  /**
+   * Requests geolocation access from supporting MCP Apps hosts.
+   *
+   * @generated from field: bool geolocation = 3;
+   */
+  geolocation: boolean;
+
+  /**
+   * Requests clipboard write access from supporting MCP Apps hosts.
+   *
+   * @generated from field: bool clipboard_write = 4;
+   */
+  clipboardWrite: boolean;
+};
+
+/**
+ * Describes the message mcp.options.v1.AppResourcePermissions.
+ * Use `create(AppResourcePermissionsSchema)` to create a new message.
+ */
+export const AppResourcePermissionsSchema: GenMessage<AppResourcePermissions> = /*@__PURE__*/
+  messageDesc(file_mcp_options_v1_options, 21);
+
+/**
+ * AppResourceOptions is the MCP Apps resource-level _meta.ui configuration.
+ *
+ * @generated from message mcp.options.v1.AppResourceOptions
+ */
+export type AppResourceOptions = Message<"mcp.options.v1.AppResourceOptions"> & {
+  /**
+   * Content Security Policy allowlists for the app sandbox.
+   *
+   * @generated from field: mcp.options.v1.AppResourceCSP csp = 1;
+   */
+  csp?: AppResourceCSP | undefined;
+
+  /**
+   * Optional browser permissions the app would like to use.
+   *
+   * @generated from field: mcp.options.v1.AppResourcePermissions permissions = 2;
+   */
+  permissions?: AppResourcePermissions | undefined;
+
+  /**
+   * Optional host-specific stable origin for the app sandbox.
+   *
+   * @generated from field: string domain = 3;
+   */
+  domain: string;
+
+  /**
+   * Whether this app prefers a visible host-rendered border.
+   *
+   * @generated from field: optional bool prefers_border = 4;
+   */
+  prefersBorder?: boolean | undefined;
+};
+
+/**
+ * Describes the message mcp.options.v1.AppResourceOptions.
+ * Use `create(AppResourceOptionsSchema)` to create a new message.
+ */
+export const AppResourceOptionsSchema: GenMessage<AppResourceOptions> = /*@__PURE__*/
+  messageDesc(file_mcp_options_v1_options, 22);
 
 /**
  * TaskSupport enumerates the supported modes for task-augmented tool execution.
@@ -994,6 +1512,52 @@ export enum TaskSupport {
  */
 export const TaskSupportSchema: GenEnum<TaskSupport> = /*@__PURE__*/
   enumDesc(file_mcp_options_v1_options, 0);
+
+/**
+ * Extend google.protobuf.MessageOptions to attach MCP prompt metadata.
+ *
+ * Usage in a user proto file:
+ *
+ *   message CodeReview {
+ *     option (mcp.options.v1.prompt) = {
+ *       name: "code_review"
+ *       description: "Analyze code quality and suggest improvements"
+ *     };
+ *     string code = 1;
+ *     optional string focus_area = 2;
+ *   }
+ * ResourceAudience identifies the intended consumer of an MCP resource.
+ *
+ * @generated from enum mcp.options.v1.ResourceAudience
+ */
+export enum ResourceAudience {
+  /**
+   * No explicit audience hint for the resource.
+   *
+   * @generated from enum value: RESOURCE_AUDIENCE_NONE = 0;
+   */
+  NONE = 0,
+
+  /**
+   * The resource is intended primarily for the human user.
+   *
+   * @generated from enum value: RESOURCE_AUDIENCE_USER = 1;
+   */
+  USER = 1,
+
+  /**
+   * The resource is intended primarily for the assistant/model.
+   *
+   * @generated from enum value: RESOURCE_AUDIENCE_ASSISTANT = 2;
+   */
+  ASSISTANT = 2,
+}
+
+/**
+ * Describes the enum mcp.options.v1.ResourceAudience.
+ */
+export const ResourceAudienceSchema: GenEnum<ResourceAudience> = /*@__PURE__*/
+  enumDesc(file_mcp_options_v1_options, 1);
 
 /**
  * service stores MCP metadata for a protobuf service.
@@ -1050,4 +1614,30 @@ export const enum_value: GenExtension<EnumValueOptions$1, EnumValueOptions> = /*
  */
 export const oneof: GenExtension<OneofOptions$1, OneofOptions> = /*@__PURE__*/
   extDesc(file_mcp_options_v1_options, 6);
+
+/**
+ * prompt marks a message as an MCP Prompt definition.
+ * The generator scans all messages for this option — no file-level
+ * marker needed.
+ *
+ * @generated from extension: mcp.options.v1.PromptOptions prompt = 91008;
+ */
+export const prompt: GenExtension<MessageOptions$1, PromptOptions> = /*@__PURE__*/
+  extDesc(file_mcp_options_v1_options, 7);
+
+/**
+ * resource marks a message as an MCP Resource definition.
+ * Exactly one of uri or uri_template must be set in the options.
+ * The generator scans all messages for this option.
+ *
+ * @generated from extension: mcp.options.v1.ResourceOptions resource = 91009;
+ */
+export const resource: GenExtension<MessageOptions$1, ResourceOptions> = /*@__PURE__*/
+  extDesc(file_mcp_options_v1_options, 8);
+
+/**
+ * @generated from extension: mcp.options.v1.ServerConfig server = 91010;
+ */
+export const server: GenExtension<FileOptions, ServerConfig> = /*@__PURE__*/
+  extDesc(file_mcp_options_v1_options, 9);
 

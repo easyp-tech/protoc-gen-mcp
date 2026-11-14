@@ -22,6 +22,8 @@ func TestMain(m *testing.M) {
 	switch os.Getenv(serveStdioEnv) {
 	case "1":
 		os.Exit(serveOverStdio(examplemcp.NewServer))
+	case serveHTTPMode:
+		os.Exit(serveHTTP())
 	case serveResourcesMode:
 		os.Exit(serveOverStdio(func() (*mcp.Server, error) {
 			return examplemcp.NewResourcesServer(context.Background())

@@ -34,238 +34,25 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import tech.easyp.mcp.runtime.kotlin.RegisteredTool
+import tech.easyp.mcp.runtime.kotlin.checkGencodeVersion
+import tech.easyp.mcp.runtime.kotlin.iconThemeOrError
+import tech.easyp.mcp.runtime.kotlin.installMcpHandlers
+import tech.easyp.mcp.runtime.kotlin.installMcpHttp
+import tech.easyp.mcp.runtime.kotlin.newConfiguredServer
+import tech.easyp.mcp.runtime.kotlin.normalizeNamespace
+import tech.easyp.mcp.runtime.kotlin.promptName
+import tech.easyp.mcp.runtime.kotlin.registerProtoFiles
+import tech.easyp.mcp.runtime.kotlin.resourceListing
+import tech.easyp.mcp.runtime.kotlin.resourceReadResult
+import tech.easyp.mcp.runtime.kotlin.templateParam
+import tech.easyp.mcp.runtime.kotlin.toolExecutionOrNull
+import tech.easyp.mcp.runtime.kotlin.toolName
 
-private data class RegisteredTool(
-    val name: String,
-    val title: String?,
-    val description: String?,
-    val inputSchemaJson: String,
-    val outputSchemaJson: String,
-    val requestBuilder: () -> Message.Builder,
-    val handler: suspend (ClientConnection, Message) -> Message,
-    val annotations: ToolAnnotations?,
-    val icons: List<Icon>,
-    val execution: ToolExecution?,
-)
-
-private class ServerToolRegistry {
-    private val toolsByName = linkedMapOf<String, RegisteredTool>()
-    private val sessionsWithHandlers = mutableSetOf<String>()
-    private var handlersInstalled: Boolean = false
-
-    @Synchronized
-    fun addTool(tool: RegisteredTool) {
-        require(!toolsByName.containsKey(tool.name)) { "duplicate tool registration: ${tool.name}" }
-        toolsByName[tool.name] = tool
-    }
-
-    @Synchronized
-    fun allTools(): List<RegisteredTool> = toolsByName.values.toList()
-
-    @Synchronized
-    fun tool(name: String): RegisteredTool? = toolsByName[name]
-
-    @Synchronized
-    fun markSessionInstalled(sessionId: String): Boolean = sessionsWithHandlers.add(sessionId)
-
-    @Synchronized
-    fun hasHandlersInstalled(): Boolean = handlersInstalled
-
-    @Synchronized
-    fun markHandlersInstalled() {
-        handlersInstalled = true
-    }
-}
-
-private val serverRegistries = Collections.synchronizedMap(WeakHashMap<Server, ServerToolRegistry>())
-private val serverRegistryInstallLock = Any()
-private val jsonSchemaFactory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)
-private val protoTypeRegistry = buildTypeRegistry()
-
-private fun buildTypeRegistry(): JsonFormat.TypeRegistry {
-    val builder = JsonFormat.TypeRegistry.newBuilder()
-    val seenFiles = linkedSetOf<String>()
-    registerFileTypes(builder, seenFiles, Prompts.getDescriptor())
-    return builder.build()
-}
-
-private fun registerFileTypes(
-    builder: JsonFormat.TypeRegistry.Builder,
-    seenFiles: MutableSet<String>,
-    file: Descriptors.FileDescriptor,
-) {
-    if (!seenFiles.add(file.fullName)) {
-        return
-    }
-    for (descriptor in file.messageTypes) {
-        registerMessageType(builder, descriptor)
-    }
-}
-
-private fun registerMessageType(
-    builder: JsonFormat.TypeRegistry.Builder,
-    descriptor: Descriptors.Descriptor,
-) {
-    builder.add(descriptor)
-    for (nested in descriptor.nestedTypes) {
-        registerMessageType(builder, nested)
-    }
-}
-
-private fun installMcpHandlers(server: Server): ServerToolRegistry {
-    synchronized(serverRegistryInstallLock) {
-        val registry = serverRegistries.getOrPut(server) { ServerToolRegistry() }
-        if (registry.hasHandlersInstalled()) {
-            return registry
-        }
-        require(server.tools.isEmpty()) { "protoc-gen-mcp generated handlers cannot compose with pre-existing SDK tool registrations" }
-        installSessionHandlers(server, registry)
-        server.onConnect { installSessionHandlers(server, registry) }
-        registry.markHandlersInstalled()
-        return registry
-    }
-}
-
-private fun installSessionHandlers(server: Server, registry: ServerToolRegistry) {
-    for (session in server.sessions.values) {
-        if (!registry.markSessionInstalled(session.sessionId)) {
-            continue
-        }
-        session.setRequestHandler(Method.Defined.ToolsList) { request: ListToolsRequest, _ ->
-            listRegisteredTools(registry, request)
-        }
-        session.setRequestHandler(Method.Defined.ToolsCall) { request: CallToolRequest, _ ->
-            dispatchToolCall(registry, server.clientConnection(session.sessionId), request)
-        }
-    }
-}
-
-private suspend fun listRegisteredTools(registry: ServerToolRegistry, request: ListToolsRequest): ListToolsResult {
-    return ListToolsResult(tools = registry.allTools().map { buildListTool(it) }, nextCursor = null)
-}
-
-private suspend fun dispatchToolCall(registry: ServerToolRegistry, ctx: ClientConnection, request: CallToolRequest): CallToolResult {
-    val tool = registry.tool(request.params.name) ?: invalidParams(request.params.name, "unknown tool")
-    val arguments = request.params.arguments ?: buildJsonObject {}
-    try {
-        validateJson(tool.inputSchemaJson, arguments)
-    } catch (error: Exception) {
-        invalidParams(tool.name, error.message ?: error.toString())
-    }
-    val requestMessage = try {
-        parseProtoJson(arguments.toString(), tool.requestBuilder())
-    } catch (error: Exception) {
-        invalidParams(tool.name, error.message ?: error.toString())
-    }
-    val responseMessage = try {
-        tool.handler(ctx, requestMessage)
-    } catch (error: Exception) {
-        return CallToolResult(content = listOf(TextContent(text = error.message ?: error.toString())), isError = true)
-    }
-    val payload = marshalProtoJson(responseMessage)
-    try {
-        validateJson(tool.outputSchemaJson, payload)
-    } catch (error: Exception) {
-        throw IllegalStateException("mcpruntime: validate output for tool '${tool.name}': ${error.message}", error)
-    }
-    val textPayload = payload.toString()
-    return CallToolResult(content = listOf(TextContent(text = textPayload)), structuredContent = payload)
-}
-
-private fun buildListTool(tool: RegisteredTool): Tool {
-    return Tool(
-        name = tool.name,
-        title = tool.title,
-        description = tool.description,
-        inputSchema = projectToolSchema(tool.inputSchemaJson),
-        outputSchema = projectToolSchema(tool.outputSchemaJson),
-        annotations = copyToolAnnotations(tool.annotations),
-        icons = tool.icons.ifEmpty { null },
-        execution = tool.execution,
-    )
-}
-
-private fun copyToolAnnotations(annotations: ToolAnnotations?): ToolAnnotations? {
-    if (annotations == null) {
-        return null
-    }
-    return ToolAnnotations(
-        title = annotations.title,
-        readOnlyHint = annotations.readOnlyHint,
-        destructiveHint = annotations.destructiveHint,
-        idempotentHint = annotations.idempotentHint,
-        openWorldHint = annotations.openWorldHint,
-    )
-}
-
-private fun loadSchema(rawSchemaJson: String): JsonObject = Json.parseToJsonElement(rawSchemaJson).jsonObject
-
-private fun projectToolSchema(rawSchemaJson: String): ToolSchema {
-    val schema = loadSchema(rawSchemaJson)
-    val properties = schema["properties"]?.jsonObject ?: buildJsonObject {}
-    val required = schema["required"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
-    val defs = schema["\$defs"]?.jsonObject
-    return ToolSchema(properties = properties, required = required, defs = defs)
-}
-
-private fun validateJson(rawSchemaJson: String, payload: JsonElement) {
-    val errors = jsonSchemaFactory.getSchema(rawSchemaJson).validate(payload.toString(), InputFormat.JSON)
-    if (errors.isNotEmpty()) {
-        throw IllegalArgumentException(errors.joinToString("; ") { it.message })
-    }
-}
-
-private fun parseProtoJson(payload: String, builder: Message.Builder): Message {
-    try {
-        JsonFormat.parser().usingTypeRegistry(protoTypeRegistry).merge(payload, builder)
-        return builder.build()
-    } catch (error: Exception) {
-        invalidParams("<unknown>", error.message ?: error.toString())
-    }
-}
-
-private fun marshalProtoJson(message: Message): JsonObject {
-    val jsonPayload = JsonFormat.printer().usingTypeRegistry(protoTypeRegistry).includingDefaultValueFields().print(message)
-    return Json.parseToJsonElement(jsonPayload).jsonObject
-}
-
-private fun invalidParams(toolName: String, reason: String): Nothing {
-    throw McpException(code = RPCError.ErrorCode.INVALID_PARAMS, message = "invalid arguments for tool '$toolName': $reason")
-}
-
-private fun toolExecutionOrNull(taskSupport: String): ToolExecution? = when (taskSupport) {
-    "optional" -> ToolExecution(taskSupport = TaskSupport.Optional)
-    "required" -> ToolExecution(taskSupport = TaskSupport.Required)
-    else -> null
-}
-
-private fun iconThemeOrError(rawTheme: String?): Icon.Theme? = when (rawTheme) {
-    null, "" -> null
-    "light" -> Icon.Theme.Light
-    "dark" -> Icon.Theme.Dark
-    else -> throw IllegalArgumentException("unsupported icon theme: $rawTheme")
-}
-
-private fun normalizeToolSegment(segment: String?): String {
-    return segment
-        ?.trim()
-        ?.replace('.', '_')
-        ?.split('_')
-        ?.filter { it.isNotBlank() }
-        ?.joinToString("_")
-        ?: ""
-}
-
-private fun normalizeNamespace(namespace: String?, defaultNamespace: String): String = normalizeToolSegment(namespace ?: defaultNamespace)
-
-private fun toolName(namespace: String, methodName: String): String {
-    val normalizedNamespace = normalizeToolSegment(namespace)
-    val normalizedMethodName = normalizeToolSegment(methodName)
-    return when {
-        normalizedNamespace.isEmpty() -> normalizedMethodName
-        normalizedMethodName.isEmpty() -> normalizedNamespace
-        else -> "${normalizedNamespace}_${normalizedMethodName}"
-    }
+@Suppress("unused")
+private val protocGenMcpRuntimeInit: Unit = run {
+    checkGencodeVersion(1)
+    registerProtoFiles(Prompts.getDescriptor())
 }
 
 
@@ -336,16 +123,6 @@ fun registerPromptsPrompts(server: Server, impl: PromptsPromptHandler, namespace
             throw McpException(code = RPCError.ErrorCode.INVALID_PARAMS, message = "missing required prompt argument: level")
         }
         io.modelcontextprotocol.kotlin.sdk.types.GetPromptResult(messages = impl.explainError(args))
-    }
-}
-
-private fun promptName(namespace: String?, promptName: String): String {
-    val normalizedNamespace = normalizeToolSegment(namespace ?: "")
-    val normalizedPromptName = normalizeToolSegment(promptName)
-    return when {
-        normalizedNamespace.isEmpty() -> normalizedPromptName
-        normalizedPromptName.isEmpty() -> normalizedNamespace
-        else -> "${normalizedNamespace}_${normalizedPromptName}"
     }
 }
 

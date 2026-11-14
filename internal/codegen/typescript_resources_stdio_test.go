@@ -74,7 +74,7 @@ func TestTypeScriptResourcesOverStdio(t *testing.T) {
 	cmd := exec.Command("node", filepath.Join(tempProject, "dist", "server.js"))
 	cmd.Dir = spikeDir
 	cmd.Env = append(os.Environ(), "NO_COLOR=1")
-	stdiotest.RunResourcesPromptsContract(t, cmd)
+	stdiotest.RunResourcesPromptsContract(t, cmd, stdiotest.ContractOptions{})
 }
 
 // protobufESResourcesFixtureModule stands in for protoc-gen-es output for
@@ -121,11 +121,10 @@ func typeScriptResourcesServerFixture(root string) string {
 	return fmt.Sprintf(`
 import { readFileSync } from "node:fs";
 import { create } from "@bufbuild/protobuf";
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { GetPromptResult } from "@modelcontextprotocol/sdk/types.js";
 import { registerPromptsPrompts } from "./internal/testproto/prompts/v1/prompts_mcp.js";
-import { registerResourcesResources } from "./internal/testproto/resources/v1/resources_mcp.js";
+import { createResourcesMCPServer } from "./internal/testproto/resources/v1/resources_mcp.js";
 import {
   DocumentSchema,
   PlainTextSchema,
@@ -142,9 +141,7 @@ function userMessage(text: string): GetPromptResult {
   return { messages: [{ role: "user", content: { type: "text", text } }] };
 }
 
-const server = new Server({ name: "protoc-gen-mcp-ts-resources", version: "v0.0.1" }, { capabilities: {} });
-
-registerResourcesResources(server, {
+const server = createResourcesMCPServer({ resources: {
   readServerStatus: () => create(ServerStatusSchema, { healthy: true, uptimeSeconds: 123n, version: "v0.0.1" }),
   listUserProfiles: () => [{ name: "user_profile", uri: "users://ada/profile", description: "User profile information" }],
   readUserProfile: async (userId) =>
@@ -157,7 +154,7 @@ registerResourcesResources(server, {
   readPlainText: (name) => create(PlainTextSchema, { body: "document: " + name }),
   readRawBinary: () => create(RawBinarySchema, { data: new Uint8Array([0, 1, 2, 255]) }),
   readAppPage: () => reportHtml,
-});
+} });
 
 registerPromptsPrompts(server, {
   codeReview: async (args) => userMessage("Review this " + args.language + " code: " + args.code),

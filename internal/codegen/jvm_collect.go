@@ -38,6 +38,7 @@ func CollectJVMFileModel(file *protogen.File, model FileModel) (JVMFileModel, er
 		Services:                make([]JVMServiceModel, 0, len(model.Services)),
 		Prompts:                 model.Prompts,
 		Resources:               model.Resources,
+		Factory:                 model.Factory,
 		Types:                   typeGraph,
 	}
 
@@ -79,6 +80,8 @@ func newJVMMethodModel(serviceName string, method MethodModel, descriptorMethod 
 		OutputSchemaJSON: method.OutputSchemaJSON,
 		Annotations:      method.Annotations,
 		Icons:            method.Icons,
+		AppUI:            method.AppUI,
+		RequiredScopes:   method.RequiredScopes,
 		TaskSupport:      method.TaskSupport,
 	}
 	if descriptorMethod != nil {

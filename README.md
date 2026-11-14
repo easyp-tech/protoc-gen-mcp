@@ -26,16 +26,29 @@ handlers. JavaScript projects consume the compiled TypeScript output.
 | **Tools** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
 | **Prompts** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
 | **Resources** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
-| **Protobuf server factory** | ✅ | 📋 Planned | 📋 Planned | 📋 Planned | 📋 Planned |
-| **MCP Apps UI / CSP** | ✅ | 📋 Planned | 📋 Planned | 📋 Planned | 📋 Planned |
+| **Protobuf server factory** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **MCP Apps UI / CSP** | ✅ | ✅ | ✅¹ | ✅¹ | ✅ |
 | **Markdown, HTML, binary resources** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **OAuth/JWKS and tool scopes** | ✅ | 📋 Planned | 📋 Planned | 📋 Planned | 📋 Planned |
+| **OAuth/JWKS and tool scopes** | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 Every target serves the same resources contract: ProtoJSON or raw text/blob
 bodies, percent-decoded template parameters, annotations, icons and the MCP
 Apps `_meta.ui` of a resource. Only Go embeds `source_file` at build time;
 the other targets read it through a generated handler that returns the file
-body. MCP Apps on tools (linking a tool to its UI resource) is Go-only.
+body.
+
+Every target generates a file-scoped server factory from
+`option (mcp.options.v1.server)`: Python `create_<file>_mcp_server(handlers)`,
+TypeScript `create<File>MCPServer(handlers)`, Kotlin
+`suspend new<File>MCPServer(handlers)` and Java
+`<ProtoFile>Mcp.install<File>MCPServer(transportProvider, handlers)`. ¹ The
+Kotlin SDK 0.11 and the stdio transport of the Java SDK 1.1 cannot express
+`capabilities.extensions`, so they advertise MCP Apps under
+`capabilities.experimental`; Java over HTTP serves `capabilities.extensions`
+like Go. Tools and resources carry `_meta.ui` everywhere. Every target serves
+`option (mcp.options.v1.server).oauth` and per-tool `required_scopes` over
+stateless Streamable HTTP with the same metadata, 401 challenge and 403
+step-up, checked by one shared contract.
 
 Each target uses the official MCP SDK of its language: the Go MCP SDK,
 the Python `mcp` SDK with `google.protobuf`, `io.modelcontextprotocol.sdk:mcp`
@@ -143,14 +156,54 @@ Language notes:
   `dataclass+protobuf` emits both. Generation also writes a small
   `mcp/__init__.py` bridge so `mcp.options.*` modules coexist with the official
   `mcp` SDK package. Enable `with_imports: true` on the Python plugin when your
-  protos import other packages.
+  protos import other packages. Generated modules import the
+  `protoc-gen-mcp-runtime` package (`pip install protoc-gen-mcp-runtime`),
+  which holds the tool, prompt and resource registries; it is released with
+  the plugin and checks on import that it matches the generated code. With
+  `option (mcp.options.v1.server)` a module also exports
+  `create_<file>_mcp_http_app(server, verifier=None)`, an ASGI app (for
+  example for uvicorn) that serves stateless Streamable HTTP through the SDK
+  session manager and, with `oauth`, enforces bearer tokens, RFC 9728
+  metadata and per-tool `required_scopes` exactly like the Go handler;
+  `verifier` is an SDK `TokenVerifier`, and without one the built-in RS256
+  JWKS verifier is used.
 - **Java** (`lang=java`) generates one `<ProtoFile>Mcp` sidecar per proto next
   to protobuf Java output. **Kotlin** (`lang=kotlin`) needs Java protobuf
-  output, Kotlin protobuf output, and the MCP sidecar together.
+  output, Kotlin protobuf output, and the MCP sidecar together. Generated
+  sidecars depend on `tech.easyp:protoc-gen-mcp-runtime` (Java) or
+  `tech.easyp:protoc-gen-mcp-runtime-kotlin` (Kotlin), which hold the
+  registries and dispatch; sidecars of several proto files share one registry
+  per transport or server. With `option (mcp.options.v1.server)` a Java
+  sidecar also exports `new<File>MCPHttpServlet(server[, verifier])`: fill a
+  `tech.easyp.mcp.runtime.McpHttpServer` with `install<File>MCPServer` and
+  mount the returned servlet at `/*` in any Jakarta Servlet 6 container. MCP
+  is served by the SDK `HttpServletStatelessServerTransport`; with `oauth` the
+  servlet adds bearer authentication, RFC 9728 metadata and the per-tool
+  `required_scopes` step-up of the Go handler. `verifier` is a
+  `tech.easyp.mcp.runtime.oauth.TokenVerifier`; when it is null the built-in
+  RS256 JWKS verifier (nimbus-jose-jwt, from
+  `tech.easyp:protoc-gen-mcp-runtime-oauth`) is used. Handlers read the token
+  with `McpRuntime.currentAccessToken()`; the `McpAsyncServerExchange`
+  argument is null over stateless HTTP. A Kotlin file with the server option
+  exports `Application.install<File>MCPHttp(handlers, verifier = null)` for
+  Ktor: a route that builds a fresh server per request on the SDK
+  `StreamableHttpServerTransport` (as the SDK's own stateless endpoint does)
+  and adds the same metadata, bearer check and scope step-up; suspend
+  handlers read the token with `currentAccessToken()`.
 - **TypeScript** (`lang=typescript`) expects Protobuf-ES `_pb.ts` files in the
   same tree, generated with `import_extension=js` for Node ESM and
   `moduleResolution: NodeNext`. **JavaScript** projects import the compiled
   `.js` output and `.d.ts` declarations; there is no `lang=javascript`.
+  Generated files import `@easyp-tech/protoc-gen-mcp-runtime`
+  (`npm install @easyp-tech/protoc-gen-mcp-runtime`), which keeps the tool,
+  prompt and resource registries; `@modelcontextprotocol/sdk`,
+  `@bufbuild/protobuf` and `ajv` are its peer dependencies, so the server and
+  the runtime share one SDK. With `option (mcp.options.v1.server)` a file also
+  exports `create<File>MCPHttpHandler(handlers, verifier?)`, a request
+  listener for `node:http` or express that builds a fresh server per request
+  (the stateless SDK transport requires it) and, with `oauth`, uses the SDK
+  `requireBearerAuth` plus the runtime scope gate and RFC 9728 metadata;
+  `verifier` defaults to the built-in RS256 JWKS verifier on `jose`.
 
 ## Generated API
 

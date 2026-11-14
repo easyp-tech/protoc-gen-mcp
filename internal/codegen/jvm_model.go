@@ -13,6 +13,7 @@ type JVMFileModel struct {
 	Prompts                 []PromptModel
 	Resources               []ResourceModel
 	Types                   JVMTypeGraph
+	Factory                 ServerFactoryModel
 }
 
 type JVMServiceModel struct {
@@ -42,6 +43,8 @@ type JVMMethodModel struct {
 	OutputSchemaJSON string
 	Annotations      *mcpoptionsv1.ToolAnnotations
 	Icons            []*mcpoptionsv1.Icon
+	AppUI            *mcpoptionsv1.AppUIOptions
+	RequiredScopes   []string
 	// TaskSupport mcpoptionsv1.TaskSupport mirrors the shared method contract.
 	TaskSupport mcpoptionsv1.TaskSupport
 }

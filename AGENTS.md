@@ -24,7 +24,7 @@ architecture unless explicitly revised.
 - `mcpruntime` contains protobuf/ProtoJSON/JSON Schema adapters, MCP Apps
   metadata/resource registration, and OAuth resource-server wiring. The
   self-hosted MCP wire runtime has been removed.
-- `mcp>=1.27,<2` as the official Python MCP SDK target
+- `mcp>=1.30,<2` as the official Python MCP SDK target
 - `io.modelcontextprotocol.sdk:mcp` as the official Java MCP SDK target
 - `io.modelcontextprotocol:kotlin-sdk-server` as the official Kotlin MCP SDK
   target
@@ -58,8 +58,27 @@ architecture unless explicitly revised.
 - `internal/examplemcp`: Go and Python servers for the shared ExampleAPI and
   resources/prompts fixtures and their stdio contract tests; `internal/examplemcp/jvm` is the
   Gradle workspace that builds the Java/Kotlin servers for the JVM stdio tests
+- `runtime/typescript`: the `@easyp-tech/protoc-gen-mcp-runtime` npm package
+  that generated TypeScript imports (tool, prompt and resource registries,
+  dispatch, URI templates, content encoding); SDK, Protobuf-ES and Ajv are
+  peer dependencies. The harness and example 8 depend on it through `file:`
+  with `install-links=true`, so build it first (`npm ci && npm run build`).
+  `GENCODE_VERSION` in `src/version.ts` moves with `typescriptGencodeVersion`
+- `runtime/jvm`: Gradle build of `tech.easyp:protoc-gen-mcp-runtime`
+  (`tech.easyp.mcp.runtime.McpRuntime`, Java) and
+  `tech.easyp:protoc-gen-mcp-runtime-kotlin` (`tech.easyp.mcp.runtime.kotlin`),
+  published to Maven Central through `com.vanniktech.maven.publish`. The JVM
+  harness and examples 6 and 7 use it through `includeBuild`; contract tests
+  read its sources through `withJVMRuntimeSource`. `GENCODE_VERSION` moves with
+  `jvmGencodeVersion` in the renderer
 - `internal/codegen/testdata/node`: pinned npm package (official TypeScript
   SDK, Protobuf-ES, Ajv) used by the TypeScript compile, runtime and stdio tests
+- `runtime/python`: the `protoc-gen-mcp-runtime` PyPI package (module
+  `protoc_gen_mcp_runtime`) that generated Python code imports: tool, prompt
+  and resource registries, dispatch, URI templates and content encoding; its
+  unittest suite runs through `go test ./runtime/python`. Bump
+  `GENCODE_VERSION` together with `pythonGencodeVersion` in the renderer when
+  generated code needs a new runtime API
 - `internal/pythontest`: hermetic Python virtualenv bootstrap for Go tests that
   execute generated Python code
 - `internal/stdiotest`: stdio JSON-RPC client and the resources/prompts
@@ -70,7 +89,9 @@ architecture unless explicitly revised.
   `11_protobuf_first_mcp` (Go), `5_python_standalone`, `6_java_standalone`,
   `7_kotlin_standalone`, `8_typescript_standalone`; `examples/easyp.yaml` and
   `easyp.lock` resolve `mcp/options/v1` from GitHub, not the local root
-- `easyp.yaml` (shipped options), `easyp.test.yaml` (test fixtures),
+- `easyp.yaml` (shipped options), `easyp.test.yaml` (Go output for test
+  fixtures), `easyp.test.python.yaml` (Python output for every fixture except
+  the Go-only `config/v1`),
   `easyp.showcase.yaml` (example 11)
 - `.github/workflows`: `tests.yml` (CI and coverage gate), `release.yml`;
   `.goreleaser.yaml` packages the plugin binary
@@ -128,10 +149,10 @@ architecture unless explicitly revised.
   resource is read through a handler returning the file body. Unknown
   resource URIs return Invalid Params (-32602, SEP-2164); Kotlin keeps its
   SDK's -32002
-- Java sidecars on one transport share their request handlers through a
-  JVM-wide per-transport list in `System.getProperties()`, so prompts, resources
-  and tools from different proto files compose; two sidecars serving the same
-  MCP method fail when a session starts
+- Java sidecars on one transport register into one `McpRuntime` registry, so
+  tools, prompts and resources from different proto files compose; the session
+  factory is installed once because stdio opens its session inside
+  `setSessionFactory`
 - Generated Python modules expose `<Service>ToolHandler`
 - Generated Python modules expose `register_<service_name>_tools(server, impl, *, namespace=None)`
 - Generated Python modules default to `python_handler=dataclass`, exposing
@@ -173,6 +194,38 @@ architecture unless explicitly revised.
 - Go MCP Apps resources support static `source_file` (Go embed) and
   `app_ui` CSP/permissions metadata, alongside `content_field` for dynamic
   text/blob resources. Static `source_file` resources require no Go handler.
+- Every target generates the file-scoped server factory and `<File>MCPHandlers`
+  when a file has `option (mcp.options.v1.server)` or needs MCP Apps
+  (`ServerFactoryModel`, `modelNeedsApps`). Kotlin and Java over stdio advertise
+  MCP Apps under `capabilities.experimental`; the shared contract takes this as
+  `stdiotest.ContractOptions{AppsCapability: AppsInExperimental}`. After
+  changing `runtime/typescript`, rebuild it and rerun `npm ci` in its consumers:
+  `npm install` keeps the stale copy of a same-version `file:` package
+- Every target implements `option (mcp.options.v1.server).oauth` and per-tool
+  `required_scopes`. `internal/httpcontract` is the shared HTTP/OAuth contract (metadata,
+  401 challenge, 403 step-up with `scope=`, 400/413 preflight) run against the
+  config/v1 fixture of each implementing target. Python's HTTP app
+  (`protoc_gen_mcp_runtime.new_http_app`) layers the SDK
+  `StreamableHTTPSessionManager(stateless=True)`, `AuthenticationMiddleware`,
+  `BearerAuthBackend` and `RequireAuthMiddleware` with the runtime's scope gate
+  and metadata; `JWKSTokenVerifier` ports `mcpruntime/jwks.go` on PyJWT and httpx.
+  TypeScript's `newHttpHandler` is an express app: SDK `requireBearerAuth` before
+  `express.json` (4 MiB), the runtime scope gate, then a fresh `Server` and
+  `StreamableHTTPServerTransport` per request; its public types avoid express
+  and Node typings (`TokenVerifier`, structural `HttpHandler`).
+  Java's `McpHttpServlet` wraps the SDK `HttpServletStatelessServerTransport`
+  with a runtime `McpStatelessServerHandler` over the registry of an
+  `McpHttpServer` key (so `initialize` can carry `capabilities.extensions`),
+  and does metadata, bearer auth and the scope gate itself; the token reaches
+  handlers through the transport context and `McpRuntime.currentAccessToken()`.
+  `runtime/jvm/oauth` (`protoc-gen-mcp-runtime-oauth`) holds the JVM-wide
+  pieces: `JWKSTokenVerifier` on nimbus-jose-jwt, `OAuthResourceServer`,
+  `ScopeGate` and a strict JSON reader, shared with Kotlin. Kotlin's
+  `installMcpHttp` is a Ktor route: `DoubleReceive` buffers the body for the
+  scope gate and the SDK `StreamableHttpServerTransport` (JSON responses, a
+  fresh `Server` per request); the token is bound to the `ServerSession` and
+  handed to handlers as an `AccessTokenElement` in the coroutine context.
+  Method `app_ui` becomes tool `_meta.ui` in every target.
 - Generated OAuth HTTP handlers enforce server-wide and per-tool
   `required_scopes` before dispatch, returning HTTP 403 `insufficient_scope`
   challenges for missing scopes. SDK client `OAuthHandler` can perform step-up
@@ -221,12 +274,15 @@ architecture unless explicitly revised.
   `easyp --cfg easyp.yaml generate -p mcp -r .`
 - Lint / generate test fixtures:
   `easyp --cfg easyp.test.yaml lint -p internal/testproto -r .`,
-  `easyp --cfg easyp.test.yaml generate -p internal/testproto -r .`
+  `easyp --cfg easyp.test.yaml generate -p internal/testproto -r .`,
+  `easyp --cfg easyp.test.python.yaml generate -p internal/testproto -r .`
 - Generate the showcase:
   `easyp --cfg easyp.showcase.yaml generate -p examples/11_protobuf_first_mcp/proto -r .`
 - Generate standalone examples: `cd examples && make generate`
-- Prepare the TypeScript harness:
+- Prepare the TypeScript runtime and harness:
+  `cd runtime/typescript && npm ci && npm run build`, then
   `cd internal/codegen/testdata/node && npm ci && npm run typecheck`
+- Build and test the JVM runtime: `gradle --no-daemon -p runtime/jvm build`
 - Build and install the JVM test servers:
   `gradle --no-daemon -p internal/examplemcp/jvm :java-server:installDist :kotlin-server:installDist`
 - Run tests: `go test ./...` (TypeScript tests need the harness installed;

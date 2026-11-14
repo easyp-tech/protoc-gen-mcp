@@ -40,12 +40,45 @@ make build
 make run
 ```
 
-The server registers generated tools through:
+The server builds everything the proto declares through the generated factory:
 
 ```java
-TodoMcp.registerTodoAPITools(transportProvider, new Handler(), "todo");
+TodoMcp.installTodoMCPServer(transportProvider, handlers);
 ```
+
+Over HTTP the same handlers are installed on a `McpHttpServer` and served by
+`TodoMcp.newTodoMCPHttpServlet(server, verifier)` in Jetty.
 
 The generated source lives under `src/generated/main/java` after generation.
 The handwritten server lives under `src/main/java` and implements the generated
 `TodoMcp.TodoAPIToolHandler` interface.
+
+## OAuth Over HTTP
+
+`option (mcp.options.v1.server)` in the proto makes the server an OAuth
+protected resource over stateless Streamable HTTP: every request needs
+`todo:read`, and `todo_DeleteTask` also needs `todo:write`. Over stdio there is no
+token, so `todo_DeleteTask` is denied inside the call. Start the server with local
+demonstration tokens (loopback only, never in production):
+
+```bash
+gradle --no-daemon run --args="--http --demo-auth"
+```
+
+Then walk through discovery and the scope step-up:
+
+```bash
+curl -s http://127.0.0.1:8080/.well-known/oauth-protected-resource/mcp
+for token in demo-read demo-write; do
+  curl -si http://127.0.0.1:8080/mcp \
+    -H "Authorization: Bearer $token" \
+    -H 'Content-Type: application/json' \
+    -H 'Accept: application/json, text/event-stream' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"todo_DeleteTask","arguments":{"id":"task-1"}}}'
+done
+```
+
+`demo-read` gets `403` with `WWW-Authenticate: Bearer error="insufficient_scope",
+scope="todo:read todo:write"` before the handler runs; `demo-write` gets the
+tool result. Without `--demo-auth` the server verifies RS256 JWTs against the
+issuer and JWKS declared in the proto.

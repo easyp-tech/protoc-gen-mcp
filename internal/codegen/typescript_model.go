@@ -15,6 +15,7 @@ type TypeScriptFileModel struct {
 	Resources               []ResourceModel
 	// ResourceOutputs maps a resource message full name to its protobuf-es refs.
 	ResourceOutputs map[string]TypeScriptTypeRef
+	Factory         ServerFactoryModel
 }
 
 type TypeScriptServiceModel struct {
@@ -44,6 +45,8 @@ type TypeScriptMethodModel struct {
 	OutputSchemaJSON string
 	Annotations      *mcpoptionsv1.ToolAnnotations
 	Icons            []*mcpoptionsv1.Icon
+	AppUI            *mcpoptionsv1.AppUIOptions
+	RequiredScopes   []string
 	// TaskSupport mcpoptionsv1.TaskSupport mirrors the shared method contract.
 	TaskSupport mcpoptionsv1.TaskSupport
 }

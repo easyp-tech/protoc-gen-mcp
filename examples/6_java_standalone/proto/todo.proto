@@ -7,6 +7,22 @@ import "mcp/options/v1/options.proto";
 option java_package = "com.example.todo.v1";
 option java_outer_classname = "TodoProto";
 
+// Over HTTP the todo list is an OAuth protected resource: every request needs
+// todo:read, and DeleteTask also needs todo:write. Run the server with
+// --http --demo-auth to try it with the local tokens demo-read and demo-write.
+option (mcp.options.v1.server) = {
+  name: "todo-java-standalone"
+  version: "0.1.0"
+  oauth: {
+    resource_url: "https://todo.example.com/mcp"
+    authorization_servers: "https://auth.example.com"
+    scopes: "todo:read"
+    issuer: "https://auth.example.com"
+    jwks_uri: "https://auth.example.com/.well-known/jwks.json"
+    audience: "https://todo.example.com/mcp"
+  }
+};
+
 service TodoAPI {
   option (mcp.options.v1.service) = {
     namespace: "todo"
@@ -52,9 +68,29 @@ service TodoAPI {
       }
     };
   }
+
+  rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse) {
+    option (mcp.options.v1.method) = {
+      name: "DeleteTask"
+      title: "Delete Task"
+      description: "Delete a task. Needs the todo:write scope, so it is denied without a token, for example over stdio."
+      required_scopes: "todo:write"
+      annotations: {
+        destructive_hint: true
+        idempotent_hint: true
+        open_world_hint: false
+      }
+    };
+  }
 }
 
 message Task {
+  option (mcp.options.v1.resource) = {
+    name: "task"
+    uri_template: "todo://tasks/{id}"
+    description: "A task from the in-memory todo list, addressed by its id."
+  };
+
   string id = 1 [(mcp.options.v1.field) = {
     description: "Stable task id returned by CreateTask."
     examples: [{string_value: "task-1"}]
@@ -112,4 +148,30 @@ message CompleteTaskRequest {
 
 message CompleteTaskResponse {
   Task task = 1;
+}
+
+message DeleteTaskRequest {
+  string id = 1 [(mcp.options.v1.field) = {
+    description: "Task id to delete."
+    examples: [{string_value: "task-1"}]
+    min_length: 1
+  }];
+}
+
+message DeleteTaskResponse {
+  bool deleted = 1 [(mcp.options.v1.field) = {
+    description: "Whether a task with this id existed and was deleted."
+  }];
+}
+
+message PlanDay {
+  option (mcp.options.v1.prompt) = {
+    name: "plan_day"
+    title: "Plan the day"
+    description: "Ask the model to plan the day around the open tasks."
+  };
+
+  string focus = 1 [(mcp.options.v1.field) = {
+    description: "What the day should focus on."
+  }];
 }

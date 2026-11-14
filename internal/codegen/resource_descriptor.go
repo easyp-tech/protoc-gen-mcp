@@ -176,3 +176,17 @@ func appResourceMetaMap(ui *mcpoptionsv1.AppResourceOptions) map[string]any {
 	}
 	return map[string]any{"ui": app}
 }
+
+// toolMetaJSON renders the MCP Apps _meta of a tool (mcpruntime.WithAppUI on
+// the Go side), or "" when the tool is not linked to an app.
+func toolMetaJSON(appUI *mcpoptionsv1.AppUIOptions) string {
+	if appUI == nil {
+		return ""
+	}
+	ui := map[string]any{"resourceUri": appUI.GetResourceUri()}
+	if visibility := appUI.GetVisibility(); len(visibility) > 0 {
+		ui["visibility"] = visibility
+	}
+	encoded, _ := json.Marshal(map[string]any{"ui": ui})
+	return string(encoded)
+}

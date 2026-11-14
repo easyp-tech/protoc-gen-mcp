@@ -39,11 +39,27 @@ type ResourceContents struct {
 	Meta     json.RawMessage `json:"_meta,omitempty"`
 }
 
+// AppsLocation is where a server advertises the MCP Apps extension.
+type AppsLocation string
+
+const (
+	// AppsInExtensions is capabilities.extensions, as in the Go SDK.
+	AppsInExtensions AppsLocation = "extensions"
+	// AppsInExperimental is capabilities.experimental, used where the SDK
+	// cannot model extensions (Kotlin SDK 0.11, Java SDK 1.1 over stdio).
+	AppsInExperimental AppsLocation = "experimental"
+)
+
+// ContractOptions captures the documented per-SDK differences.
+type ContractOptions struct {
+	AppsCapability AppsLocation
+}
+
 // RunResourcesPromptsContract checks the resources and prompts generated from
 // internal/testproto/resources/v1 and internal/testproto/prompts/v1. The server
 // behind cmd must implement the fixture handlers the same way as
 // internal/examplemcp.ResourcesHandler and PromptsHandler.
-func RunResourcesPromptsContract(t *testing.T, cmd *exec.Cmd) {
+func RunResourcesPromptsContract(t *testing.T, cmd *exec.Cmd, opts ContractOptions) {
 	t.Helper()
 
 	client := NewClient(t, cmd)
@@ -51,6 +67,10 @@ func RunResourcesPromptsContract(t *testing.T, cmd *exec.Cmd) {
 
 	var initialized struct {
 		Capabilities map[string]json.RawMessage `json:"capabilities"`
+		ServerInfo   struct {
+			Name    string `json:"name"`
+			Version string `json:"version"`
+		} `json:"serverInfo"`
 	}
 	if err := json.Unmarshal(client.InitializeResult(), &initialized); err != nil {
 		t.Fatalf("decode initialize result: %v", err)
@@ -59,6 +79,20 @@ func RunResourcesPromptsContract(t *testing.T, cmd *exec.Cmd) {
 		if _, ok := initialized.Capabilities[capability]; !ok {
 			t.Errorf("initialize capabilities missing %q: %s", capability, client.InitializeResult())
 		}
+	}
+	if initialized.ServerInfo.Name != "resource-fixture-server" || initialized.ServerInfo.Version != "v1.0.0" {
+		t.Errorf("serverInfo = %+v, want the proto-declared resource-fixture-server v1.0.0", initialized.ServerInfo)
+	}
+	location := opts.AppsCapability
+	if location == "" {
+		location = AppsInExtensions
+	}
+	var apps map[string]struct {
+		MIMETypes []string `json:"mimeTypes"`
+	}
+	decode(t, "capabilities."+string(location), initialized.Capabilities[string(location)], &apps)
+	if ui := apps["io.modelcontextprotocol/ui"]; !slices.Equal(ui.MIMETypes, []string{"text/html;profile=mcp-app"}) {
+		t.Errorf("capabilities.%s does not advertise MCP Apps: %s", location, client.InitializeResult())
 	}
 
 	checkResourceList(t, client)

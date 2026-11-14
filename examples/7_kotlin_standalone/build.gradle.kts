@@ -5,11 +5,13 @@ plugins {
 }
 
 dependencies {
+    implementation("tech.easyp:protoc-gen-mcp-runtime-kotlin:0.8.0")
     implementation("io.modelcontextprotocol:kotlin-sdk-server:0.11.1")
     implementation("com.google.protobuf:protobuf-java:4.34.1")
     implementation("com.google.protobuf:protobuf-kotlin:4.34.1")
     implementation("com.google.protobuf:protobuf-java-util:4.34.1")
     implementation("com.networknt:json-schema-validator:1.5.9")
+    implementation("io.ktor:ktor-server-cio:3.3.3")
     runtimeOnly("org.slf4j:slf4j-nop:2.0.17")
 }
 

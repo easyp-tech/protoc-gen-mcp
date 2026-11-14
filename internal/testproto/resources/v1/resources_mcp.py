@@ -3,19 +3,13 @@
 from __future__ import annotations
 
 import enum
-import inspect
 import json
-import re
-import urllib.parse
-import weakref
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Protocol, TypeAlias
 
-import jsonschema
 import mcp.server.lowlevel
-import mcp.server.lowlevel.helper_types
 import mcp.server.session
-import mcp.shared.exceptions
+import protoc_gen_mcp_runtime
 import mcp.types
 from google.protobuf import any_pb2, duration_pb2, empty_pb2, field_mask_pb2, json_format, struct_pb2, timestamp_pb2, wrappers_pb2
 try:
@@ -95,237 +89,7 @@ class PlainData:
     key: str
     value: str
 
-@dataclass(frozen=True)
-class _RegisteredTool:
-    name: str
-    title: str
-    description: str
-    input_schema_json: str
-    output_schema_json: str
-    request_type: type[Any]
-    response_type: type[Any]
-    from_pb: Any
-    to_pb: Any
-    handler: Any
-    annotations: dict[str, Any] | None
-    icons: list[dict[str, Any]] | None
-    execution: dict[str, Any] | None = None
-
-class _ServerToolRegistry:
-    def __init__(self, server: mcp.server.lowlevel.Server) -> None:
-        self.server = server
-        self.tools: dict[str, _RegisteredTool] = {}
-        self.reserved_tool_names = _get_reserved_tool_names(server)
-        self.handlers_installed = False
-        self.previous_list_tools: Any | None = None
-        self.previous_call_tool: Any | None = None
-
-    def add_tool(self, tool: _RegisteredTool) -> None:
-        if tool.name in self.reserved_tool_names:
-            raise ValueError(f"duplicate tool registration: {tool.name}")
-        self.tools[tool.name] = tool
-        self.reserved_tool_names.add(tool.name)
-
-    def list_tools(self) -> list[mcp.types.Tool]:
-        return [_build_tool(tool) for tool in self.tools.values()]
-
-    async def call_tool(self, name: str, arguments: dict[str, Any] | None, context: ToolRequestContext | None = None) -> mcp.types.CallToolResult:
-        return await _dispatch_call(self, name, arguments or {}, context)
-
-_SERVER_REGISTRIES: weakref.WeakKeyDictionary[mcp.server.lowlevel.Server, _ServerToolRegistry] = weakref.WeakKeyDictionary()
-
-def _load_schema(schema_json: str) -> dict[str, Any]:
-    return json.loads(schema_json)
-
-def _protojson_to_message(arguments: dict[str, Any], message: Any) -> Any:
-    json_format.ParseDict(arguments, message)
-    return message
-
-def _normalize_tool_segment(segment: str | None) -> str:
-    if segment is None:
-        return ""
-    parts = [part for part in segment.strip().replace(".", "_").split("_") if part]
-    return "_".join(parts)
-
-def _normalize_namespace(namespace: str | None, default: str) -> str:
-    if namespace is None:
-        namespace = default
-    return _normalize_tool_segment(namespace)
-
-def _tool_name(namespace: str, method_name: str) -> str:
-    namespace = _normalize_tool_segment(namespace)
-    method_name = _normalize_tool_segment(method_name)
-    if namespace == '':
-        return method_name
-    if method_name == '':
-        return namespace
-    return f"{namespace}_{method_name}"
-
-def _get_registry(server: mcp.server.lowlevel.Server) -> _ServerToolRegistry:
-    registry = _SERVER_REGISTRIES.get(server)
-    if registry is None:
-        registry = _ServerToolRegistry(server)
-        _SERVER_REGISTRIES[server] = registry
-    return registry
-
-_RESERVED_TOOL_NAMES_ATTR = "_protoc_gen_mcp_reserved_tool_names"
-
-def _get_reserved_tool_names(server: mcp.server.lowlevel.Server) -> set[str]:
-    reserved = getattr(server, _RESERVED_TOOL_NAMES_ATTR, None)
-    if reserved is None:
-        reserved = set()
-        setattr(server, _RESERVED_TOOL_NAMES_ATTR, reserved)
-    return reserved
-
-def _build_list_tools_request(request: Any) -> mcp.types.ListToolsRequest:
-    if isinstance(request, mcp.types.ListToolsRequest):
-        return request
-    return mcp.types.ListToolsRequest()
-
-def _merge_tools(previous: list[mcp.types.Tool], current: list[mcp.types.Tool]) -> list[mcp.types.Tool]:
-    merged: list[mcp.types.Tool] = []
-    names: set[str] = set()
-    for tool in previous:
-        if tool.name in names:
-            raise ValueError(f"duplicate tool registration: {tool.name}")
-        names.add(tool.name)
-        merged.append(tool)
-    for tool in current:
-        if tool.name in names:
-            raise ValueError(f"duplicate tool registration: {tool.name}")
-        names.add(tool.name)
-        merged.append(tool)
-    return merged
-
-def _install_server_handlers(server: mcp.server.lowlevel.Server) -> _ServerToolRegistry:
-    registry = _get_registry(server)
-    if registry.handlers_installed:
-        return registry
-    registry.previous_list_tools = server.request_handlers.get(mcp.types.ListToolsRequest)
-    registry.previous_call_tool = server.request_handlers.get(mcp.types.CallToolRequest)
-
-    async def _list_tools(request: Any) -> mcp.types.ServerResult:
-        current = _SERVER_REGISTRIES.get(server)
-        list_request = _build_list_tools_request(request)
-        previous_tools: list[mcp.types.Tool] = []
-        meta: dict[str, Any] | None = None
-        if current is not None:
-            if current.previous_list_tools is not None:
-                previous_result = await current.previous_list_tools(list_request)
-                if not isinstance(previous_result.root, mcp.types.ListToolsResult):
-                    return previous_result
-                if getattr(list_request.params, "cursor", None) is not None:
-                    raise ValueError("cannot compose protoc-gen-mcp tools with paginated tools/list handlers")
-                if previous_result.root.nextCursor is not None:
-                    raise ValueError("cannot compose protoc-gen-mcp tools with paginated tools/list handlers")
-                meta = getattr(previous_result.root, "meta", None)
-                previous_tools = list(previous_result.root.tools)
-        current_tools = [] if current is None else current.list_tools()
-        tools = _merge_tools(previous_tools, current_tools)
-        server._tool_cache.clear()
-        for tool in tools:
-            server._tool_cache[tool.name] = tool
-        return mcp.types.ServerResult(mcp.types.ListToolsResult(tools=tools, _meta=meta))
-
-    async def _call_tool(request: mcp.types.CallToolRequest) -> mcp.types.ServerResult:
-        current = _SERVER_REGISTRIES.get(server)
-        if current is None:
-            return mcp.types.ServerResult(_tool_error_result("tool registry is not installed"))
-        if request.params.name not in current.tools:
-            if current.previous_call_tool is not None:
-                return await current.previous_call_tool(request)
-            _invalid_params_error(request.params.name, "unknown tool")
-        if current.previous_call_tool is not None:
-            await server.request_handlers[mcp.types.ListToolsRequest](mcp.types.ListToolsRequest())
-        result = await current.call_tool(request.params.name, request.params.arguments or {}, server.request_context.session)
-        return mcp.types.ServerResult(result)
-
-    server.request_handlers[mcp.types.ListToolsRequest] = _list_tools
-    server.request_handlers[mcp.types.CallToolRequest] = _call_tool
-
-    registry.handlers_installed = True
-    return registry
-
-def _tool_annotations(raw: dict[str, Any] | None) -> mcp.types.ToolAnnotations | None:
-    if raw is None:
-        return None
-    return mcp.types.ToolAnnotations(**raw)
-
-def _tool_execution(raw: dict[str, Any] | None) -> mcp.types.ToolExecution | None:
-    if raw is None:
-        return None
-    return mcp.types.ToolExecution(**raw)
-
-def _tool_error_result(message: str) -> mcp.types.CallToolResult:
-    return mcp.types.CallToolResult(
-        content=[mcp.types.TextContent(type="text", text=message)],
-        isError=True,
-    )
-
-def _invalid_params_error(tool_name: str, error: Any) -> mcp.shared.exceptions.McpError:
-    raise mcp.shared.exceptions.McpError(
-        mcp.types.ErrorData(
-            code=mcp.types.INVALID_PARAMS,
-            message=f"invalid arguments for tool {tool_name!r}: {error}",
-        )
-    )
-
-def _build_tool(tool: _RegisteredTool) -> Any:
-    return mcp.types.Tool(
-        name=tool.name,
-        title=tool.title,
-        description=tool.description,
-        inputSchema=_load_schema(tool.input_schema_json),
-        outputSchema=_load_schema(tool.output_schema_json),
-        annotations=_tool_annotations(tool.annotations),
-        icons=tool.icons,
-        execution=_tool_execution(tool.execution),
-    )
-
-async def _maybe_await(result: Any) -> Any:
-    if inspect.isawaitable(result):
-        return await result
-    return result
-
-def _message_to_json(message: Any) -> str:
-    kwargs = {"preserving_proto_field_name": False}
-    try:
-        return json_format.MessageToJson(message, always_print_fields_with_no_presence=True, **kwargs)
-    except TypeError:
-        return json_format.MessageToJson(message, including_default_value_fields=True, **kwargs)
-
-async def _dispatch_call(registry: _ServerToolRegistry, name: str, arguments: dict[str, Any], context: ToolRequestContext | None) -> mcp.types.CallToolResult:
-    tool = registry.tools.get(name)
-    if tool is None:
-        _invalid_params_error(name, "unknown tool")
-    try:
-        jsonschema.validate(arguments, _load_schema(tool.input_schema_json))
-    except jsonschema.ValidationError as error:
-        _invalid_params_error(name, error)
-    try:
-        request_pb = _protojson_to_message(arguments, tool.request_type())
-        request_dc = tool.from_pb(request_pb)
-    except Exception as error:
-        _invalid_params_error(name, error)
-    try:
-        response_dc = await _maybe_await(tool.handler(context, request_dc))
-    except Exception as error:
-        return _tool_error_result(str(error))
-    try:
-        if response_dc is None:
-            response_pb = tool.response_type()
-        else:
-            response_pb = tool.to_pb(response_dc)
-        payload = json.loads(_message_to_json(response_pb))
-    except Exception as error:
-        raise RuntimeError(f"mcpruntime: marshal output for tool {name!r}: {error}") from error
-    text = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
-    content = [mcp.types.TextContent(type="text", text=text)]
-    try:
-        jsonschema.validate(payload, _load_schema(tool.output_schema_json))
-    except jsonschema.ValidationError as error:
-        raise RuntimeError(f"mcpruntime: validate output for tool {name!r}: {error}") from error
-    return mcp.types.CallToolResult(content=content, structuredContent=payload)
+protoc_gen_mcp_runtime.check_gencode_version(1)
 
 def _enum_from_pb(enum_type: type[enum.IntEnum], value: int) -> enum.IntEnum:
     return enum_type(value)
@@ -335,43 +99,43 @@ def _json_to_message(value: Any, message: Any) -> Any:
     return message
 
 def _from_pb_any(message: any_pb2.Any) -> ProtoAny:
-    return json.loads(_message_to_json(message))
+    return json.loads(protoc_gen_mcp_runtime.message_to_json(message))
 
 def _to_pb_any(value: ProtoAny) -> any_pb2.Any:
     return _json_to_message(value, any_pb2.Any())
 
 def _from_pb_timestamp(message: timestamp_pb2.Timestamp) -> Timestamp:
-    return json.loads(_message_to_json(message))
+    return json.loads(protoc_gen_mcp_runtime.message_to_json(message))
 
 def _to_pb_timestamp(value: Timestamp) -> timestamp_pb2.Timestamp:
     return _json_to_message(value, timestamp_pb2.Timestamp())
 
 def _from_pb_duration(message: duration_pb2.Duration) -> Duration:
-    return json.loads(_message_to_json(message))
+    return json.loads(protoc_gen_mcp_runtime.message_to_json(message))
 
 def _to_pb_duration(value: Duration) -> duration_pb2.Duration:
     return _json_to_message(value, duration_pb2.Duration())
 
 def _from_pb_field_mask(message: field_mask_pb2.FieldMask) -> FieldMask:
-    return json.loads(_message_to_json(message))
+    return json.loads(protoc_gen_mcp_runtime.message_to_json(message))
 
 def _to_pb_field_mask(value: FieldMask) -> field_mask_pb2.FieldMask:
     return _json_to_message(value, field_mask_pb2.FieldMask())
 
 def _from_pb_struct(message: struct_pb2.Struct) -> Struct:
-    return json.loads(_message_to_json(message))
+    return json.loads(protoc_gen_mcp_runtime.message_to_json(message))
 
 def _to_pb_struct(value: Struct) -> struct_pb2.Struct:
     return _json_to_message(value, struct_pb2.Struct())
 
 def _from_pb_list_value(message: struct_pb2.ListValue) -> ListValue:
-    return json.loads(_message_to_json(message))
+    return json.loads(protoc_gen_mcp_runtime.message_to_json(message))
 
 def _to_pb_list_value(value: ListValue) -> struct_pb2.ListValue:
     return _json_to_message(value, struct_pb2.ListValue())
 
 def _from_pb_value(message: struct_pb2.Value) -> Value:
-    return json.loads(_message_to_json(message))
+    return json.loads(protoc_gen_mcp_runtime.message_to_json(message))
 
 def _to_pb_value(value: Value) -> struct_pb2.Value:
     return _json_to_message(value, struct_pb2.Value())
@@ -533,139 +297,6 @@ def _to_pb_plain_data(value: PlainData) -> resources_pb2.PlainData:
     return message
 
 
-@dataclass(frozen=True)
-class _RegisteredResource:
-    resource: mcp.types.Resource
-    reader: Any
-
-@dataclass(frozen=True)
-class _RegisteredResourceTemplate:
-    template: mcp.types.ResourceTemplate
-    pattern: Any
-    names: tuple[str, ...]
-    lister: Any
-    reader: Any
-
-class _ServerResourceRegistry:
-    def __init__(self) -> None:
-        self.static: dict[str, Any] = {}
-        self.templates: list[Any] = []
-
-    def add_static(self, entry: Any) -> None:
-        uri = str(entry.resource.uri)
-        if uri in self.static:
-            raise ValueError(f"duplicate resource registration: {uri}")
-        self.static[uri] = entry
-
-    def add_template(self, entry: Any) -> None:
-        for existing in self.templates:
-            if existing.template.uriTemplate == entry.template.uriTemplate:
-                raise ValueError(f"duplicate resource template registration: {entry.template.uriTemplate}")
-        self.templates.append(entry)
-
-_RESOURCE_REGISTRY_ATTR = "_protoc_gen_mcp_resource_registry"
-_URI_TEMPLATE_PARAM = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
-_MALFORMED_PERCENT_ESCAPE = re.compile(r"%(?![0-9A-Fa-f]{2})")
-
-def _resource_error(message: str, uri: str) -> mcp.shared.exceptions.McpError:
-    return mcp.shared.exceptions.McpError(mcp.types.ErrorData(code=mcp.types.INVALID_PARAMS, message=message, data={"uri": uri}))
-
-def _resource_name(namespace: str | None, name: str) -> str:
-    if not namespace:
-        return name
-    return f"{namespace}_{name}"
-
-def _resource_listing(model: Any, descriptor_json: str, namespace: str | None, name: str) -> Any:
-    descriptor = json.loads(descriptor_json)
-    descriptor["name"] = _resource_name(namespace, name)
-    return model.model_validate(descriptor)
-
-def _compile_uri_template(uri_template: str) -> Any:
-    parts = _URI_TEMPLATE_PARAM.split(uri_template)
-    pattern = "".join(re.escape(part) if index % 2 == 0 else "([^/]+)" for index, part in enumerate(parts))
-    return re.compile(pattern)
-
-def _match_uri_template(entry: Any, uri: str) -> dict[str, str] | None:
-    match = entry.pattern.fullmatch(uri)
-    if match is None:
-        return None
-    params: dict[str, str] = {}
-    for name, raw in zip(entry.names, match.groups()):
-        if _MALFORMED_PERCENT_ESCAPE.search(raw):
-            raise _resource_error(f"mcpruntime: parameter {name!r} in uri {uri!r} has a malformed percent escape", uri)
-        try:
-            value = urllib.parse.unquote(raw, errors="strict")
-        except UnicodeDecodeError as error:
-            raise _resource_error(f"mcpruntime: parameter {name!r} in uri {uri!r}: {error}", uri) from error
-        if value == "":
-            raise _resource_error(f"mcpruntime: parameter {name!r} has empty value in uri {uri!r}", uri)
-        params[name] = value
-    return params
-
-def _identity_resource(value: Any) -> Any:
-    return value
-
-async def _read_resource_contents(
-    result: Any,
-    uri: str,
-    *,
-    mime_type: str,
-    kind: str,
-    content_field: str | None,
-    to_pb: Any,
-    meta: dict[str, Any] | None,
-) -> Any:
-    value = await _maybe_await(result)
-    if value is None:
-        raise RuntimeError(f"mcpruntime: resource {uri!r} handler returned None")
-    if kind == "raw":
-        if not isinstance(value, (str, bytes)):
-            raise RuntimeError(f"mcpruntime: resource {uri!r} handler must return str or bytes, got {type(value).__name__}")
-        content: str | bytes = value
-    else:
-        message = to_pb(value)
-        if kind == "protojson":
-            payload = json.loads(_message_to_json(message))
-            content = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
-        elif kind == "text_field":
-            content = str(getattr(message, content_field))
-        else:
-            content = bytes(getattr(message, content_field))
-    return mcp.server.lowlevel.helper_types.ReadResourceContents(content=content, mime_type=mime_type, meta=meta)
-
-def _install_resource_handlers(server: mcp.server.lowlevel.Server) -> Any:
-    registry = getattr(server, _RESOURCE_REGISTRY_ATTR, None)
-    if registry is not None:
-        return registry
-    registry = _ServerResourceRegistry()
-    setattr(server, _RESOURCE_REGISTRY_ATTR, registry)
-
-    @server.list_resources()
-    async def _list_resources() -> list[mcp.types.Resource]:
-        resources = [entry.resource for entry in registry.static.values()]
-        for entry in registry.templates:
-            resources.extend(await _maybe_await(entry.lister()))
-        return resources
-
-    @server.list_resource_templates()
-    async def _list_resource_templates() -> list[mcp.types.ResourceTemplate]:
-        return [entry.template for entry in registry.templates]
-
-    @server.read_resource()
-    async def _read_resource(uri: Any) -> list[Any]:
-        raw_uri = str(uri)
-        entry = registry.static.get(raw_uri)
-        if entry is not None:
-            return [await entry.reader(raw_uri, {})]
-        for template in registry.templates:
-            params = _match_uri_template(template, raw_uri)
-            if params is not None:
-                return [await template.reader(raw_uri, params)]
-        raise _resource_error("Resource not found", raw_uri)
-
-    return registry
-
-
 class ResourcesResourceHandler(Protocol):
     """Handler protocol for MCP resources in internal/testproto/resources/v1/resources.proto."""
     def read_server_status(self) -> ServerStatus | Awaitable[ServerStatus]:
@@ -698,42 +329,64 @@ def register_resources_resources(
     """Registers MCP resources for resources."""
     if impl is None:
         raise ValueError("register_resources_resources: impl is nil")
-    registry = _install_resource_handlers(server)
-    registry.add_static(_RegisteredResource(
-        resource=_resource_listing(mcp.types.Resource, "{\"annotations\":{\"audience\":[\"user\",\"assistant\"],\"priority\":0.8},\"description\":\"Current server status and health information\",\"icons\":[{\"src\":\"https://example.com/status.svg\"}],\"mimeType\":\"application/json\",\"uri\":\"server://status\"}", namespace, "server_status"),
-        reader=lambda uri, params: _read_resource_contents(impl.read_server_status(), uri, mime_type="application/json", kind="protojson", content_field=None, to_pb=_to_pb_server_status, meta=None),
+    registry = protoc_gen_mcp_runtime.install_resource_registry(server)
+    registry.add_static(protoc_gen_mcp_runtime.RegisteredResource(
+        resource=protoc_gen_mcp_runtime.resource_listing(mcp.types.Resource, "{\"annotations\":{\"audience\":[\"user\",\"assistant\"],\"priority\":0.8},\"description\":\"Current server status and health information\",\"icons\":[{\"src\":\"https://example.com/status.svg\"}],\"mimeType\":\"application/json\",\"uri\":\"server://status\"}", namespace, "server_status"),
+        reader=lambda uri, params: protoc_gen_mcp_runtime.read_resource_contents(impl.read_server_status(), uri, mime_type="application/json", kind="protojson", content_field=None, to_pb=_to_pb_server_status, meta=None),
     ))
-    registry.add_template(_RegisteredResourceTemplate(
-        template=_resource_listing(mcp.types.ResourceTemplate, "{\"description\":\"User profile information\",\"mimeType\":\"application/json\",\"uriTemplate\":\"users://{user_id}/profile\"}", namespace, "user_profile"),
-        pattern=_compile_uri_template("users://{user_id}/profile"),
+    registry.add_template(protoc_gen_mcp_runtime.RegisteredResourceTemplate(
+        template=protoc_gen_mcp_runtime.resource_listing(mcp.types.ResourceTemplate, "{\"description\":\"User profile information\",\"mimeType\":\"application/json\",\"uriTemplate\":\"users://{user_id}/profile\"}", namespace, "user_profile"),
+        pattern=protoc_gen_mcp_runtime.compile_uri_template("users://{user_id}/profile"),
         names=("user_id",),
         lister=impl.list_user_profiles,
-        reader=lambda uri, params: _read_resource_contents(impl.read_user_profile(params["user_id"]), uri, mime_type="application/json", kind="protojson", content_field=None, to_pb=_to_pb_user_profile, meta=None),
+        reader=lambda uri, params: protoc_gen_mcp_runtime.read_resource_contents(impl.read_user_profile(params["user_id"]), uri, mime_type="application/json", kind="protojson", content_field=None, to_pb=_to_pb_user_profile, meta=None),
     ))
-    registry.add_template(_RegisteredResourceTemplate(
-        template=_resource_listing(mcp.types.ResourceTemplate, "{\"annotations\":{\"priority\":0.5},\"description\":\"Project document\",\"mimeType\":\"application/json\",\"uriTemplate\":\"projects://{project_id}/documents/{document_id}\"}", namespace, "document"),
-        pattern=_compile_uri_template("projects://{project_id}/documents/{document_id}"),
+    registry.add_template(protoc_gen_mcp_runtime.RegisteredResourceTemplate(
+        template=protoc_gen_mcp_runtime.resource_listing(mcp.types.ResourceTemplate, "{\"annotations\":{\"priority\":0.5},\"description\":\"Project document\",\"mimeType\":\"application/json\",\"uriTemplate\":\"projects://{project_id}/documents/{document_id}\"}", namespace, "document"),
+        pattern=protoc_gen_mcp_runtime.compile_uri_template("projects://{project_id}/documents/{document_id}"),
         names=("project_id", "document_id"),
         lister=impl.list_documents,
-        reader=lambda uri, params: _read_resource_contents(impl.read_document(params["project_id"], params["document_id"]), uri, mime_type="application/json", kind="protojson", content_field=None, to_pb=_to_pb_document, meta=None),
+        reader=lambda uri, params: protoc_gen_mcp_runtime.read_resource_contents(impl.read_document(params["project_id"], params["document_id"]), uri, mime_type="application/json", kind="protojson", content_field=None, to_pb=_to_pb_document, meta=None),
     ))
-    registry.add_static(_RegisteredResource(
-        resource=_resource_listing(mcp.types.Resource, "{\"description\":\"Instructions for the example MCP skill\",\"mimeType\":\"text/markdown\",\"uri\":\"skill://example/SKILL.md\"}", namespace, "skill_document"),
-        reader=lambda uri, params: _read_resource_contents(impl.read_skill_document(), uri, mime_type="text/markdown", kind="text_field", content_field="markdown", to_pb=_to_pb_skill_document, meta=None),
+    registry.add_static(protoc_gen_mcp_runtime.RegisteredResource(
+        resource=protoc_gen_mcp_runtime.resource_listing(mcp.types.Resource, "{\"description\":\"Instructions for the example MCP skill\",\"mimeType\":\"text/markdown\",\"uri\":\"skill://example/SKILL.md\"}", namespace, "skill_document"),
+        reader=lambda uri, params: protoc_gen_mcp_runtime.read_resource_contents(impl.read_skill_document(), uri, mime_type="text/markdown", kind="text_field", content_field="markdown", to_pb=_to_pb_skill_document, meta=None),
     ))
-    registry.add_template(_RegisteredResourceTemplate(
-        template=_resource_listing(mcp.types.ResourceTemplate, "{\"description\":\"PlainText demonstrates parameterized text resources.\",\"mimeType\":\"text/plain\",\"uriTemplate\":\"docs://example/{name}\"}", namespace, "plain_text"),
-        pattern=_compile_uri_template("docs://example/{name}"),
+    registry.add_template(protoc_gen_mcp_runtime.RegisteredResourceTemplate(
+        template=protoc_gen_mcp_runtime.resource_listing(mcp.types.ResourceTemplate, "{\"description\":\"PlainText demonstrates parameterized text resources.\",\"mimeType\":\"text/plain\",\"uriTemplate\":\"docs://example/{name}\"}", namespace, "plain_text"),
+        pattern=protoc_gen_mcp_runtime.compile_uri_template("docs://example/{name}"),
         names=("name",),
         lister=impl.list_plain_texts,
-        reader=lambda uri, params: _read_resource_contents(impl.read_plain_text(params["name"]), uri, mime_type="text/plain", kind="text_field", content_field="body", to_pb=_to_pb_plain_text, meta=None),
+        reader=lambda uri, params: protoc_gen_mcp_runtime.read_resource_contents(impl.read_plain_text(params["name"]), uri, mime_type="text/plain", kind="text_field", content_field="body", to_pb=_to_pb_plain_text, meta=None),
     ))
-    registry.add_static(_RegisteredResource(
-        resource=_resource_listing(mcp.types.Resource, "{\"description\":\"RawBinary demonstrates an MCP blob using a bytes content field.\",\"mimeType\":\"application/octet-stream\",\"uri\":\"blob://example/attachment\"}", namespace, "raw_binary"),
-        reader=lambda uri, params: _read_resource_contents(impl.read_raw_binary(), uri, mime_type="application/octet-stream", kind="blob_field", content_field="data", to_pb=_to_pb_raw_binary, meta=None),
+    registry.add_static(protoc_gen_mcp_runtime.RegisteredResource(
+        resource=protoc_gen_mcp_runtime.resource_listing(mcp.types.Resource, "{\"description\":\"RawBinary demonstrates an MCP blob using a bytes content field.\",\"mimeType\":\"application/octet-stream\",\"uri\":\"blob://example/attachment\"}", namespace, "raw_binary"),
+        reader=lambda uri, params: protoc_gen_mcp_runtime.read_resource_contents(impl.read_raw_binary(), uri, mime_type="application/octet-stream", kind="blob_field", content_field="data", to_pb=_to_pb_raw_binary, meta=None),
     ))
-    registry.add_static(_RegisteredResource(
-        resource=_resource_listing(mcp.types.Resource, "{\"_meta\":{\"ui\":{\"csp\":{\"connectDomains\":[\"https://api.example.com\"],\"resourceDomains\":[\"https://cdn.example.com\"]},\"permissions\":{\"clipboardWrite\":{}},\"prefersBorder\":true}},\"description\":\"AppPage is an MCP Apps HTML resource generated from a protobuf message.\",\"mimeType\":\"text/html;profile=mcp-app\",\"uri\":\"ui://example/report\"}", namespace, "report_ui"),
-        reader=lambda uri, params: _read_resource_contents(impl.read_app_page(), uri, mime_type="text/html;profile=mcp-app", kind="raw", content_field=None, to_pb=_identity_resource, meta=json.loads("{\"ui\":{\"csp\":{\"connectDomains\":[\"https://api.example.com\"],\"resourceDomains\":[\"https://cdn.example.com\"]},\"permissions\":{\"clipboardWrite\":{}},\"prefersBorder\":true}}")),
+    registry.add_static(protoc_gen_mcp_runtime.RegisteredResource(
+        resource=protoc_gen_mcp_runtime.resource_listing(mcp.types.Resource, "{\"_meta\":{\"ui\":{\"csp\":{\"connectDomains\":[\"https://api.example.com\"],\"resourceDomains\":[\"https://cdn.example.com\"]},\"permissions\":{\"clipboardWrite\":{}},\"prefersBorder\":true}},\"description\":\"AppPage is an MCP Apps HTML resource generated from a protobuf message.\",\"mimeType\":\"text/html;profile=mcp-app\",\"uri\":\"ui://example/report\"}", namespace, "report_ui"),
+        reader=lambda uri, params: protoc_gen_mcp_runtime.read_resource_contents(impl.read_app_page(), uri, mime_type="text/html;profile=mcp-app", kind="raw", content_field=None, to_pb=protoc_gen_mcp_runtime.identity, meta=json.loads("{\"ui\":{\"csp\":{\"connectDomains\":[\"https://api.example.com\"],\"resourceDomains\":[\"https://cdn.example.com\"]},\"permissions\":{\"clipboardWrite\":{}},\"prefersBorder\":true}}")),
     ))
 
+
+
+@dataclass
+class ResourcesMCPHandlers:
+    """Business handlers for every MCP primitive in internal/testproto/resources/v1/resources.proto."""
+    resources: ResourcesResourceHandler
+
+
+def create_resources_mcp_server(handlers: ResourcesMCPHandlers) -> protoc_gen_mcp_runtime.ConfiguredServer:
+    """Builds the server declared by internal/testproto/resources/v1/resources.proto and registers its primitives."""
+    server = protoc_gen_mcp_runtime.new_configured_server("resource-fixture-server", "v1.0.0", apps=True)
+    register_resources_resources(server, handlers.resources)
+    return server
+
+
+def create_resources_mcp_http_app(server: mcp.server.lowlevel.Server, verifier: Any = None) -> Any:
+    """Serves server over stateless Streamable HTTP with the policy of internal/testproto/resources/v1/resources.proto.
+
+    Returns an ASGI application. With OAuth, verifier is an SDK TokenVerifier; when
+    it is None the built-in RS256 JWKS verifier is used.
+    """
+    return protoc_gen_mcp_runtime.new_http_app(server)

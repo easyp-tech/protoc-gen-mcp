@@ -153,10 +153,11 @@ type tsToolsListResult struct {
 }
 
 type tsToolInfo struct {
-	Name        string `json:"name"`
-	Title       string `json:"title,omitempty"`
-	Description string `json:"description,omitempty"`
-	InputSchema any    `json:"inputSchema,omitempty"`
+	Name        string          `json:"name"`
+	Title       string          `json:"title,omitempty"`
+	Description string          `json:"description,omitempty"`
+	InputSchema any             `json:"inputSchema,omitempty"`
+	Meta        json.RawMessage `json:"_meta,omitempty"`
 }
 
 type tsCallToolResult struct {
@@ -212,6 +213,16 @@ func TestTypeScriptGeneratedNodeServerOverStdio(t *testing.T) {
 	slices.Sort(toolNames)
 	if !slices.Equal(toolNames, []string{"Advanced", "Scalar"}) {
 		t.Fatalf("tool names = %v, want [Advanced Scalar]", toolNames)
+	}
+
+	for _, tool := range tools.Tools {
+		want := ""
+		if tool.Name == "Scalar" {
+			want = `{"ui":{"resourceUri":"ui://runtime/scalar","visibility":["app"]}}`
+		}
+		if string(tool.Meta) != want {
+			t.Fatalf("%s _meta = %s, want %q", tool.Name, tool.Meta, want)
+		}
 	}
 
 	validateTypeScriptToolInputSchema(t, tools.Tools, "Scalar", typeScriptScalarStdioArguments())
@@ -334,8 +345,11 @@ func buildTypeScriptGeneratedNodeServerCommand(t *testing.T, invalidOutput strin
 			`import "google/protobuf/duration.proto";`,
 			`import "google/protobuf/timestamp.proto";`,
 			`import "google/protobuf/wrappers.proto";`,
+			`import "mcp/options/v1/options.proto";`,
 			`service RuntimeAPI {`,
-			`  rpc Scalar(ScalarRequest) returns (ScalarResponse);`,
+			`  rpc Scalar(ScalarRequest) returns (ScalarResponse) {`,
+			`    option (mcp.options.v1.method) = { app_ui: { resource_uri: "ui://runtime/scalar" visibility: "app" } };`,
+			`  }`,
 			`  rpc Advanced(AdvancedRequest) returns (AdvancedResponse);`,
 			`}`,
 			`message ScalarRequest {`,
