@@ -186,7 +186,52 @@ func renderPythonFileForHandler(plugin *protogen.Plugin, model FileModel, handle
 		}
 	}
 
+	if model.Factory.Emit {
+		renderPythonServerFactory(generated, model)
+	}
+
 	return nil
+}
+
+// renderPythonServerFactory mirrors render_go_server.go: a handlers dataclass
+// and a factory that builds a configured server and registers this file.
+func renderPythonServerFactory(generated *protogen.GeneratedFile, model FileModel) {
+	fileBase := pythonFileBaseName(model.ProtoPath)
+	handlersName := pythonExportedIdentifier(fileBase) + "MCPHandlers"
+	factoryName := "create_" + toSnakeCase(fileBase) + "_mcp_server"
+
+	generated.P()
+	generated.P()
+	generated.P("@dataclass")
+	generated.P("class ", handlersName, ":")
+	generated.P("    \"\"\"Business handlers for every MCP primitive in ", model.ProtoPath, ".\"\"\"")
+	if len(model.Services) == 0 && len(model.Prompts) == 0 && len(model.Resources) == 0 {
+		generated.P("    pass")
+	}
+	for _, service := range model.Services {
+		generated.P("    ", toSnakeCase(service.ProtoName), ": ", pythonProtocolName(service.ProtoName))
+	}
+	if len(model.Prompts) > 0 {
+		generated.P("    prompts: ", pythonExportedIdentifier(fileBase), "PromptHandler")
+	}
+	if len(model.Resources) > 0 {
+		generated.P("    resources: ", pythonExportedIdentifier(fileBase), "ResourceHandler")
+	}
+	generated.P()
+	generated.P()
+	generated.P("def ", factoryName, "(handlers: ", handlersName, ") -> protoc_gen_mcp_runtime.ConfiguredServer:")
+	generated.P("    \"\"\"Builds the server declared by ", model.ProtoPath, " and registers its primitives.\"\"\"")
+	generated.P("    server = protoc_gen_mcp_runtime.new_configured_server(", quote(model.Factory.Name), ", ", quote(model.Factory.Version), ", apps=", pythonBool(model.Factory.Apps), ")")
+	for _, service := range model.Services {
+		generated.P("    ", pythonRegisterName(service.ProtoName), "(server, handlers.", toSnakeCase(service.ProtoName), ")")
+	}
+	if len(model.Prompts) > 0 {
+		generated.P("    register_", toSnakeCase(fileBase), "_prompts(server, handlers.prompts)")
+	}
+	if len(model.Resources) > 0 {
+		generated.P("    register_", toSnakeCase(fileBase), "_resources(server, handlers.resources)")
+	}
+	generated.P("    return server")
 }
 
 func renderPythonResources(generated *protogen.GeneratedFile, info pythonRenderInfo, model FileModel, protobufHandlerMode bool) error {

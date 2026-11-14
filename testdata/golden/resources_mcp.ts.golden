@@ -67,3 +67,15 @@ export function registerResourcesResources(server: Server, impl: ResourcesResour
   });
 }
 
+/** Business handlers for every MCP primitive in internal/testproto/resources/v1/resources.proto. */
+export type ResourcesMCPHandlers = {
+  resources: ResourcesResourceHandler;
+};
+
+/** Builds the server declared by internal/testproto/resources/v1/resources.proto and registers its primitives. */
+export function createResourcesMCPServer(handlers: ResourcesMCPHandlers): Server {
+  const server = protocGenMcp.newConfiguredServer("resource-fixture-server", "v1.0.0", true);
+  registerResourcesResources(server, handlers.resources);
+  return server;
+}
+

@@ -38,6 +38,7 @@ func CollectJVMFileModel(file *protogen.File, model FileModel) (JVMFileModel, er
 		Services:                make([]JVMServiceModel, 0, len(model.Services)),
 		Prompts:                 model.Prompts,
 		Resources:               model.Resources,
+		Factory:                 model.Factory,
 		Types:                   typeGraph,
 	}
 

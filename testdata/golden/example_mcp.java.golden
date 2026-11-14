@@ -177,4 +177,15 @@ public final class ExampleMcp {
   private static final String EXAMPLE_API_HIDDEN_THING_INPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"name is the hidden request payload.\",\"examples\":[\"example\"]}},\"description\":\"HiddenThingRequest is used by the hidden RPC.\",\"deprecated\":true,\"examples\":[{\"name\":\"example\"}],\"required\":[\"name\"],\"additionalProperties\":false}";
 
   private static final String EXAMPLE_API_HIDDEN_THING_OUTPUT_SCHEMA_JSON = "{\"type\":\"object\",\"description\":\"HiddenThingResponse is used by the hidden RPC.\",\"additionalProperties\":false}";
+
+  /** Business handlers for every MCP primitive in internal/testproto/example/v1/example.proto. */
+  public record ExampleMCPHandlers(ExampleAPIToolHandler exampleAPI) {
+  }
+
+  /** Configures the server declared by internal/testproto/example/v1/example.proto on transportProvider and registers its primitives. */
+  public static void installExampleMCPServer(McpServerTransportProvider transportProvider, ExampleMCPHandlers handlers) {
+    registryFor(transportProvider).configureServer("example.proto", "v0.0.1", Boolean.TRUE);
+    registerExampleAPITools(transportProvider, handlers.exampleAPI(), null);
+    installSessionFactory(transportProvider, registryFor(transportProvider));
+  }
 }

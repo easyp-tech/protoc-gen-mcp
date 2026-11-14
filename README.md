@@ -26,8 +26,8 @@ handlers. JavaScript projects consume the compiled TypeScript output.
 | **Tools** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
 | **Prompts** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
 | **Resources** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
-| **Protobuf server factory** | ✅ | 📋 Planned | 📋 Planned | 📋 Planned | 📋 Planned |
-| **MCP Apps UI / CSP** | ✅ | ⚠️ Metadata | ⚠️ Metadata | ⚠️ Metadata | ⚠️ Metadata |
+| **Protobuf server factory** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **MCP Apps UI / CSP** | ✅ | ✅ | ✅¹ | ✅¹ | ✅ |
 | **Markdown, HTML, binary resources** | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **OAuth/JWKS and tool scopes** | ✅ | ⛔ Rejected | ⛔ Rejected | ⛔ Rejected | ⛔ Rejected |
 
@@ -37,9 +37,15 @@ Apps `_meta.ui` of a resource. Only Go embeds `source_file` at build time;
 the other targets read it through a generated handler that returns the file
 body.
 
-"Metadata" means a tool's `app_ui` and a resource's `app_ui` reach clients as
-`_meta.ui` in every target, while the MCP Apps capability itself is advertised
-by the generated server factory, which only Go has so far. "Rejected" means
+Every target generates a file-scoped server factory from
+`option (mcp.options.v1.server)`: Python `create_<file>_mcp_server(handlers)`,
+TypeScript `create<File>MCPServer(handlers)`, Kotlin
+`suspend new<File>MCPServer(handlers)` and Java
+`<ProtoFile>Mcp.install<File>MCPServer(transportProvider, handlers)`. ¹ The
+Kotlin SDK 0.11 and the stdio transport of the Java SDK 1.1 cannot express
+`capabilities.extensions`, so they advertise MCP Apps under
+`capabilities.experimental`; tools and resources carry `_meta.ui` everywhere.
+"Rejected" means
 `option (mcp.options.v1.server).oauth` and per-tool `required_scopes` fail at
 generation outside Go instead of producing a tool that skips the check.
 

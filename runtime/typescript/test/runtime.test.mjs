@@ -48,3 +48,12 @@ test("generated code with another runtime API version fails to load", () => {
   checkGencodeVersion(GENCODE_VERSION);
   assert.throws(() => checkGencodeVersion(GENCODE_VERSION + 1), /regenerate the code/);
 });
+
+test("configured servers carry the proto identity and the Apps extension", async () => {
+  const { APP_EXTENSION_ID, APP_HTML_MIME_TYPE, newConfiguredServer } = await import("../dist/index.js");
+  const server = newConfiguredServer("demo", "v1.2.3", true);
+  assert.deepEqual(server.getCapabilities?.() ?? server._capabilities, {
+    extensions: { [APP_EXTENSION_ID]: { mimeTypes: [APP_HTML_MIME_TYPE] } },
+  });
+  assert.throws(() => newConfiguredServer("", "v1", false), /needs a name/);
+});

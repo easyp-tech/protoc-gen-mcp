@@ -11,7 +11,7 @@ import (
 
 // kotlinRuntimeImports are the tech.easyp.mcp.runtime.kotlin declarations
 // that generated Kotlin files use.
-var kotlinRuntimeImports = []string{"RegisteredTool", "checkGencodeVersion", "iconThemeOrError", "installMcpHandlers", "normalizeNamespace", "promptName", "registerProtoFiles", "resourceListing", "resourceReadResult", "templateParam", "toolExecutionOrNull", "toolName"}
+var kotlinRuntimeImports = []string{"RegisteredTool", "checkGencodeVersion", "iconThemeOrError", "installMcpHandlers", "newConfiguredServer", "normalizeNamespace", "promptName", "registerProtoFiles", "resourceListing", "resourceReadResult", "templateParam", "toolExecutionOrNull", "toolName"}
 
 func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 	if model.Language != LanguageKotlin {
@@ -205,7 +205,57 @@ func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 		}
 	}
 
+	if model.Factory.Emit {
+		renderKotlinServerFactory(generated, model)
+	}
+
 	return nil
+}
+
+// renderKotlinServerFactory mirrors render_go_server.go: it builds a Server
+// with the capabilities this file needs and registers its primitives.
+func renderKotlinServerFactory(generated *protogen.GeneratedFile, model JVMFileModel) {
+	fileName := jvmExportedIdentifier(jvmFileBaseName(model.ProtoPath))
+	var properties []string
+	for _, service := range model.Services {
+		properties = append(properties, "val "+jvmLowerCamelIdentifier(service.ProtoName)+": "+service.HandlerName)
+	}
+	if len(model.Prompts) > 0 {
+		properties = append(properties, "val prompts: "+fileName+"PromptHandler")
+	}
+	if len(model.Resources) > 0 {
+		properties = append(properties, "val resources: "+fileName+"ResourceHandler")
+	}
+	generated.P()
+	generated.P("/** Business handlers for every MCP primitive in ", model.ProtoPath, ". */")
+	if len(properties) == 0 {
+		generated.P("class ", fileName, "MCPHandlers")
+	} else {
+		generated.P("data class ", fileName, "MCPHandlers(")
+		for _, property := range properties {
+			generated.P("    ", property, ",")
+		}
+		generated.P(")")
+	}
+	generated.P()
+	generated.P("/** Builds the server declared by ", model.ProtoPath, " and registers its primitives. */")
+	generated.P("suspend fun new", fileName, "MCPServer(handlers: ", fileName, "MCPHandlers): Server {")
+	generated.P("    val server = newConfiguredServer(")
+	generated.P("        name = ", quote(model.Factory.Name), ",")
+	generated.P("        version = ", quote(model.Factory.Version), ",")
+	generated.P("        apps = ", fmt.Sprintf("%t", model.Factory.Apps), ",")
+	generated.P("    )")
+	for _, service := range model.Services {
+		generated.P("    ", service.RegisterName, "(server, handlers.", jvmLowerCamelIdentifier(service.ProtoName), ")")
+	}
+	if len(model.Prompts) > 0 {
+		generated.P("    register", fileName, "Prompts(server, handlers.prompts)")
+	}
+	if len(model.Resources) > 0 {
+		generated.P("    register", fileName, "Resources(server, handlers.resources)")
+	}
+	generated.P("    return server")
+	generated.P("}")
 }
 
 func renderKotlinResources(generated *protogen.GeneratedFile, model JVMFileModel, resourceTypes map[string]string) error {

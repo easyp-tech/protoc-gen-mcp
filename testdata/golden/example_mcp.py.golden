@@ -945,3 +945,16 @@ EXAMPLE_API_DESCRIBE_SCALAR_SHAPES_OUTPUT_SCHEMA_JSON = "{\"type\":\"object\",\"
 EXAMPLE_API_HIDDEN_THING_INPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\",\"description\":\"name is the hidden request payload.\",\"examples\":[\"example\"]}},\"description\":\"HiddenThingRequest is used by the hidden RPC.\",\"deprecated\":true,\"examples\":[{\"name\":\"example\"}],\"required\":[\"name\"],\"additionalProperties\":false}"
 
 EXAMPLE_API_HIDDEN_THING_OUTPUT_SCHEMA_JSON = "{\"type\":\"object\",\"description\":\"HiddenThingResponse is used by the hidden RPC.\",\"additionalProperties\":false}"
+
+
+@dataclass
+class ExampleMCPHandlers:
+    """Business handlers for every MCP primitive in internal/testproto/example/v1/example.proto."""
+    example_api: ExampleAPIToolHandler
+
+
+def create_example_mcp_server(handlers: ExampleMCPHandlers) -> protoc_gen_mcp_runtime.ConfiguredServer:
+    """Builds the server declared by internal/testproto/example/v1/example.proto and registers its primitives."""
+    server = protoc_gen_mcp_runtime.new_configured_server("example.proto", "v0.0.1", apps=True)
+    register_example_api_tools(server, handlers.example_api)
+    return server

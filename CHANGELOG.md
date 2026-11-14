@@ -49,6 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Python, TypeScript, Java and Kotlin generate the server factory declared by
+  `option (mcp.options.v1.server)`: proto name and version, the MCP Apps
+  capability and registration of the file's tools, prompts and resources.
 - `tech.easyp:protoc-gen-mcp-runtime` and `protoc-gen-mcp-runtime-kotlin`,
   Maven artifacts with the registries and dispatch that generated Java and
   Kotlin sidecars previously embedded. Java sidecars of several proto files now

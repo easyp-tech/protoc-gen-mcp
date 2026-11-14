@@ -85,6 +85,7 @@ function toolRegistry(server: Server): ServerToolRegistry {
   }
   const registry: ServerToolRegistry = { tools: [] };
   holder[toolRegistrySymbol] = registry;
+  server.registerCapabilities({ tools: {} });
   server.assertCanSetRequestHandler("tools/list");
   server.assertCanSetRequestHandler("tools/call");
   server.setRequestHandler(ListToolsRequestSchema, async (): Promise<{ tools: Tool[] }> => ({

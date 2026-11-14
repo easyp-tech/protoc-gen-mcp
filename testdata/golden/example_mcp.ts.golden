@@ -146,3 +146,15 @@ export function registerExampleAPITools(
   ]);
 }
 
+/** Business handlers for every MCP primitive in internal/testproto/example/v1/example.proto. */
+export type ExampleMCPHandlers = {
+  exampleAPI: ExampleAPIToolHandler;
+};
+
+/** Builds the server declared by internal/testproto/example/v1/example.proto and registers its primitives. */
+export function createExampleMCPServer(handlers: ExampleMCPHandlers): Server {
+  const server = protocGenMcp.newConfiguredServer("example.proto", "v0.0.1", true);
+  registerExampleAPITools(server, handlers.exampleAPI);
+  return server;
+}
+

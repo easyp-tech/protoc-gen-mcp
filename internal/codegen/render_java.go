@@ -228,6 +228,10 @@ func renderJavaFile(plugin *protogen.Plugin, model JVMFileModel) error {
 		}
 	}
 
+	if model.Factory.Emit {
+		renderJavaServerFactory(generated, model)
+	}
+
 	generated.P("}")
 
 	return nil
@@ -323,6 +327,42 @@ func renderJavaResources(generated *protogen.GeneratedFile, info javaRenderInfo,
 	generated.P("    installSessionFactory(transportProvider, registry);")
 	generated.P("  }")
 	return nil
+}
+
+// renderJavaServerFactory mirrors render_go_server.go. A Java MCP server is a
+// transport provider plus its runtime registry, so the factory configures the
+// registry and registers this file on the given transport.
+func renderJavaServerFactory(generated *protogen.GeneratedFile, model JVMFileModel) {
+	fileName := jvmExportedIdentifier(jvmFileBaseName(model.ProtoPath))
+	var components []string
+	for _, service := range model.Services {
+		components = append(components, service.HandlerName+" "+jvmLowerCamelIdentifier(service.ProtoName))
+	}
+	if len(model.Prompts) > 0 {
+		components = append(components, fileName+"PromptHandler prompts")
+	}
+	if len(model.Resources) > 0 {
+		components = append(components, fileName+"ResourceHandler resources")
+	}
+	generated.P()
+	generated.P("  /** Business handlers for every MCP primitive in ", model.ProtoPath, ". */")
+	generated.P("  public record ", fileName, "MCPHandlers(", strings.Join(components, ", "), ") {")
+	generated.P("  }")
+	generated.P()
+	generated.P("  /** Configures the server declared by ", model.ProtoPath, " on transportProvider and registers its primitives. */")
+	generated.P("  public static void install", fileName, "MCPServer(McpServerTransportProvider transportProvider, ", fileName, "MCPHandlers handlers) {")
+	generated.P("    registryFor(transportProvider).configureServer(", quote(model.Factory.Name), ", ", quote(model.Factory.Version), ", ", javaBoolLiteral(model.Factory.Apps), ");")
+	for _, service := range model.Services {
+		generated.P("    ", service.RegisterName, "(transportProvider, handlers.", jvmLowerCamelIdentifier(service.ProtoName), "(), null);")
+	}
+	if len(model.Prompts) > 0 {
+		generated.P("    register", fileName, "Prompts(transportProvider, handlers.prompts(), null);")
+	}
+	if len(model.Resources) > 0 {
+		generated.P("    register", fileName, "Resources(transportProvider, handlers.resources(), null);")
+	}
+	generated.P("    installSessionFactory(transportProvider, registryFor(transportProvider));")
+	generated.P("  }")
 }
 
 func quotedParamNames(params []ResourceParamModel) []string {

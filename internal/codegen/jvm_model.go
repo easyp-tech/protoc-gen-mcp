@@ -13,6 +13,7 @@ type JVMFileModel struct {
 	Prompts                 []PromptModel
 	Resources               []ResourceModel
 	Types                   JVMTypeGraph
+	Factory                 ServerFactoryModel
 }
 
 type JVMServiceModel struct {

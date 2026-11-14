@@ -194,6 +194,13 @@ architecture unless explicitly revised.
 - Go MCP Apps resources support static `source_file` (Go embed) and
   `app_ui` CSP/permissions metadata, alongside `content_field` for dynamic
   text/blob resources. Static `source_file` resources require no Go handler.
+- Every target generates the file-scoped server factory and `<File>MCPHandlers`
+  when a file has `option (mcp.options.v1.server)` or needs MCP Apps
+  (`ServerFactoryModel`, `modelNeedsApps`). Kotlin and Java over stdio advertise
+  MCP Apps under `capabilities.experimental`; the shared contract takes this as
+  `stdiotest.ContractOptions{AppsCapability: AppsInExperimental}`. After
+  changing `runtime/typescript`, rebuild it and rerun `npm ci` in its consumers:
+  `npm install` keeps the stale copy of a same-version `file:` package
 - Only Go implements `option (mcp.options.v1.server).oauth` and per-tool
   `required_scopes`; the other targets reject them at generation
   (`validateGoOnlyOptions`) so no tool is served without its scope check.

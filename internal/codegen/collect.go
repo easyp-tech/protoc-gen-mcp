@@ -154,6 +154,7 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 	if err := validateGoOnlyOptions(model); err != nil {
 		return FileModel{}, err
 	}
+	model.Factory = newServerFactoryModel(model)
 	return model, nil
 }
 
