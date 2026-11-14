@@ -1,0 +1,15 @@
+# Swift fixtures for the SwiftPM harness in internal/examplemcp/swift.
+# protoc-gen-swift must be on PATH (swift-protobuf 1.39.0 or later).
+generate:
+  inputs:
+    - directory:
+        path: internal/testproto
+        root: "."
+  plugins:
+    - name: swift
+      out: internal/examplemcp/swift/Sources/SwiftFixtureServer/Generated
+    - command: ["go", "run", "./cmd/protoc-gen-mcp"]
+      out: internal/examplemcp/swift/Sources/SwiftFixtureServer/Generated
+      opts:
+        paths: source_relative
+        lang: swift

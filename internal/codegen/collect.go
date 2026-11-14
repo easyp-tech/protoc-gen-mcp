@@ -59,11 +59,11 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 			// normally, so it is advertised without execution.taskSupport and
 			// runs synchronously. Silently dropping REQUIRED would run a
 			// task-only operation synchronously, so it is rejected.
-			if opts.Language == LanguageGo {
+			if opts.Language == LanguageGo || opts.Language == LanguageSwift {
 				switch methodMetadata.TaskSupport {
 				case mcpoptionsv1.TaskSupport_TASK_SUPPORT_NONE, mcpoptionsv1.TaskSupport_TASK_SUPPORT_OPTIONAL:
 				default:
-					return FileModel{}, fmt.Errorf("method %s in %s: execution.task_support=%s is not supported by lang=go: the official Go MCP SDK does not implement the MCP 2025-11-25 Tasks lifecycle; omit execution.task_support or use TASK_SUPPORT_NONE or TASK_SUPPORT_OPTIONAL for synchronous execution", method.Desc.FullName(), file.Desc.Path(), methodMetadata.TaskSupport)
+					return FileModel{}, fmt.Errorf("method %s in %s: execution.task_support=%s is not supported by lang=%s: the official MCP SDK of that language does not implement the MCP 2025-11-25 Tasks lifecycle; omit execution.task_support or use TASK_SUPPORT_NONE or TASK_SUPPORT_OPTIONAL for synchronous execution", method.Desc.FullName(), file.Desc.Path(), methodMetadata.TaskSupport, opts.Language)
 				}
 			}
 

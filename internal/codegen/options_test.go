@@ -40,6 +40,11 @@ func TestParseOptions_JVMLanguages(t *testing.T) {
 			raw:  "lang=typescript",
 			want: LanguageTypeScript,
 		},
+		{
+			name: "swift",
+			raw:  "lang=swift",
+			want: LanguageSwift,
+		},
 	}
 
 	for _, tt := range tests {
@@ -225,6 +230,9 @@ func TestParseOptions_PythonRuntimeRejectedForNonPythonLanguages(t *testing.T) {
 		{
 			name: "typescript",
 			raw:  "lang=typescript,python_runtime=google.protobuf",
+		},		{
+			name: "swift",
+			raw:  "lang=swift,python_runtime=google.protobuf",
 		},
 	}
 
@@ -283,6 +291,9 @@ func TestParseOptions_PythonHandlerRejectedForNonPythonLanguages(t *testing.T) {
 		{
 			name: "typescript",
 			raw:  "lang=typescript,python_handler=protobuf",
+		},		{
+			name: "swift",
+			raw:  "lang=swift,python_handler=protobuf",
 		},
 	}
 
