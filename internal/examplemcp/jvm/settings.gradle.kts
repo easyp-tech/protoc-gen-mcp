@@ -19,3 +19,6 @@ dependencyResolutionManagement {
 rootProject.name = "protoc-gen-mcp-jvm-examples"
 
 include("java-server", "kotlin-server")
+
+// Generated sidecars depend on the in-repo runtime, not a published release.
+includeBuild("../../../runtime/jvm")

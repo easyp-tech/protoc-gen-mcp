@@ -86,12 +86,12 @@ func TestGenerate_KotlinTargetEmitsOutput(t *testing.T) {
 		t.Fatalf("Generate: %v", err)
 	}
 
-	generated := string(generatedFileContent(t, plugin, "internal/testproto/example/v1/example_mcp.kt"))
+	generated := withJVMRuntimeSource(t, string(generatedFileContent(t, plugin, "internal/testproto/example/v1/example_mcp.kt")), LanguageKotlin)
 	wantSnippets := []string{
 		"interface ExampleAPIToolHandler",
 		"fun registerExampleAPITools(server: Server, impl: ExampleAPIToolHandler, namespace: String? = null)",
 		"installMcpHandlers(server)",
-		"private class ServerToolRegistry",
+		"class ServerToolRegistry",
 		"private suspend fun dispatchToolCall",
 		"ListToolsRequest",
 		"CallToolRequest",
@@ -112,7 +112,7 @@ func TestGenerate_JavaTargetEmitsOutput(t *testing.T) {
 		t.Fatalf("Generate: %v", err)
 	}
 
-	generated := string(generatedFileContent(t, plugin, exampleJavaOutputPath()))
+	generated := withJVMRuntimeSource(t, string(generatedFileContent(t, plugin, exampleJavaOutputPath())), LanguageJava)
 	wantSnippets := []string{
 		"public final class ExampleMcp {",
 		"public interface ExampleAPIToolHandler {",
@@ -120,7 +120,7 @@ func TestGenerate_JavaTargetEmitsOutput(t *testing.T) {
 		"transportProvider.setSessionFactory(",
 		"requestHandlers.put(McpSchema.METHOD_TOOLS_LIST",
 		"requestHandlers.put(McpSchema.METHOD_TOOLS_CALL",
-		"JsonFormat.parser().usingTypeRegistry(PROTO_TYPE_REGISTRY).merge(",
+		"JsonFormat.parser().usingTypeRegistry(protoTypeRegistry).merge(",
 		"alwaysPrintFieldsWithNoPresence()",
 	}
 	for _, snippet := range wantSnippets {
@@ -1714,6 +1714,61 @@ func writeJavaSDKStubs(t *testing.T, root string) {
 			"        return new CallToolResult();",
 			"      }",
 			"    }",
+			"  }",
+			"}",
+			"",
+		}, "\n"),
+		"tech/easyp/mcp/runtime/McpRuntime.java": strings.Join([]string{
+			"package tech.easyp.mcp.runtime;",
+			"",
+			"import com.google.protobuf.Descriptors;",
+			"import com.google.protobuf.Message;",
+			"import io.modelcontextprotocol.server.McpAsyncServerExchange;",
+			"import io.modelcontextprotocol.spec.McpSchema;",
+			"import io.modelcontextprotocol.spec.McpServerTransportProvider;",
+			"import java.util.List;",
+			"import java.util.Map;",
+			"import java.util.function.Supplier;",
+			"import java.util.regex.Pattern;",
+			"",
+			"public final class McpRuntime {",
+			"  public static void checkGencodeVersion(int version) {}",
+			"  public static void registerProtoFiles(Descriptors.FileDescriptor... files) {}",
+			"  public static ServerToolRegistry registryFor(McpServerTransportProvider transportProvider) { return new ServerToolRegistry(); }",
+			"  public static void installSessionFactory(McpServerTransportProvider transportProvider, ServerToolRegistry registry) {}",
+			"  public static String toolName(String namespace, String methodName) { return methodName; }",
+			"  public static String normalizeNamespace(String namespace, String defaultNamespace) { return defaultNamespace; }",
+			"  public static Map<String, Object> loadSchema(String json) { return Map.of(); }",
+			"  public static Map<String, Object> toolAnnotationsMapOrNull(String title, Boolean readOnly, Boolean destructive, Boolean idempotent, Boolean openWorld) { return null; }",
+			"  public static Map<String, Object> toolExecutionMapOrNull(String taskSupport) { return null; }",
+			"  public static Map<String, Object> iconMap(String src, String mimeType, List<String> sizes, String theme) { return Map.of(); }",
+			"  public static Map<String, Object> resourceListing(String descriptorJson, String namespace, String name) { return Map.of(); }",
+			"  public static Pattern compileUriTemplate(String uriTemplate) { return Pattern.compile(uriTemplate); }",
+			"  public static List<Map<String, Object>> resourceList(List<McpSchema.Resource> resources) { return List.of(); }",
+			"  public static Map<String, Object> resourceContents(Object value, String uri, String mimeType, String kind, String contentField, Map<String, Object> meta) { return Map.of(); }",
+			"",
+			"  public interface ToolInvoker { Message handle(McpAsyncServerExchange exchange, Message request) throws Exception; }",
+			"  public interface PromptInvoker { List<Map<String, Object>> handle(Map<String, String> arguments) throws Exception; }",
+			"  public interface ResourceReader { Map<String, Object> read(String uri, Map<String, String> params) throws Exception; }",
+			"  public interface ResourceLister { List<Map<String, Object>> list() throws Exception; }",
+			"",
+			"  public static final class RegisteredTool {",
+			"    public RegisteredTool(String name, String title, String description, String inputSchemaJson, String outputSchemaJson, Supplier<Message.Builder> requestBuilder, Supplier<Message.Builder> responseBuilder, ToolInvoker handler, Map<String, Object> annotations, List<Map<String, Object>> icons, Map<String, Object> execution, Map<String, Object> meta) {}",
+			"  }",
+			"  public static final class RegisteredPrompt {",
+			"    public RegisteredPrompt(String name, Map<String, Object> metadata, List<String> requiredArgs, PromptInvoker handler) {}",
+			"  }",
+			"  public static final class RegisteredResource {",
+			"    public RegisteredResource(Map<String, Object> listing, ResourceReader reader) {}",
+			"  }",
+			"  public static final class RegisteredResourceTemplate {",
+			"    public RegisteredResourceTemplate(Map<String, Object> listing, Pattern pattern, List<String> names, ResourceLister lister, ResourceReader reader) {}",
+			"  }",
+			"  public static final class ServerToolRegistry {",
+			"    public void registerTool(RegisteredTool tool) {}",
+			"    public void registerPrompt(RegisteredPrompt prompt) {}",
+			"    public void registerResource(RegisteredResource resource) {}",
+			"    public void registerResourceTemplate(RegisteredResourceTemplate template) {}",
 			"  }",
 			"}",
 			"",

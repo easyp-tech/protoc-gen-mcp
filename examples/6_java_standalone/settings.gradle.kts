@@ -17,3 +17,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "todo-java-standalone"
+
+// Use the runtime from this repository; projects outside it depend on the
+// published tech.easyp:protoc-gen-mcp-runtime instead.
+includeBuild("../../runtime/jvm")
