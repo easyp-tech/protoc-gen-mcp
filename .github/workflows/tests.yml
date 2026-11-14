@@ -6,7 +6,7 @@ on:
       - master
   pull_request:
     branches:
-      - "*"
+      - "**"
 
 jobs:
   test:
@@ -36,7 +36,9 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: internal/codegen/testdata/node/package-lock.json
+          cache-dependency-path: |
+            internal/codegen/testdata/node/package-lock.json
+            runtime/typescript/package-lock.json
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -50,10 +52,17 @@ jobs:
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
 
+      - name: Build TypeScript runtime
+        working-directory: runtime/typescript
+        run: |
+          npm ci
+          npm run build
+
       - name: Validate configs
         run: |
           easyp --cfg easyp.yaml validate-config
           easyp --cfg easyp.test.yaml validate-config
+          easyp --cfg easyp.test.python.yaml validate-config
           easyp --cfg easyp.showcase.yaml validate-config
 
       - name: Lint protobuf packages
@@ -66,6 +75,7 @@ jobs:
         run: |
           easyp --cfg easyp.yaml generate -p mcp -r .
           easyp --cfg easyp.test.yaml generate -p internal/testproto -r .
+          easyp --cfg easyp.test.python.yaml generate -p internal/testproto -r .
           easyp --cfg easyp.showcase.yaml generate -p examples/11_protobuf_first_mcp/proto -r .
 
       - name: Regenerate example artifacts
@@ -75,6 +85,11 @@ jobs:
 
       - name: Verify generated files are up to date
         run: git diff --exit-code
+
+      - name: Build Python runtime package
+        run: |
+          python -m pip install --upgrade build
+          python -m build runtime/python --outdir /tmp/python-runtime-dist
 
       - name: Install Node dependencies
         working-directory: internal/codegen/testdata/node
@@ -91,6 +106,9 @@ jobs:
       - name: Run generated Node stdio tests
         run: go test ./internal/codegen -run 'TestTypeScriptGeneratedNodeServer.*OverStdio|TestTypeScriptGeneratedNodeServerRejectsInvalid(Input|Output)OverStdio' -count=1
 
+      - name: Build and test JVM runtime
+        run: gradle --no-daemon -p runtime/jvm build
+
       - name: Build JVM examples
         run: |
           gradle --no-daemon -p internal/examplemcp/jvm :java-server:compileJava :kotlin-server:compileKotlin
@@ -99,7 +117,12 @@ jobs:
       - name: Run JVM stdio tests
         run: |
           go test ./internal/examplemcp -run 'TestJava.*OverStdio' -count=1
+          go test ./internal/examplemcp -run 'TestJavaHTTPOAuthContract' -count=1
           go test ./internal/examplemcp -run 'TestKotlin.*OverStdio' -count=1
+          go test ./internal/examplemcp -run 'TestKotlinHTTPOAuthContract' -count=1
+
+      - name: Build and run JVM examples
+        run: go test ./examples -run 'TestStandalone(Java|Kotlin)ExampleOver(Stdio|HTTP)' -count=1 -v
 
       - name: Verify runnable protobuf-first showcase
         run: |
@@ -130,7 +153,15 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: internal/codegen/testdata/node/package-lock.json
+          cache-dependency-path: |
+            internal/codegen/testdata/node/package-lock.json
+            runtime/typescript/package-lock.json
+
+      - name: Build TypeScript runtime
+        working-directory: runtime/typescript
+        run: |
+          npm ci
+          npm run build
 
       - name: Install Node dependencies
         working-directory: internal/codegen/testdata/node

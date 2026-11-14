@@ -24,6 +24,10 @@ fun main(args: Array<String>) = runBlocking {
         runResourcesServer()
         return@runBlocking
     }
+    if (args.firstOrNull() == "http") {
+        runHttpServer()
+        return@runBlocking
+    }
     validateInvalidOutputMode()
 
     val closed = CompletableDeferred<Unit>()

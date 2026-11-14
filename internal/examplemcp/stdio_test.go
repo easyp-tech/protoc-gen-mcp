@@ -45,6 +45,12 @@ type toolInfo struct {
 	Title       string `json:"title,omitempty"`
 	Description string `json:"description,omitempty"`
 	InputSchema any    `json:"inputSchema,omitempty"`
+	Meta        struct {
+		UI struct {
+			ResourceURI string   `json:"resourceUri"`
+			Visibility  []string `json:"visibility"`
+		} `json:"ui"`
+	} `json:"_meta"`
 }
 
 type callToolResult struct {
@@ -128,6 +134,11 @@ func runServerOverStdioContract(t *testing.T, cmd *exec.Cmd) {
 	slices.Sort(toolNames)
 	if !slices.Equal(toolNames, []string{"example_CreateReport", "example_DescribeAdvancedShapes", "example_DescribeScalarShapes", "example_Health", "example_HiddenThing"}) {
 		t.Fatalf("tool names = %v, want [example_CreateReport example_DescribeAdvancedShapes example_DescribeScalarShapes example_Health example_HiddenThing]", toolNames)
+	}
+
+	createReport := findTool(t, tools.Tools, "example_CreateReport")
+	if createReport.Meta.UI.ResourceURI != "ui://example/report" || !slices.Equal(createReport.Meta.UI.Visibility, []string{"model", "app"}) {
+		t.Fatalf("example_CreateReport _meta.ui = %+v, want resourceUri ui://example/report and visibility [model app]", createReport.Meta.UI)
 	}
 
 	validateToolInputSchema(t, tools.Tools, "example_CreateReport", map[string]any{

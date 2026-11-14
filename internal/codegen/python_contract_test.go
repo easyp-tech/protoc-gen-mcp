@@ -95,8 +95,8 @@ func TestPythonRenderer_EmitsProtobufHandlerPublicAPI(t *testing.T) {
 		"def ping(self, ctx: ToolRequestContext, req: example_pb2.PingRequest) -> example_pb2.PingResponse | Awaitable[example_pb2.PingResponse]:",
 		"def describe_advanced_shapes(self, ctx: ToolRequestContext, req: example_pb2.DescribeAdvancedShapesRequest) -> example_pb2.DescribeAdvancedShapesResponse | Awaitable[example_pb2.DescribeAdvancedShapesResponse]:",
 		"def register_example_api_tools(server: mcp.server.lowlevel.Server, impl: ExampleAPIToolHandler, *, namespace: str | None = None) -> None:",
-		"from_pb=_identity,",
-		"to_pb=_identity,",
+		"from_pb=protoc_gen_mcp_runtime.identity,",
+		"to_pb=protoc_gen_mcp_runtime.identity,",
 		"EXAMPLE_API_CREATE_REPORT_INPUT_SCHEMA_JSON =",
 		"EXAMPLE_API_HEALTH_OUTPUT_SCHEMA_JSON =",
 	}
@@ -173,8 +173,8 @@ func TestPythonProtobufRenderer_ProjectsMetadataInProtobufMode(t *testing.T) {
 	generated := string(generatedFileContent(t, plugin, "test/v1/metadata_mcp.py"))
 	wantSnippets := []string{
 		"def read_thing(self, ctx: ToolRequestContext, req: metadata_pb2.MetadataRequest) -> metadata_pb2.MetadataResponse | Awaitable[metadata_pb2.MetadataResponse]:",
-		"from_pb=_identity,",
-		"to_pb=_identity,",
+		"from_pb=protoc_gen_mcp_runtime.identity,",
+		"to_pb=protoc_gen_mcp_runtime.identity,",
 		`annotations={"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False}`,
 		`icons=[{"src": "https://example.com/method.png", "mimeType": "image/png", "sizes": ["32x32"], "theme": "dark"}]`,
 		`execution={"taskSupport": "required"}`,
@@ -847,9 +847,6 @@ func TestPythonRenderer_ProjectsTaskSupportExecution(t *testing.T) {
 
 	generated := string(generatedFileContent(t, plugin, "test/v1/execution_mcp.py"))
 	wantSnippets := []string{
-		"execution: dict[str, Any] | None = None",
-		"def _tool_execution(raw: dict[str, Any] | None) -> mcp.types.ToolExecution | None:",
-		"execution=_tool_execution(tool.execution),",
 		`execution={"taskSupport": "optional"}`,
 		`execution={"taskSupport": "required"}`,
 	}
@@ -910,148 +907,6 @@ func TestPythonModuleAlias_AvoidsImportedModuleCollisions(t *testing.T) {
 	}
 }
 
-func TestPythonRenderer_ComposesExistingLowLevelHandlers(t *testing.T) {
-	plugin := newExampleProtogenPlugin(t)
-	file := plugin.FilesByPath["internal/testproto/example/v1/example.proto"]
-	if file == nil {
-		t.Fatal("example proto file not found in plugin")
-	}
-
-	model, err := CollectFileModel(file, Options{
-		Language:      LanguagePython,
-		PythonRuntime: PythonRuntimeGoogleProtobuf,
-	})
-	if err != nil {
-		t.Fatalf("CollectFileModel: %v", err)
-	}
-	if err := renderPythonFile(plugin, model); err != nil {
-		t.Fatalf("renderPythonFile: %v", err)
-	}
-
-	generated := string(generatedFileContent(t, plugin, "internal/testproto/example/v1/example_mcp.py"))
-	wantSnippets := []string{
-		"self.previous_list_tools: Any | None = None",
-		"self.previous_call_tool: Any | None = None",
-		"registry.previous_list_tools = server.request_handlers.get(mcp.types.ListToolsRequest)",
-		"registry.previous_call_tool = server.request_handlers.get(mcp.types.CallToolRequest)",
-		"list_request = _build_list_tools_request(request)",
-		"previous_result = await current.previous_list_tools(list_request)",
-		"meta: dict[str, Any] | None = None",
-		"if current.previous_list_tools is not None:",
-		"if getattr(list_request.params, \"cursor\", None) is not None:",
-		"if previous_result.root.nextCursor is not None:",
-		"raise ValueError(\"cannot compose protoc-gen-mcp tools with paginated tools/list handlers\")",
-		"meta = getattr(previous_result.root, \"meta\", None)",
-		"tools = _merge_tools(previous_tools, current_tools)",
-		"mcp.types.ListToolsResult(tools=tools, _meta=meta)",
-		"if current.previous_call_tool is not None:",
-		"await server.request_handlers[mcp.types.ListToolsRequest](mcp.types.ListToolsRequest())",
-		"return await current.previous_call_tool(request)",
-		"_invalid_params_error(request.params.name, \"unknown tool\")",
-	}
-	for _, snippet := range wantSnippets {
-		if !strings.Contains(generated, snippet) {
-			t.Fatalf("generated python missing handler-composition snippet %q\n%s", snippet, generated)
-		}
-	}
-}
-
-func TestPythonRenderer_ReservesToolNamesServerWide(t *testing.T) {
-	plugin := newExampleProtogenPlugin(t)
-	file := plugin.FilesByPath["internal/testproto/example/v1/example.proto"]
-	if file == nil {
-		t.Fatal("example proto file not found in plugin")
-	}
-
-	model, err := CollectFileModel(file, Options{
-		Language:      LanguagePython,
-		PythonRuntime: PythonRuntimeGoogleProtobuf,
-	})
-	if err != nil {
-		t.Fatalf("CollectFileModel: %v", err)
-	}
-	if err := renderPythonFile(plugin, model); err != nil {
-		t.Fatalf("renderPythonFile: %v", err)
-	}
-
-	generated := string(generatedFileContent(t, plugin, "internal/testproto/example/v1/example_mcp.py"))
-	wantSnippets := []string{
-		"_RESERVED_TOOL_NAMES_ATTR = \"_protoc_gen_mcp_reserved_tool_names\"",
-		"self.reserved_tool_names = _get_reserved_tool_names(server)",
-		"def _get_reserved_tool_names(server: mcp.server.lowlevel.Server) -> set[str]:",
-		"reserved = getattr(server, _RESERVED_TOOL_NAMES_ATTR, None)",
-		"setattr(server, _RESERVED_TOOL_NAMES_ATTR, reserved)",
-		"if tool.name in self.reserved_tool_names:",
-		"self.reserved_tool_names.add(tool.name)",
-	}
-	for _, snippet := range wantSnippets {
-		if !strings.Contains(generated, snippet) {
-			t.Fatalf("generated python missing server-wide reservation snippet %q\n%s", snippet, generated)
-		}
-	}
-}
-
-func TestPythonRenderer_DetectsMergedDuplicateToolNames(t *testing.T) {
-	plugin := newExampleProtogenPlugin(t)
-	file := plugin.FilesByPath["internal/testproto/example/v1/example.proto"]
-	if file == nil {
-		t.Fatal("example proto file not found in plugin")
-	}
-
-	model, err := CollectFileModel(file, Options{
-		Language:      LanguagePython,
-		PythonRuntime: PythonRuntimeGoogleProtobuf,
-	})
-	if err != nil {
-		t.Fatalf("CollectFileModel: %v", err)
-	}
-	if err := renderPythonFile(plugin, model); err != nil {
-		t.Fatalf("renderPythonFile: %v", err)
-	}
-
-	generated := string(generatedFileContent(t, plugin, "internal/testproto/example/v1/example_mcp.py"))
-	wantSnippets := []string{
-		"def _merge_tools(previous: list[mcp.types.Tool], current: list[mcp.types.Tool]) -> list[mcp.types.Tool]:",
-		"if tool.name in names:",
-		"raise ValueError(f\"duplicate tool registration: {tool.name}\")",
-	}
-	for _, snippet := range wantSnippets {
-		if !strings.Contains(generated, snippet) {
-			t.Fatalf("generated python missing merged-duplicate detection snippet %q\n%s", snippet, generated)
-		}
-	}
-}
-
-func TestPythonRenderer_WrapsOutputValidationFailures(t *testing.T) {
-	plugin := newExampleProtogenPlugin(t)
-	file := plugin.FilesByPath["internal/testproto/example/v1/example.proto"]
-	if file == nil {
-		t.Fatal("example proto file not found in plugin")
-	}
-
-	model, err := CollectFileModel(file, Options{
-		Language:      LanguagePython,
-		PythonRuntime: PythonRuntimeGoogleProtobuf,
-	})
-	if err != nil {
-		t.Fatalf("CollectFileModel: %v", err)
-	}
-	if err := renderPythonFile(plugin, model); err != nil {
-		t.Fatalf("renderPythonFile: %v", err)
-	}
-
-	generated := string(generatedFileContent(t, plugin, "internal/testproto/example/v1/example_mcp.py"))
-	wantSnippets := []string{
-		"except jsonschema.ValidationError as error:",
-		"raise RuntimeError(f\"mcpruntime: validate output for tool {name!r}: {error}\") from error",
-	}
-	for _, snippet := range wantSnippets {
-		if !strings.Contains(generated, snippet) {
-			t.Fatalf("generated python missing output-validation wrapper snippet %q\n%s", snippet, generated)
-		}
-	}
-}
-
 func TestPythonRuntime_DispatchesThroughDataclassMappers(t *testing.T) {
 	plugin := newExampleProtogenPlugin(t)
 	file := plugin.FilesByPath["internal/testproto/example/v1/example.proto"]
@@ -1072,14 +927,9 @@ func TestPythonRuntime_DispatchesThroughDataclassMappers(t *testing.T) {
 
 	generated := string(generatedFileContent(t, plugin, "internal/testproto/example/v1/example_mcp.py"))
 	wantSnippets := []string{
-		"request_pb = _protojson_to_message(arguments, tool.request_type())",
-		"request_dc = tool.from_pb(request_pb)",
-		"response_dc = await _maybe_await(tool.handler(context, request_dc))",
-		"response_pb = tool.to_pb(response_dc)",
+		"registry = protoc_gen_mcp_runtime.install_tool_registry(server)",
 		"from_pb=_from_pb_create_report_request,",
 		"to_pb=_to_pb_create_report_response,",
-		"payload = json.loads(_message_to_json(response_pb))",
-		"return mcp.types.CallToolResult(content=content, structuredContent=payload)",
 	}
 	for _, snippet := range wantSnippets {
 		if !strings.Contains(generated, snippet) {

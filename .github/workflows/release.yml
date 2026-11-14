@@ -33,3 +33,101 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  python-runtime:
+    # PyPI trusted publishing: the protoc-gen-mcp-runtime project must list
+    # this repository and workflow as a trusted publisher.
+    needs: release
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check runtime version matches the tag
+        run: |
+          version="$(python -c 'import tomllib; print(tomllib.load(open("runtime/python/pyproject.toml", "rb"))["project"]["version"])')"
+          if [[ "v${version}" != "${GITHUB_REF_NAME}" ]]; then
+            echo "runtime/python version ${version} does not match tag ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
+      - name: Build distribution
+        run: |
+          python -m pip install --upgrade build
+          python -m build runtime/python --outdir dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  typescript-runtime:
+    # npm trusted publishing: @easyp-tech/protoc-gen-mcp-runtime must list this
+    # repository and workflow as a trusted publisher.
+    needs: release
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Check runtime version matches the tag
+        working-directory: runtime/typescript
+        run: |
+          version="$(node -p 'require("./package.json").version')"
+          if [[ "v${version}" != "${GITHUB_REF_NAME}" ]]; then
+            echo "runtime/typescript version ${version} does not match tag ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
+      - name: Build and publish
+        working-directory: runtime/typescript
+        run: |
+          npm ci
+          npm test
+          npm publish --provenance --access public
+
+  jvm-runtime:
+    # Maven Central (Central Portal) needs the tech.easyp namespace and these
+    # secrets: MAVEN_CENTRAL_USERNAME, MAVEN_CENTRAL_PASSWORD (portal token),
+    # SIGNING_KEY (ASCII-armored private key) and SIGNING_KEY_PASSWORD.
+    needs: release
+    runs-on: ubuntu-latest
+    environment: maven-central
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.2.1"
+
+      - name: Check runtime version matches the tag
+        run: |
+          version="$(sed -n 's/^ *version = "\(.*\)"/\1/p' runtime/jvm/build.gradle.kts)"
+          if [[ "v${version}" != "${GITHUB_REF_NAME}" ]]; then
+            echo "runtime/jvm version ${version} does not match tag ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
+      - name: Publish to Maven Central
+        run: gradle --no-daemon -p runtime/jvm publishAndReleaseToMavenCentral
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}

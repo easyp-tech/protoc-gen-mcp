@@ -94,8 +94,8 @@ func TestJavaContract_LowLevelServerContractShape(t *testing.T) {
 	generated := renderBasicJavaFixture(t)
 
 	wantSnippets := []string{
-		"private static final class RegisteredTool {",
-		"private static final class ServerToolRegistry {",
+		"public static final class RegisteredTool {",
+		"public static final class ServerToolRegistry {",
 		"transportProvider.setSessionFactory(",
 		"new McpServerSession(",
 		"requestHandlers.put(McpSchema.METHOD_TOOLS_LIST",
@@ -116,11 +116,10 @@ func TestJavaContract_RawSchemaProtoJSONAndValidation(t *testing.T) {
 	generated := renderBasicJavaFixture(t)
 
 	wantSnippets := []string{
-		"private static final JsonFormat.TypeRegistry PROTO_TYPE_REGISTRY = buildTypeRegistry();",
-		"private static JsonFormat.TypeRegistry buildTypeRegistry() {",
-		"registerFileTypes(builder, seenFiles, Example.getDescriptor());",
-		"builder.add(descriptor);",
-		"private static Map<String, Object> loadSchema(String rawSchemaJson) {",
+		"tech.easyp.mcp.runtime.McpRuntime.registerProtoFiles(Example.getDescriptor());",
+		"public static void registerProtoFiles(Descriptors.FileDescriptor... files) {",
+		"PROTO_TYPES.add(descriptor);",
+		"public static Map<String, Object> loadSchema(String rawSchemaJson) {",
 		"private static void validateJson(Map<String, Object> schema, Object payload) {",
 		"private static Message parseProtoJson(String argumentsJson, Message.Builder builder) {",
 		"private static String marshalProtoJson(Message responseMessage) {",
@@ -129,8 +128,8 @@ func TestJavaContract_RawSchemaProtoJSONAndValidation(t *testing.T) {
 		"parseProtoJson(JSON_MAPPER.writeValueAsString(arguments), tool.requestBuilder.get())",
 		"marshalProtoJson(responseMessage);",
 		"validateJson(tool.outputSchema, structuredContent);",
-		"JsonFormat.parser().usingTypeRegistry(PROTO_TYPE_REGISTRY).merge(",
-		"usingTypeRegistry(PROTO_TYPE_REGISTRY)",
+		"JsonFormat.parser().usingTypeRegistry(protoTypeRegistry).merge(",
+		"usingTypeRegistry(protoTypeRegistry)",
 		"alwaysPrintFieldsWithNoPresence()",
 		"omittingInsignificantWhitespace()",
 		"McpSchema.ErrorCodes.INVALID_PARAMS",
@@ -277,7 +276,7 @@ func renderJavaFileFromPlugin(t *testing.T, plugin *protogen.Plugin, protoPath s
 		t.Fatalf("renderJavaFile: %v", err)
 	}
 
-	return string(generatedFileContent(t, plugin, javaSidecarOutputPath(jvmGeneratedFilenamePrefixForProtoPath(protoPath))))
+	return withJVMRuntimeSource(t, string(generatedFileContent(t, plugin, javaSidecarOutputPath(jvmGeneratedFilenamePrefixForProtoPath(protoPath)))), LanguageJava)
 }
 
 func assertJavaContains(t *testing.T, generated string, snippets ...string) {

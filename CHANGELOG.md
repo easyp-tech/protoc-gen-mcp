@@ -49,11 +49,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The standalone examples 5–8 (Python, Java, Kotlin, TypeScript) declare an
+  OAuth protected resource and a scoped delete tool in their protos, build the
+  server through the generated factory and serve stateless Streamable HTTP with
+  `--http --demo-auth`; tests check discovery, the 401 challenge and the 403
+  step-up for each, plus the in-call denial over stdio.
+- Kotlin serves `option (mcp.options.v1.server).oauth` through
+  `Application.install<File>MCPHttp(handlers, verifier)`, a Ktor route on the
+  SDK `StreamableHttpServerTransport` with the same metadata, bearer check,
+  scope step-up and JVM JWKS verifier; handlers read the token with
+  `currentAccessToken()`. No target rejects `oauth` or `required_scopes` at
+  generation any more.
+- Java serves `option (mcp.options.v1.server).oauth` through
+  `new<File>MCPHttpServlet(server, verifier)`: the SDK
+  `HttpServletStatelessServerTransport` behind a servlet that adds bearer
+  authentication, RFC 9728 metadata, per-tool `403 insufficient_scope`
+  step-up and MCP Apps under `capabilities.extensions`. The RS256 JWKS
+  verifier lives in the new `tech.easyp:protoc-gen-mcp-runtime-oauth`
+  artifact (nimbus-jose-jwt), shared by the JVM runtimes. Scoped tools are
+  also denied inside the call without a token, including on stdio.
+- TypeScript serves `option (mcp.options.v1.server).oauth` through
+  `create<File>MCPHttpHandler`: SDK `requireBearerAuth`, RFC 9728 metadata,
+  per-tool `403 insufficient_scope` step-up, an in-tool scope guard and an RS256
+  JWKS verifier on `jose`, checked by the shared HTTP contract.
+- Python serves `option (mcp.options.v1.server).oauth`: an ASGI Streamable
+  HTTP app with RFC 9728 metadata, bearer authentication through the SDK
+  middleware, `403 insufficient_scope` step-up for per-tool `required_scopes`,
+  an in-tool scope guard and an RS256 JWKS verifier ported from Go. A shared
+  HTTP contract (`internal/httpcontract`) checks Go and Python against the same
+  cases.
+- Python, TypeScript, Java and Kotlin generate the server factory declared by
+  `option (mcp.options.v1.server)`: proto name and version, the MCP Apps
+  capability and registration of the file's tools, prompts and resources.
+- `tech.easyp:protoc-gen-mcp-runtime` and `protoc-gen-mcp-runtime-kotlin`,
+  Maven artifacts with the registries and dispatch that generated Java and
+  Kotlin sidecars previously embedded. Java sidecars of several proto files now
+  share one registry per transport, so their tools, prompts and resources
+  compose instead of failing.
+- `@easyp-tech/protoc-gen-mcp-runtime`, an npm package with the TypeScript
+  registries and dispatch that generated `*_mcp.ts` files previously embedded;
+  the SDK, Protobuf-ES and Ajv are peer dependencies.
+- `protoc-gen-mcp-runtime`, a PyPI package with the tool, prompt and resource
+  registries that generated Python code previously embedded in every
+  `*_mcp.py`. Several generated modules now share one registry per server, and
+  generated code checks the runtime API version on import. Install it next to
+  the generated code.
 - Resources for Python, Kotlin, Java and TypeScript: static and template
   resources, ProtoJSON or raw text/blob content fields, percent-decoded
   template parameters, annotations, icons and MCP Apps `_meta.ui`. A
   `source_file` resource is read through a generated handler outside Go.
   Kotlin `register<File>Resources` is a `suspend` function.
+- Method `app_ui` becomes tool `_meta.ui` in Python, TypeScript, Java and
+  Kotlin, and every standalone example serves a resource template and a prompt.
+- Every TypeScript fixture is type-checked against real `protoc-gen-es` output.
 - A shared stdio contract (`internal/stdiotest`) runs the resources and
   prompts fixtures against the Go, Python, TypeScript, Java and Kotlin servers.
 - Protobuf-defined Go server/HTTP factories, MCP Apps UI metadata and embedded
@@ -64,6 +112,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Python, TypeScript, Java and Kotlin silently ignored the server `oauth`
+  option and per-tool `required_scopes`, serving protected tools without any
+  check; generation now fails with an explicit error for those targets.
+- The Java and Kotlin standalone examples are now compiled and run in CI.
 - Python prompt registration called a `server.add_prompt` method the low-level
   MCP server does not have and raised `AttributeError`.
 - Java prompts were stored but never served, and a second generated sidecar

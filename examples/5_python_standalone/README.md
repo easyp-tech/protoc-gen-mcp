@@ -48,10 +48,41 @@ The server exposes:
 
 - `notebook_CreateNote`
 - `notebook_SearchNotes`
+- `notebook_DeleteNote` (needs `notebook:write`)
 - `notebook_Health`
 
 Handlers implement generated dataclasses from `proto/notebook_mcp.py`. Raw
 `*_pb2.py` classes stay internal to the generated runtime.
+
+## OAuth Over HTTP
+
+`option (mcp.options.v1.server)` in the proto makes the server an OAuth
+protected resource over stateless Streamable HTTP: every request needs
+`notebook:read`, and `notebook_DeleteNote` also needs `notebook:write`. Over stdio there is no
+token, so `notebook_DeleteNote` is denied inside the call. Start the server with local
+demonstration tokens (loopback only, never in production):
+
+```bash
+.venv/bin/python server.py --http --demo-auth
+```
+
+Then walk through discovery and the scope step-up:
+
+```bash
+curl -s http://127.0.0.1:8080/.well-known/oauth-protected-resource/mcp
+for token in demo-read demo-write; do
+  curl -si http://127.0.0.1:8080/mcp \
+    -H "Authorization: Bearer $token" \
+    -H 'Content-Type: application/json' \
+    -H 'Accept: application/json, text/event-stream' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"notebook_DeleteNote","arguments":{"id":"note-1"}}}'
+done
+```
+
+`demo-read` gets `403` with `WWW-Authenticate: Bearer error="insufficient_scope",
+scope="notebook:read notebook:write"` before the handler runs; `demo-write` gets the
+tool result. Without `--demo-auth` the server verifies RS256 JWTs against the
+issuer and JWKS declared in the proto.
 
 ## Handler Mode
 

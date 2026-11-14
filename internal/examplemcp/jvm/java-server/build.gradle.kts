@@ -8,9 +8,11 @@ plugins {
 }
 
 dependencies {
+    implementation("tech.easyp:protoc-gen-mcp-runtime:0.8.0")
     implementation("io.modelcontextprotocol.sdk:mcp:1.1.1")
     implementation("com.google.protobuf:protobuf-java:4.34.1")
     implementation("com.google.protobuf:protobuf-java-util:4.34.1")
+    implementation("org.eclipse.jetty.ee10:jetty-ee10-servlet:12.1.12")
 }
 
 java {
@@ -27,6 +29,7 @@ val protocGenMcpBinary = rootProject.layout.buildDirectory.file("tools/protoc-ge
 val stagedProtoDir = layout.buildDirectory.dir("staged-proto")
 val stageProtoSources = tasks.register<Sync>("stageProtoSources") {
     from(repoRoot) {
+        include("internal/testproto/config/v1/server_config.proto")
         include("internal/testproto/example/v1/example.proto")
         include("internal/testproto/prompts/v1/prompts.proto")
         include("internal/testproto/resources/v1/resources.proto")
@@ -59,6 +62,7 @@ protobuf {
     generateProtoTasks {
         ofSourceSet("main").configureEach {
             dependsOn(rootProject.tasks.named("buildProtocGenMcp"))
+            inputs.file(protocGenMcpBinary)
             dependsOn(stageProtoSources)
             plugins {
                 id("mcp") {

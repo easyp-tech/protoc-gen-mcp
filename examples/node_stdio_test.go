@@ -64,6 +64,7 @@ func runStandaloneNodeNotebookExample(t *testing.T, client *stdioClient, title s
 	if got := note["title"]; got != title {
 		t.Fatalf("created note.title = %v, want %s", got, title)
 	}
+	assertNotebookResourcesAndPrompts(t, client, note)
 
 	searchResult, rpcErr := client.callTool("notebook_SearchNotes", map[string]any{
 		"query": tag,
@@ -94,5 +95,11 @@ func runStandaloneNodeNotebookExample(t *testing.T, client *stdioClient, title s
 	healthStructured := decodeMap(t, healthResult.StructuredContent)
 	if got := healthStructured["noteCount"]; got != 1.0 {
 		t.Fatalf("health.noteCount = %v, want 1", got)
+	}
+
+	// DeleteNote needs notebook:write; stdio carries no token, so the call is denied.
+	denied, rpcErr := client.callTool("notebook_DeleteNote", map[string]any{"id": "note-1"})
+	if rpcErr != nil || !denied.IsError {
+		t.Fatalf("DeleteNote over stdio = %+v (rpc %v), want a permission-denied tool error", denied, rpcErr)
 	}
 }

@@ -4,16 +4,13 @@ import com.google.protobuf.ByteString
 import internal.testproto.prompts.v1.PromptsPromptHandler
 import internal.testproto.prompts.v1.registerPromptsPrompts
 import internal.testproto.resources.v1.Resources
+import internal.testproto.resources.v1.ResourcesMCPHandlers
 import internal.testproto.resources.v1.ResourcesResourceHandler
-import internal.testproto.resources.v1.registerResourcesResources
-import io.modelcontextprotocol.kotlin.sdk.server.Server
-import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
+import internal.testproto.resources.v1.newResourcesMCPServer
 import io.modelcontextprotocol.kotlin.sdk.server.StdioServerTransport
-import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.PromptMessage
 import io.modelcontextprotocol.kotlin.sdk.types.Resource
 import io.modelcontextprotocol.kotlin.sdk.types.Role
-import io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import java.io.File
 import kotlinx.coroutines.CompletableDeferred
@@ -24,18 +21,9 @@ import kotlinx.io.buffered
 /** Kotlin counterpart of examplemcp.NewResourcesServer for the stdio resources contract. */
 suspend fun runResourcesServer() {
     val closed = CompletableDeferred<Unit>()
-    val server = Server(
-        Implementation(name = "protoc-gen-mcp-kotlin-resources-server", version = "v0.0.1"),
-        ServerOptions(
-            ServerCapabilities(
-                resources = ServerCapabilities.Resources(listChanged = false, subscribe = false),
-                prompts = ServerCapabilities.Prompts(listChanged = false),
-            ),
-        ),
-    )
+    val server = newResourcesMCPServer(ResourcesMCPHandlers(resources = ResourcesFixtureHandler()))
     server.onClose { closed.complete(Unit) }
 
-    registerResourcesResources(server, ResourcesFixtureHandler())
     registerPromptsPrompts(server, PromptsFixtureHandler())
 
     val transport = StdioServerTransport(

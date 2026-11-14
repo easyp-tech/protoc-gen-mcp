@@ -148,11 +148,10 @@ func CollectFileModel(file *protogen.File, opts Options) (FileModel, error) {
 		return FileModel{}, err
 	}
 	model.Resources = resources
-	if opts.Language == LanguageGo {
-		if err := validateServerModel(model); err != nil {
-			return FileModel{}, err
-		}
+	if err := validateServerModel(model); err != nil {
+		return FileModel{}, err
 	}
+	model.Factory = newServerFactoryModel(model)
 	return model, nil
 }
 

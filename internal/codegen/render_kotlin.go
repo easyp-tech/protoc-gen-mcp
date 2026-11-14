@@ -9,6 +9,10 @@ import (
 	"google.golang.org/protobuf/compiler/protogen"
 )
 
+// kotlinRuntimeImports are the tech.easyp.mcp.runtime.kotlin declarations
+// that generated Kotlin files use.
+var kotlinRuntimeImports = []string{"RegisteredTool", "checkGencodeVersion", "iconThemeOrError", "installMcpHandlers", "installMcpHttp", "newConfiguredServer", "normalizeNamespace", "promptName", "registerProtoFiles", "resourceListing", "resourceReadResult", "templateParam", "toolExecutionOrNull", "toolName"}
+
 func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 	if model.Language != LanguageKotlin {
 		return fmt.Errorf("kotlin renderer requires lang=kotlin, got %q", model.Language)
@@ -103,8 +107,21 @@ func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 		"java.util.Collections",
 		"java.util.WeakHashMap",
 	}
+	if model.Factory.HTTP {
+		kotlinImports = append(kotlinImports, "io.ktor.server.application.Application")
+		if model.Factory.OAuth != nil {
+			kotlinImports = append(kotlinImports,
+				"tech.easyp.mcp.runtime.oauth.OAuthResourceServer",
+				"tech.easyp.mcp.runtime.oauth.TokenVerifier",
+			)
+		}
+	}
 	for importPath := range imports {
 		kotlinImports = append(kotlinImports, importPath)
+	}
+	sort.Strings(kotlinImports)
+	for _, name := range kotlinRuntimeImports {
+		kotlinImports = append(kotlinImports, "tech.easyp.mcp.runtime.kotlin."+name)
 	}
 	sort.Strings(kotlinImports)
 	for _, importPath := range kotlinImports {
@@ -112,7 +129,16 @@ func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 	}
 	generated.P()
 
-	renderKotlinRuntime(generated, descriptorAccessors)
+	accessors := make([]string, 0, len(descriptorAccessors))
+	for _, accessor := range descriptorAccessors {
+		accessors = append(accessors, accessor.Expr)
+	}
+	generated.P("@Suppress(\"unused\")")
+	generated.P("private val protocGenMcpRuntimeInit: Unit = run {")
+	generated.P("    checkGencodeVersion(", jvmGencodeVersion, ")")
+	generated.P("    registerProtoFiles(", strings.Join(accessors, ", "), ")")
+	generated.P("}")
+	generated.P()
 
 	for serviceIdx, service := range model.Services {
 		generated.P("interface ", service.HandlerName, " {")
@@ -158,6 +184,12 @@ func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 			}
 			generated.P("            icons = ", icons, ",")
 			generated.P("            execution = ", kotlinTaskSupport(method.TaskSupport), ",")
+			if meta := toolMetaJSON(method.AppUI); meta != "" {
+				generated.P("            meta = Json.parseToJsonElement(", kotlinStringLiteral(meta), ").jsonObject,")
+			}
+			if len(method.RequiredScopes) > 0 {
+				generated.P("            requiredScopes = ", kotlinStringListLiteral(method.RequiredScopes), ",")
+			}
 			generated.P("        ),")
 			generated.P("    )")
 			_ = outputType
@@ -185,7 +217,97 @@ func renderKotlinFile(plugin *protogen.Plugin, model JVMFileModel) error {
 		}
 	}
 
+	if model.Factory.Emit {
+		renderKotlinServerFactory(generated, model)
+	}
+
 	return nil
+}
+
+// renderKotlinServerFactory mirrors render_go_server.go: it builds a Server
+// with the capabilities this file needs and registers its primitives.
+func renderKotlinServerFactory(generated *protogen.GeneratedFile, model JVMFileModel) {
+	fileName := jvmExportedIdentifier(jvmFileBaseName(model.ProtoPath))
+	var properties []string
+	for _, service := range model.Services {
+		properties = append(properties, "val "+jvmLowerCamelIdentifier(service.ProtoName)+": "+service.HandlerName)
+	}
+	if len(model.Prompts) > 0 {
+		properties = append(properties, "val prompts: "+fileName+"PromptHandler")
+	}
+	if len(model.Resources) > 0 {
+		properties = append(properties, "val resources: "+fileName+"ResourceHandler")
+	}
+	generated.P()
+	generated.P("/** Business handlers for every MCP primitive in ", model.ProtoPath, ". */")
+	if len(properties) == 0 {
+		generated.P("class ", fileName, "MCPHandlers")
+	} else {
+		generated.P("data class ", fileName, "MCPHandlers(")
+		for _, property := range properties {
+			generated.P("    ", property, ",")
+		}
+		generated.P(")")
+	}
+	generated.P()
+	generated.P("/** Builds the server declared by ", model.ProtoPath, " and registers its primitives. */")
+	generated.P("suspend fun new", fileName, "MCPServer(handlers: ", fileName, "MCPHandlers): Server {")
+	generated.P("    val server = newConfiguredServer(")
+	generated.P("        name = ", quote(model.Factory.Name), ",")
+	generated.P("        version = ", quote(model.Factory.Version), ",")
+	generated.P("        apps = ", fmt.Sprintf("%t", model.Factory.Apps), ",")
+	generated.P("    )")
+	for _, service := range model.Services {
+		generated.P("    ", service.RegisterName, "(server, handlers.", jvmLowerCamelIdentifier(service.ProtoName), ")")
+	}
+	if len(model.Prompts) > 0 {
+		generated.P("    register", fileName, "Prompts(server, handlers.prompts)")
+	}
+	if len(model.Resources) > 0 {
+		generated.P("    register", fileName, "Resources(server, handlers.resources)")
+	}
+	generated.P("    return server")
+	generated.P("}")
+	if !model.Factory.HTTP {
+		return
+	}
+	generated.P()
+	oauth := model.Factory.OAuth
+	if oauth == nil {
+		generated.P("/** Serves ", model.ProtoPath, " over stateless Streamable HTTP on /mcp, building a fresh server per request. */")
+		generated.P("fun Application.install", fileName, "MCPHttp(handlers: ", fileName, "MCPHandlers) {")
+		generated.P("    installMcpHttp(null, null) { new", fileName, "MCPServer(handlers) }")
+		generated.P("}")
+		return
+	}
+	generated.P("/**")
+	generated.P(" * Serves ", model.ProtoPath, " over stateless Streamable HTTP as its declared OAuth")
+	generated.P(" * protected resource, building a fresh server per request. When verifier is null")
+	generated.P(" * the built-in RS256 JWKS verifier is used.")
+	generated.P(" */")
+	generated.P("fun Application.install", fileName, "MCPHttp(handlers: ", fileName, "MCPHandlers, verifier: TokenVerifier? = null) {")
+	generated.P("    val oauth = OAuthResourceServer(")
+	generated.P("        ", quote(oauth.GetResourceUrl()), ",")
+	generated.P("        ", kotlinStringListLiteral(oauth.GetAuthorizationServers()), ",")
+	generated.P("        ", kotlinStringListLiteral(oauth.GetScopes()), ",")
+	generated.P("        ", quote(oauth.GetIssuer()), ",")
+	generated.P("        ", quote(oauth.GetAudience()), ",")
+	generated.P("        ", quote(oauth.GetJwksUri()), ",")
+	generated.P("        ", quote(oauth.GetMcpPath()), ",")
+	generated.P("    )")
+	generated.P("    installMcpHttp(oauth, verifier) { new", fileName, "MCPServer(handlers) }")
+	generated.P("}")
+}
+
+func kotlinStringListLiteral(values []string) string {
+	if len(values) == 0 {
+		return "emptyList()"
+	}
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, quote(value))
+	}
+	return "listOf(" + strings.Join(quoted, ", ") + ")"
 }
 
 func renderKotlinResources(generated *protogen.GeneratedFile, model JVMFileModel, resourceTypes map[string]string) error {
@@ -275,72 +397,7 @@ func renderKotlinResources(generated *protogen.GeneratedFile, model JVMFileModel
 	}
 	generated.P("}")
 	generated.P()
-	renderKotlinResourceRuntime(generated)
 	return nil
-}
-
-func renderKotlinResourceRuntime(generated *protogen.GeneratedFile) {
-	const sdk = "io.modelcontextprotocol.kotlin.sdk"
-	generated.P("private fun <T> resourceListing(")
-	generated.P("    serializer: kotlinx.serialization.KSerializer<T>,")
-	generated.P("    descriptorJson: String,")
-	generated.P("    namespace: String?,")
-	generated.P("    name: String,")
-	generated.P("): T {")
-	generated.P("    val descriptor = Json.parseToJsonElement(descriptorJson).jsonObject.toMutableMap()")
-	generated.P("    descriptor[\"name\"] = kotlinx.serialization.json.JsonPrimitive(if (namespace.isNullOrEmpty()) name else \"${namespace}_$name\")")
-	generated.P("    return ", sdk, ".types.McpJson.decodeFromJsonElement(serializer, JsonObject(descriptor))")
-	generated.P("}")
-	generated.P()
-	generated.P("private fun templateParam(params: Map<String, String>, name: String, uri: String): String {")
-	generated.P("    val value = params[name]")
-	generated.P("    if (value.isNullOrEmpty()) {")
-	generated.P("        throw McpException(")
-	generated.P("            code = RPCError.ErrorCode.INVALID_PARAMS,")
-	generated.P("            message = \"mcpruntime: parameter '$name' has empty value in uri '$uri'\",")
-	generated.P("        )")
-	generated.P("    }")
-	generated.P("    return value")
-	generated.P("}")
-	generated.P()
-	generated.P("private fun resourceReadResult(")
-	generated.P("    value: Any?,")
-	generated.P("    uri: String,")
-	generated.P("    mimeType: String,")
-	generated.P("    kind: String,")
-	generated.P("    contentField: String?,")
-	generated.P("    meta: JsonObject?,")
-	generated.P("): ", sdk, ".types.ReadResourceResult {")
-	generated.P("    requireNotNull(value) { \"mcpruntime: resource '$uri' handler returned null\" }")
-	generated.P("    val encoder = java.util.Base64.getEncoder()")
-	generated.P("    val contents: ", sdk, ".types.ResourceContents = when (kind) {")
-	generated.P("        \"raw\" -> when (value) {")
-	generated.P("            is String -> ", sdk, ".types.TextResourceContents(text = value, uri = uri, mimeType = mimeType, meta = meta)")
-	generated.P("            is ByteArray -> ", sdk, ".types.BlobResourceContents(blob = encoder.encodeToString(value), uri = uri, mimeType = mimeType, meta = meta)")
-	generated.P("            else -> throw IllegalStateException(\"mcpruntime: resource '$uri' handler must return a String or ByteArray\")")
-	generated.P("        }")
-	generated.P("        \"protojson\" -> ", sdk, ".types.TextResourceContents(")
-	generated.P("            text = marshalProtoJson(value as Message).toString(),")
-	generated.P("            uri = uri,")
-	generated.P("            mimeType = mimeType,")
-	generated.P("            meta = meta,")
-	generated.P("        )")
-	generated.P("        else -> {")
-	generated.P("            val message = value as Message")
-	generated.P("            val field = message.descriptorForType.findFieldByName(contentField.orEmpty())")
-	generated.P("                ?: throw IllegalStateException(\"mcpruntime: resource content field '$contentField' not found\")")
-	generated.P("            val fieldValue = message.getField(field)")
-	generated.P("            if (kind == \"text_field\") {")
-	generated.P("                ", sdk, ".types.TextResourceContents(text = fieldValue.toString(), uri = uri, mimeType = mimeType, meta = meta)")
-	generated.P("            } else {")
-	generated.P("                val bytes = (fieldValue as com.google.protobuf.ByteString).toByteArray()")
-	generated.P("                ", sdk, ".types.BlobResourceContents(blob = encoder.encodeToString(bytes), uri = uri, mimeType = mimeType, meta = meta)")
-	generated.P("            }")
-	generated.P("        }")
-	generated.P("    }")
-	generated.P("    return ", sdk, ".types.ReadResourceResult(contents = listOf(contents))")
-	generated.P("}")
-	generated.P()
 }
 
 func renderKotlinPrompts(generated *protogen.GeneratedFile, model JVMFileModel) {
@@ -387,16 +444,6 @@ func renderKotlinPrompts(generated *protogen.GeneratedFile, model JVMFileModel) 
 	generated.P("}")
 	generated.P()
 
-	generated.P("private fun promptName(namespace: String?, promptName: String): String {")
-	generated.P("    val normalizedNamespace = normalizeToolSegment(namespace ?: \"\")")
-	generated.P("    val normalizedPromptName = normalizeToolSegment(promptName)")
-	generated.P("    return when {")
-	generated.P("        normalizedNamespace.isEmpty() -> normalizedPromptName")
-	generated.P("        normalizedPromptName.isEmpty() -> normalizedNamespace")
-	generated.P(`        else -> "${normalizedNamespace}_${normalizedPromptName}"`)
-	generated.P("    }")
-	generated.P("}")
-	generated.P()
 }
 
 type kotlinRenderInfo struct {
@@ -441,244 +488,6 @@ func (k kotlinRenderInfo) kotlinMessageTypeExpr(ref JVMTypeRef, imports map[stri
 		imports[resolved.ImportPath] = true
 	}
 	return resolved.Expr, nil
-}
-
-func renderKotlinRuntime(generated *protogen.GeneratedFile, descriptorAccessors []javaDescriptorAccessor) {
-	generated.P("private data class RegisteredTool(")
-	generated.P("    val name: String,")
-	generated.P("    val title: String?,")
-	generated.P("    val description: String?,")
-	generated.P("    val inputSchemaJson: String,")
-	generated.P("    val outputSchemaJson: String,")
-	generated.P("    val requestBuilder: () -> Message.Builder,")
-	generated.P("    val handler: suspend (ClientConnection, Message) -> Message,")
-	generated.P("    val annotations: ToolAnnotations?,")
-	generated.P("    val icons: List<Icon>,")
-	generated.P("    val execution: ToolExecution?,")
-	generated.P(")")
-	generated.P()
-	generated.P("private class ServerToolRegistry {")
-	generated.P("    private val toolsByName = linkedMapOf<String, RegisteredTool>()")
-	generated.P("    private val sessionsWithHandlers = mutableSetOf<String>()")
-	generated.P("    private var handlersInstalled: Boolean = false")
-	generated.P()
-	generated.P("    @Synchronized")
-	generated.P("    fun addTool(tool: RegisteredTool) {")
-	generated.P("        require(!toolsByName.containsKey(tool.name)) { \"duplicate tool registration: ${tool.name}\" }")
-	generated.P("        toolsByName[tool.name] = tool")
-	generated.P("    }")
-	generated.P()
-	generated.P("    @Synchronized")
-	generated.P("    fun allTools(): List<RegisteredTool> = toolsByName.values.toList()")
-	generated.P()
-	generated.P("    @Synchronized")
-	generated.P("    fun tool(name: String): RegisteredTool? = toolsByName[name]")
-	generated.P()
-	generated.P("    @Synchronized")
-	generated.P("    fun markSessionInstalled(sessionId: String): Boolean = sessionsWithHandlers.add(sessionId)")
-	generated.P()
-	generated.P("    @Synchronized")
-	generated.P("    fun hasHandlersInstalled(): Boolean = handlersInstalled")
-	generated.P()
-	generated.P("    @Synchronized")
-	generated.P("    fun markHandlersInstalled() {")
-	generated.P("        handlersInstalled = true")
-	generated.P("    }")
-	generated.P("}")
-	generated.P()
-	generated.P("private val serverRegistries = Collections.synchronizedMap(WeakHashMap<Server, ServerToolRegistry>())")
-	generated.P("private val serverRegistryInstallLock = Any()")
-	generated.P("private val jsonSchemaFactory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012)")
-	generated.P("private val protoTypeRegistry = buildTypeRegistry()")
-	generated.P()
-	generated.P("private fun buildTypeRegistry(): JsonFormat.TypeRegistry {")
-	generated.P("    val builder = JsonFormat.TypeRegistry.newBuilder()")
-	generated.P("    val seenFiles = linkedSetOf<String>()")
-	for _, accessor := range descriptorAccessors {
-		generated.P("    registerFileTypes(builder, seenFiles, ", accessor.Expr, ")")
-	}
-	generated.P("    return builder.build()")
-	generated.P("}")
-	generated.P()
-	generated.P("private fun registerFileTypes(")
-	generated.P("    builder: JsonFormat.TypeRegistry.Builder,")
-	generated.P("    seenFiles: MutableSet<String>,")
-	generated.P("    file: Descriptors.FileDescriptor,")
-	generated.P(") {")
-	generated.P("    if (!seenFiles.add(file.fullName)) {")
-	generated.P("        return")
-	generated.P("    }")
-	generated.P("    for (descriptor in file.messageTypes) {")
-	generated.P("        registerMessageType(builder, descriptor)")
-	generated.P("    }")
-	generated.P("}")
-	generated.P()
-	generated.P("private fun registerMessageType(")
-	generated.P("    builder: JsonFormat.TypeRegistry.Builder,")
-	generated.P("    descriptor: Descriptors.Descriptor,")
-	generated.P(") {")
-	generated.P("    builder.add(descriptor)")
-	generated.P("    for (nested in descriptor.nestedTypes) {")
-	generated.P("        registerMessageType(builder, nested)")
-	generated.P("    }")
-	generated.P("}")
-	generated.P()
-	generated.P("private fun installMcpHandlers(server: Server): ServerToolRegistry {")
-	generated.P("    synchronized(serverRegistryInstallLock) {")
-	generated.P("        val registry = serverRegistries.getOrPut(server) { ServerToolRegistry() }")
-	generated.P("        if (registry.hasHandlersInstalled()) {")
-	generated.P("            return registry")
-	generated.P("        }")
-	generated.P("        require(server.tools.isEmpty()) { \"protoc-gen-mcp generated handlers cannot compose with pre-existing SDK tool registrations\" }")
-	generated.P("        installSessionHandlers(server, registry)")
-	generated.P("        server.onConnect { installSessionHandlers(server, registry) }")
-	generated.P("        registry.markHandlersInstalled()")
-	generated.P("        return registry")
-	generated.P("    }")
-	generated.P("}")
-	generated.P()
-	generated.P("private fun installSessionHandlers(server: Server, registry: ServerToolRegistry) {")
-	generated.P("    for (session in server.sessions.values) {")
-	generated.P("        if (!registry.markSessionInstalled(session.sessionId)) {")
-	generated.P("            continue")
-	generated.P("        }")
-	generated.P("        session.setRequestHandler(Method.Defined.ToolsList) { request: ListToolsRequest, _ ->")
-	generated.P("            listRegisteredTools(registry, request)")
-	generated.P("        }")
-	generated.P("        session.setRequestHandler(Method.Defined.ToolsCall) { request: CallToolRequest, _ ->")
-	generated.P("            dispatchToolCall(registry, server.clientConnection(session.sessionId), request)")
-	generated.P("        }")
-	generated.P("    }")
-	generated.P("}")
-	generated.P()
-	generated.P("private suspend fun listRegisteredTools(registry: ServerToolRegistry, request: ListToolsRequest): ListToolsResult {")
-	generated.P("    return ListToolsResult(tools = registry.allTools().map { buildListTool(it) }, nextCursor = null)")
-	generated.P("}")
-	generated.P()
-	generated.P("private suspend fun dispatchToolCall(registry: ServerToolRegistry, ctx: ClientConnection, request: CallToolRequest): CallToolResult {")
-	generated.P("    val tool = registry.tool(request.params.name) ?: invalidParams(request.params.name, \"unknown tool\")")
-	generated.P("    val arguments = request.params.arguments ?: buildJsonObject {}")
-	generated.P("    try {")
-	generated.P("        validateJson(tool.inputSchemaJson, arguments)")
-	generated.P("    } catch (error: Exception) {")
-	generated.P("        invalidParams(tool.name, error.message ?: error.toString())")
-	generated.P("    }")
-	generated.P("    val requestMessage = try {")
-	generated.P("        parseProtoJson(arguments.toString(), tool.requestBuilder())")
-	generated.P("    } catch (error: Exception) {")
-	generated.P("        invalidParams(tool.name, error.message ?: error.toString())")
-	generated.P("    }")
-	generated.P("    val responseMessage = try {")
-	generated.P("        tool.handler(ctx, requestMessage)")
-	generated.P("    } catch (error: Exception) {")
-	generated.P("        return CallToolResult(content = listOf(TextContent(text = error.message ?: error.toString())), isError = true)")
-	generated.P("    }")
-	generated.P("    val payload = marshalProtoJson(responseMessage)")
-	generated.P("    try {")
-	generated.P("        validateJson(tool.outputSchemaJson, payload)")
-	generated.P("    } catch (error: Exception) {")
-	generated.P("        throw IllegalStateException(\"mcpruntime: validate output for tool '${tool.name}': ${error.message}\", error)")
-	generated.P("    }")
-	generated.P("    val textPayload = payload.toString()")
-	generated.P("    return CallToolResult(content = listOf(TextContent(text = textPayload)), structuredContent = payload)")
-	generated.P("}")
-	generated.P()
-	generated.P("private fun buildListTool(tool: RegisteredTool): Tool {")
-	generated.P("    return Tool(")
-	generated.P("        name = tool.name,")
-	generated.P("        title = tool.title,")
-	generated.P("        description = tool.description,")
-	generated.P("        inputSchema = projectToolSchema(tool.inputSchemaJson),")
-	generated.P("        outputSchema = projectToolSchema(tool.outputSchemaJson),")
-	generated.P("        annotations = copyToolAnnotations(tool.annotations),")
-	generated.P("        icons = tool.icons.ifEmpty { null },")
-	generated.P("        execution = tool.execution,")
-	generated.P("    )")
-	generated.P("}")
-	generated.P()
-	generated.P("private fun copyToolAnnotations(annotations: ToolAnnotations?): ToolAnnotations? {")
-	generated.P("    if (annotations == null) {")
-	generated.P("        return null")
-	generated.P("    }")
-	generated.P("    return ToolAnnotations(")
-	generated.P("        title = annotations.title,")
-	generated.P("        readOnlyHint = annotations.readOnlyHint,")
-	generated.P("        destructiveHint = annotations.destructiveHint,")
-	generated.P("        idempotentHint = annotations.idempotentHint,")
-	generated.P("        openWorldHint = annotations.openWorldHint,")
-	generated.P("    )")
-	generated.P("}")
-	generated.P()
-	generated.P("private fun loadSchema(rawSchemaJson: String): JsonObject = Json.parseToJsonElement(rawSchemaJson).jsonObject")
-	generated.P()
-	generated.P("private fun projectToolSchema(rawSchemaJson: String): ToolSchema {")
-	generated.P("    val schema = loadSchema(rawSchemaJson)")
-	generated.P("    val properties = schema[\"properties\"]?.jsonObject ?: buildJsonObject {}")
-	generated.P("    val required = schema[\"required\"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()")
-	generated.P("    val defs = schema[\"\\$defs\"]?.jsonObject")
-	generated.P("    return ToolSchema(properties = properties, required = required, defs = defs)")
-	generated.P("}")
-	generated.P()
-	generated.P("private fun validateJson(rawSchemaJson: String, payload: JsonElement) {")
-	generated.P("    val errors = jsonSchemaFactory.getSchema(rawSchemaJson).validate(payload.toString(), InputFormat.JSON)")
-	generated.P("    if (errors.isNotEmpty()) {")
-	generated.P("        throw IllegalArgumentException(errors.joinToString(\"; \") { it.message })")
-	generated.P("    }")
-	generated.P("}")
-	generated.P()
-	generated.P("private fun parseProtoJson(payload: String, builder: Message.Builder): Message {")
-	generated.P("    try {")
-	generated.P("        JsonFormat.parser().usingTypeRegistry(protoTypeRegistry).merge(payload, builder)")
-	generated.P("        return builder.build()")
-	generated.P("    } catch (error: Exception) {")
-	generated.P("        invalidParams(\"<unknown>\", error.message ?: error.toString())")
-	generated.P("    }")
-	generated.P("}")
-	generated.P()
-	generated.P("private fun marshalProtoJson(message: Message): JsonObject {")
-	generated.P("    val jsonPayload = JsonFormat.printer().usingTypeRegistry(protoTypeRegistry).includingDefaultValueFields().print(message)")
-	generated.P("    return Json.parseToJsonElement(jsonPayload).jsonObject")
-	generated.P("}")
-	generated.P()
-	generated.P("private fun invalidParams(toolName: String, reason: String): Nothing {")
-	generated.P("    throw McpException(code = RPCError.ErrorCode.INVALID_PARAMS, message = \"invalid arguments for tool '$toolName': $reason\")")
-	generated.P("}")
-	generated.P()
-	generated.P("private fun toolExecutionOrNull(taskSupport: String): ToolExecution? = when (taskSupport) {")
-	generated.P("    \"optional\" -> ToolExecution(taskSupport = TaskSupport.Optional)")
-	generated.P("    \"required\" -> ToolExecution(taskSupport = TaskSupport.Required)")
-	generated.P("    else -> null")
-	generated.P("}")
-	generated.P()
-	generated.P("private fun iconThemeOrError(rawTheme: String?): Icon.Theme? = when (rawTheme) {")
-	generated.P("    null, \"\" -> null")
-	generated.P("    \"light\" -> Icon.Theme.Light")
-	generated.P("    \"dark\" -> Icon.Theme.Dark")
-	generated.P("    else -> throw IllegalArgumentException(\"unsupported icon theme: $rawTheme\")")
-	generated.P("}")
-	generated.P()
-	generated.P("private fun normalizeToolSegment(segment: String?): String {")
-	generated.P("    return segment")
-	generated.P("        ?.trim()")
-	generated.P("        ?.replace('.', '_')")
-	generated.P("        ?.split('_')")
-	generated.P("        ?.filter { it.isNotBlank() }")
-	generated.P("        ?.joinToString(\"_\")")
-	generated.P("        ?: \"\"")
-	generated.P("}")
-	generated.P()
-	generated.P("private fun normalizeNamespace(namespace: String?, defaultNamespace: String): String = normalizeToolSegment(namespace ?: defaultNamespace)")
-	generated.P()
-	generated.P("private fun toolName(namespace: String, methodName: String): String {")
-	generated.P("    val normalizedNamespace = normalizeToolSegment(namespace)")
-	generated.P("    val normalizedMethodName = normalizeToolSegment(methodName)")
-	generated.P("    return when {")
-	generated.P("        normalizedNamespace.isEmpty() -> normalizedMethodName")
-	generated.P("        normalizedMethodName.isEmpty() -> normalizedNamespace")
-	generated.P("        else -> \"${normalizedNamespace}_${normalizedMethodName}\"")
-	generated.P("    }")
-	generated.P("}")
-	generated.P()
 }
 
 func validateKotlinMetadata(model JVMFileModel) error {

@@ -12,7 +12,7 @@ import (
 func TestResourcesOverStdio(t *testing.T) {
 	cmd := exec.Command(os.Args[0])
 	cmd.Env = append(os.Environ(), serveStdioEnv+"="+serveResourcesMode)
-	stdiotest.RunResourcesPromptsContract(t, cmd)
+	stdiotest.RunResourcesPromptsContract(t, cmd, stdiotest.ContractOptions{})
 }
 
 func TestPythonResourcesOverStdio(t *testing.T) {
@@ -20,7 +20,7 @@ func TestPythonResourcesOverStdio(t *testing.T) {
 	cmd := exec.Command(pythontest.Python(t), "-m", "internal.examplemcp.python_resources_server")
 	cmd.Dir = root
 	cmd.Env = pythontest.Env(t, "PYTHONPATH="+root, "PYTHONUNBUFFERED=1")
-	stdiotest.RunResourcesPromptsContract(t, cmd)
+	stdiotest.RunResourcesPromptsContract(t, cmd, stdiotest.ContractOptions{})
 }
 
 func TestJavaResourcesOverStdio(t *testing.T) {
@@ -37,5 +37,5 @@ func runJVMResourcesContract(t *testing.T, target string) {
 	ensureJVMExamplesInstalled(t, root)
 	cmd := installedJVMServerCommand(root, target)
 	cmd.Args = append(cmd.Args, "resources")
-	stdiotest.RunResourcesPromptsContract(t, cmd)
+	stdiotest.RunResourcesPromptsContract(t, cmd, stdiotest.ContractOptions{AppsCapability: stdiotest.AppsInExperimental})
 }

@@ -3,16 +3,13 @@
 from __future__ import annotations
 
 import enum
-import inspect
 import json
-import weakref
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Protocol, TypeAlias
 
-import jsonschema
 import mcp.server.lowlevel
 import mcp.server.session
-import mcp.shared.exceptions
+import protoc_gen_mcp_runtime
 import mcp.types
 from google.protobuf import any_pb2, duration_pb2, empty_pb2, field_mask_pb2, json_format, struct_pb2, timestamp_pb2, wrappers_pb2
 try:
@@ -60,237 +57,7 @@ class CheckAccessRequest:
 class CheckAccessResponse:
     allowed: bool
 
-@dataclass(frozen=True)
-class _RegisteredTool:
-    name: str
-    title: str
-    description: str
-    input_schema_json: str
-    output_schema_json: str
-    request_type: type[Any]
-    response_type: type[Any]
-    from_pb: Any
-    to_pb: Any
-    handler: Any
-    annotations: dict[str, Any] | None
-    icons: list[dict[str, Any]] | None
-    execution: dict[str, Any] | None = None
-
-class _ServerToolRegistry:
-    def __init__(self, server: mcp.server.lowlevel.Server) -> None:
-        self.server = server
-        self.tools: dict[str, _RegisteredTool] = {}
-        self.reserved_tool_names = _get_reserved_tool_names(server)
-        self.handlers_installed = False
-        self.previous_list_tools: Any | None = None
-        self.previous_call_tool: Any | None = None
-
-    def add_tool(self, tool: _RegisteredTool) -> None:
-        if tool.name in self.reserved_tool_names:
-            raise ValueError(f"duplicate tool registration: {tool.name}")
-        self.tools[tool.name] = tool
-        self.reserved_tool_names.add(tool.name)
-
-    def list_tools(self) -> list[mcp.types.Tool]:
-        return [_build_tool(tool) for tool in self.tools.values()]
-
-    async def call_tool(self, name: str, arguments: dict[str, Any] | None, context: ToolRequestContext | None = None) -> mcp.types.CallToolResult:
-        return await _dispatch_call(self, name, arguments or {}, context)
-
-_SERVER_REGISTRIES: weakref.WeakKeyDictionary[mcp.server.lowlevel.Server, _ServerToolRegistry] = weakref.WeakKeyDictionary()
-
-def _load_schema(schema_json: str) -> dict[str, Any]:
-    return json.loads(schema_json)
-
-def _protojson_to_message(arguments: dict[str, Any], message: Any) -> Any:
-    json_format.ParseDict(arguments, message)
-    return message
-
-def _normalize_tool_segment(segment: str | None) -> str:
-    if segment is None:
-        return ""
-    parts = [part for part in segment.strip().replace(".", "_").split("_") if part]
-    return "_".join(parts)
-
-def _normalize_namespace(namespace: str | None, default: str) -> str:
-    if namespace is None:
-        namespace = default
-    return _normalize_tool_segment(namespace)
-
-def _tool_name(namespace: str, method_name: str) -> str:
-    namespace = _normalize_tool_segment(namespace)
-    method_name = _normalize_tool_segment(method_name)
-    if namespace == '':
-        return method_name
-    if method_name == '':
-        return namespace
-    return f"{namespace}_{method_name}"
-
-def _get_registry(server: mcp.server.lowlevel.Server) -> _ServerToolRegistry:
-    registry = _SERVER_REGISTRIES.get(server)
-    if registry is None:
-        registry = _ServerToolRegistry(server)
-        _SERVER_REGISTRIES[server] = registry
-    return registry
-
-_RESERVED_TOOL_NAMES_ATTR = "_protoc_gen_mcp_reserved_tool_names"
-
-def _get_reserved_tool_names(server: mcp.server.lowlevel.Server) -> set[str]:
-    reserved = getattr(server, _RESERVED_TOOL_NAMES_ATTR, None)
-    if reserved is None:
-        reserved = set()
-        setattr(server, _RESERVED_TOOL_NAMES_ATTR, reserved)
-    return reserved
-
-def _build_list_tools_request(request: Any) -> mcp.types.ListToolsRequest:
-    if isinstance(request, mcp.types.ListToolsRequest):
-        return request
-    return mcp.types.ListToolsRequest()
-
-def _merge_tools(previous: list[mcp.types.Tool], current: list[mcp.types.Tool]) -> list[mcp.types.Tool]:
-    merged: list[mcp.types.Tool] = []
-    names: set[str] = set()
-    for tool in previous:
-        if tool.name in names:
-            raise ValueError(f"duplicate tool registration: {tool.name}")
-        names.add(tool.name)
-        merged.append(tool)
-    for tool in current:
-        if tool.name in names:
-            raise ValueError(f"duplicate tool registration: {tool.name}")
-        names.add(tool.name)
-        merged.append(tool)
-    return merged
-
-def _install_server_handlers(server: mcp.server.lowlevel.Server) -> _ServerToolRegistry:
-    registry = _get_registry(server)
-    if registry.handlers_installed:
-        return registry
-    registry.previous_list_tools = server.request_handlers.get(mcp.types.ListToolsRequest)
-    registry.previous_call_tool = server.request_handlers.get(mcp.types.CallToolRequest)
-
-    async def _list_tools(request: Any) -> mcp.types.ServerResult:
-        current = _SERVER_REGISTRIES.get(server)
-        list_request = _build_list_tools_request(request)
-        previous_tools: list[mcp.types.Tool] = []
-        meta: dict[str, Any] | None = None
-        if current is not None:
-            if current.previous_list_tools is not None:
-                previous_result = await current.previous_list_tools(list_request)
-                if not isinstance(previous_result.root, mcp.types.ListToolsResult):
-                    return previous_result
-                if getattr(list_request.params, "cursor", None) is not None:
-                    raise ValueError("cannot compose protoc-gen-mcp tools with paginated tools/list handlers")
-                if previous_result.root.nextCursor is not None:
-                    raise ValueError("cannot compose protoc-gen-mcp tools with paginated tools/list handlers")
-                meta = getattr(previous_result.root, "meta", None)
-                previous_tools = list(previous_result.root.tools)
-        current_tools = [] if current is None else current.list_tools()
-        tools = _merge_tools(previous_tools, current_tools)
-        server._tool_cache.clear()
-        for tool in tools:
-            server._tool_cache[tool.name] = tool
-        return mcp.types.ServerResult(mcp.types.ListToolsResult(tools=tools, _meta=meta))
-
-    async def _call_tool(request: mcp.types.CallToolRequest) -> mcp.types.ServerResult:
-        current = _SERVER_REGISTRIES.get(server)
-        if current is None:
-            return mcp.types.ServerResult(_tool_error_result("tool registry is not installed"))
-        if request.params.name not in current.tools:
-            if current.previous_call_tool is not None:
-                return await current.previous_call_tool(request)
-            _invalid_params_error(request.params.name, "unknown tool")
-        if current.previous_call_tool is not None:
-            await server.request_handlers[mcp.types.ListToolsRequest](mcp.types.ListToolsRequest())
-        result = await current.call_tool(request.params.name, request.params.arguments or {}, server.request_context.session)
-        return mcp.types.ServerResult(result)
-
-    server.request_handlers[mcp.types.ListToolsRequest] = _list_tools
-    server.request_handlers[mcp.types.CallToolRequest] = _call_tool
-
-    registry.handlers_installed = True
-    return registry
-
-def _tool_annotations(raw: dict[str, Any] | None) -> mcp.types.ToolAnnotations | None:
-    if raw is None:
-        return None
-    return mcp.types.ToolAnnotations(**raw)
-
-def _tool_execution(raw: dict[str, Any] | None) -> mcp.types.ToolExecution | None:
-    if raw is None:
-        return None
-    return mcp.types.ToolExecution(**raw)
-
-def _tool_error_result(message: str) -> mcp.types.CallToolResult:
-    return mcp.types.CallToolResult(
-        content=[mcp.types.TextContent(type="text", text=message)],
-        isError=True,
-    )
-
-def _invalid_params_error(tool_name: str, error: Any) -> mcp.shared.exceptions.McpError:
-    raise mcp.shared.exceptions.McpError(
-        mcp.types.ErrorData(
-            code=mcp.types.INVALID_PARAMS,
-            message=f"invalid arguments for tool {tool_name!r}: {error}",
-        )
-    )
-
-def _build_tool(tool: _RegisteredTool) -> Any:
-    return mcp.types.Tool(
-        name=tool.name,
-        title=tool.title,
-        description=tool.description,
-        inputSchema=_load_schema(tool.input_schema_json),
-        outputSchema=_load_schema(tool.output_schema_json),
-        annotations=_tool_annotations(tool.annotations),
-        icons=tool.icons,
-        execution=_tool_execution(tool.execution),
-    )
-
-async def _maybe_await(result: Any) -> Any:
-    if inspect.isawaitable(result):
-        return await result
-    return result
-
-def _message_to_json(message: Any) -> str:
-    kwargs = {"preserving_proto_field_name": False}
-    try:
-        return json_format.MessageToJson(message, always_print_fields_with_no_presence=True, **kwargs)
-    except TypeError:
-        return json_format.MessageToJson(message, including_default_value_fields=True, **kwargs)
-
-async def _dispatch_call(registry: _ServerToolRegistry, name: str, arguments: dict[str, Any], context: ToolRequestContext | None) -> mcp.types.CallToolResult:
-    tool = registry.tools.get(name)
-    if tool is None:
-        _invalid_params_error(name, "unknown tool")
-    try:
-        jsonschema.validate(arguments, _load_schema(tool.input_schema_json))
-    except jsonschema.ValidationError as error:
-        _invalid_params_error(name, error)
-    try:
-        request_pb = _protojson_to_message(arguments, tool.request_type())
-        request_dc = tool.from_pb(request_pb)
-    except Exception as error:
-        _invalid_params_error(name, error)
-    try:
-        response_dc = await _maybe_await(tool.handler(context, request_dc))
-    except Exception as error:
-        return _tool_error_result(str(error))
-    try:
-        if response_dc is None:
-            response_pb = tool.response_type()
-        else:
-            response_pb = tool.to_pb(response_dc)
-        payload = json.loads(_message_to_json(response_pb))
-    except Exception as error:
-        raise RuntimeError(f"mcpruntime: marshal output for tool {name!r}: {error}") from error
-    text = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
-    content = [mcp.types.TextContent(type="text", text=text)]
-    try:
-        jsonschema.validate(payload, _load_schema(tool.output_schema_json))
-    except jsonschema.ValidationError as error:
-        raise RuntimeError(f"mcpruntime: validate output for tool {name!r}: {error}") from error
-    return mcp.types.CallToolResult(content=content, structuredContent=payload)
+protoc_gen_mcp_runtime.check_gencode_version(1)
 
 def _enum_from_pb(enum_type: type[enum.IntEnum], value: int) -> enum.IntEnum:
     return enum_type(value)
@@ -300,43 +67,43 @@ def _json_to_message(value: Any, message: Any) -> Any:
     return message
 
 def _from_pb_any(message: any_pb2.Any) -> ProtoAny:
-    return json.loads(_message_to_json(message))
+    return json.loads(protoc_gen_mcp_runtime.message_to_json(message))
 
 def _to_pb_any(value: ProtoAny) -> any_pb2.Any:
     return _json_to_message(value, any_pb2.Any())
 
 def _from_pb_timestamp(message: timestamp_pb2.Timestamp) -> Timestamp:
-    return json.loads(_message_to_json(message))
+    return json.loads(protoc_gen_mcp_runtime.message_to_json(message))
 
 def _to_pb_timestamp(value: Timestamp) -> timestamp_pb2.Timestamp:
     return _json_to_message(value, timestamp_pb2.Timestamp())
 
 def _from_pb_duration(message: duration_pb2.Duration) -> Duration:
-    return json.loads(_message_to_json(message))
+    return json.loads(protoc_gen_mcp_runtime.message_to_json(message))
 
 def _to_pb_duration(value: Duration) -> duration_pb2.Duration:
     return _json_to_message(value, duration_pb2.Duration())
 
 def _from_pb_field_mask(message: field_mask_pb2.FieldMask) -> FieldMask:
-    return json.loads(_message_to_json(message))
+    return json.loads(protoc_gen_mcp_runtime.message_to_json(message))
 
 def _to_pb_field_mask(value: FieldMask) -> field_mask_pb2.FieldMask:
     return _json_to_message(value, field_mask_pb2.FieldMask())
 
 def _from_pb_struct(message: struct_pb2.Struct) -> Struct:
-    return json.loads(_message_to_json(message))
+    return json.loads(protoc_gen_mcp_runtime.message_to_json(message))
 
 def _to_pb_struct(value: Struct) -> struct_pb2.Struct:
     return _json_to_message(value, struct_pb2.Struct())
 
 def _from_pb_list_value(message: struct_pb2.ListValue) -> ListValue:
-    return json.loads(_message_to_json(message))
+    return json.loads(protoc_gen_mcp_runtime.message_to_json(message))
 
 def _to_pb_list_value(value: ListValue) -> struct_pb2.ListValue:
     return _json_to_message(value, struct_pb2.ListValue())
 
 def _from_pb_value(message: struct_pb2.Value) -> Value:
-    return json.loads(_message_to_json(message))
+    return json.loads(protoc_gen_mcp_runtime.message_to_json(message))
 
 def _to_pb_value(value: Value) -> struct_pb2.Value:
     return _json_to_message(value, struct_pb2.Value())
@@ -428,10 +195,10 @@ class SecureAPIToolHandler(Protocol):
 def register_secure_api_tools(server: mcp.server.lowlevel.Server, impl: SecureAPIToolHandler, *, namespace: str | None = None) -> None:
     if impl is None:
         raise ValueError("register_secure_api_tools: impl is nil")
-    registry = _install_server_handlers(server)
-    resolved_namespace = _normalize_namespace(namespace, "secure")
-    registry.add_tool(_RegisteredTool(
-        name=_tool_name(resolved_namespace, "check_access"),
+    registry = protoc_gen_mcp_runtime.install_tool_registry(server)
+    resolved_namespace = protoc_gen_mcp_runtime.normalize_namespace(namespace, "secure")
+    registry.add_tool(protoc_gen_mcp_runtime.RegisteredTool(
+        name=protoc_gen_mcp_runtime.tool_name(resolved_namespace, "check_access"),
         title="Access check",
         description="CheckAccess requires an authenticated JWT with the right access scope.",
         input_schema_json=SECURE_API_CHECK_ACCESS_INPUT_SCHEMA_JSON,
@@ -444,8 +211,40 @@ def register_secure_api_tools(server: mcp.server.lowlevel.Server, impl: SecureAP
         annotations=None,
         icons=None,
         execution=None,
+        required_scopes=("reports:write",),
     ))
 
 SECURE_API_CHECK_ACCESS_INPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"label\":{\"type\":\"string\",\"description\":\"Public identifier used for the test.\",\"examples\":[\"example\"]}},\"description\":\"CheckAccessRequest is a minimal access request.\",\"examples\":[{\"label\":\"example\"}],\"required\":[\"label\"],\"additionalProperties\":false}"
 
 SECURE_API_CHECK_ACCESS_OUTPUT_SCHEMA_JSON = "{\"type\":\"object\",\"properties\":{\"allowed\":{\"type\":\"boolean\",\"description\":\"Whether the caller is allowed to see the resource.\",\"examples\":[true]}},\"description\":\"CheckAccessResponse indicates that authorization succeeded.\",\"examples\":[{\"allowed\":true}],\"required\":[\"allowed\"],\"additionalProperties\":false}"
+
+
+@dataclass
+class ServerConfigMCPHandlers:
+    """Business handlers for every MCP primitive in internal/testproto/config/v1/server_config.proto."""
+    secure_api: SecureAPIToolHandler
+
+
+def create_server_config_mcp_server(handlers: ServerConfigMCPHandlers) -> protoc_gen_mcp_runtime.ConfiguredServer:
+    """Builds the server declared by internal/testproto/config/v1/server_config.proto and registers its primitives."""
+    server = protoc_gen_mcp_runtime.new_configured_server("secure-example", "v2.0.0", apps=False)
+    register_secure_api_tools(server, handlers.secure_api)
+    return server
+
+
+def create_server_config_mcp_http_app(server: mcp.server.lowlevel.Server, verifier: Any = None) -> Any:
+    """Serves server over stateless Streamable HTTP with the policy of internal/testproto/config/v1/server_config.proto.
+
+    Returns an ASGI application. With OAuth, verifier is an SDK TokenVerifier; when
+    it is None the built-in RS256 JWKS verifier is used.
+    """
+    oauth = protoc_gen_mcp_runtime.OAuthResourceServer(
+        resource_url="https://mcp.example.com/mcp",
+        authorization_servers=("https://auth.example.com",),
+        scopes=("reports:read",),
+        issuer="https://auth.example.com",
+        audience="https://mcp.example.com/mcp",
+        jwks_url="https://auth.example.com/keys.json",
+        mcp_path="",
+    )
+    return protoc_gen_mcp_runtime.new_http_app(server, oauth, verifier)

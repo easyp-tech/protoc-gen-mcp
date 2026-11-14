@@ -1,0 +1,25 @@
+# Python output for the shared fixtures. config/v1 is skipped by targets that
+# do not implement the OAuth resource server and required_scopes yet.
+generate:
+  inputs:
+    - directory:
+        path: internal/testproto/config
+        root: "."
+    - directory:
+        path: internal/testproto/example
+        root: "."
+    - directory:
+        path: internal/testproto/prompts
+        root: "."
+    - directory:
+        path: internal/testproto/resources
+        root: "."
+  plugins:
+    - name: python
+      out: .
+    - command: ["go", "run", "./cmd/protoc-gen-mcp"]
+      out: .
+      opts:
+        paths: source_relative
+        lang: python
+        python_runtime: google.protobuf
