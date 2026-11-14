@@ -10,7 +10,8 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # setup-swift v2 does not support the Ubuntu 26.04 image behind ubuntu-latest.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
