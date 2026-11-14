@@ -381,3 +381,12 @@ def create_resources_mcp_server(handlers: ResourcesMCPHandlers) -> protoc_gen_mc
     server = protoc_gen_mcp_runtime.new_configured_server("resource-fixture-server", "v1.0.0", apps=True)
     register_resources_resources(server, handlers.resources)
     return server
+
+
+def create_resources_mcp_http_app(server: mcp.server.lowlevel.Server, verifier: Any = None) -> Any:
+    """Serves server over stateless Streamable HTTP with the policy of internal/testproto/resources/v1/resources.proto.
+
+    Returns an ASGI application. With OAuth, verifier is an SDK TokenVerifier; when
+    it is None the built-in RS256 JWKS verifier is used.
+    """
+    return protoc_gen_mcp_runtime.new_http_app(server)

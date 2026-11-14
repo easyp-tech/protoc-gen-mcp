@@ -5,6 +5,8 @@ of one proto file; this package holds the registries that wire them into a
 low-level ``mcp.server.lowlevel.Server``.
 """
 
+from ._http import OAuthResourceServer, new_http_app
+from ._jwks import JWKSTokenVerifier
 from ._prompts import PromptRegistry, RegisteredPrompt, install_prompt_registry, prompt_name
 from ._resources import (
     RegisteredResource,
@@ -35,6 +37,9 @@ __all__ = [
     "APP_EXTENSION_ID",
     "APP_HTML_MIME_TYPE",
     "ConfiguredServer",
+    "JWKSTokenVerifier",
+    "OAuthResourceServer",
+    "new_http_app",
     "new_configured_server",
     "GENCODE_VERSION",
     "PromptRegistry",

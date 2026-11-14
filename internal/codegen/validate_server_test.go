@@ -120,7 +120,7 @@ func TestValidateServerOAuthRejectsInvalidRuntimeConfiguration(t *testing.T) {
 	}
 }
 
-func TestNonGoTargetsRejectGoOnlyAuthorization(t *testing.T) {
+func TestTargetsWithoutOAuthRejectAuthorizationOptions(t *testing.T) {
 	cases := map[string]string{
 		"oauth": strings.Join([]string{
 			`option (mcp.options.v1.server) = {`,
@@ -149,7 +149,7 @@ func TestNonGoTargetsRejectGoOnlyAuthorization(t *testing.T) {
 			`message CheckRequest { string label = 1; }`,
 			`message CheckResponse { bool allowed = 1; }`,
 		}, "\n")
-		for _, lang := range []Language{LanguagePython, LanguageTypeScript, LanguageJava, LanguageKotlin} {
+		for _, lang := range []Language{LanguageTypeScript, LanguageJava, LanguageKotlin} {
 			t.Run(name+"/"+string(lang), func(t *testing.T) {
 				plugin := newTempProtogenPlugin(t, map[string]string{"secure/v1/secure.proto": source}, "secure/v1/secure.proto")
 				err := Generate(plugin, Options{Language: lang, PythonRuntime: PythonRuntimeGoogleProtobuf})
@@ -158,11 +158,13 @@ func TestNonGoTargetsRejectGoOnlyAuthorization(t *testing.T) {
 				}
 			})
 		}
-		t.Run(name+"/go", func(t *testing.T) {
-			plugin := newTempProtogenPlugin(t, map[string]string{"secure/v1/secure.proto": source}, "secure/v1/secure.proto")
-			if err := Generate(plugin, Options{Language: LanguageGo}); err != nil {
-				t.Fatalf("Generate(lang=go): %v", err)
-			}
-		})
+		for _, lang := range []Language{LanguageGo, LanguagePython} {
+			t.Run(name+"/"+string(lang), func(t *testing.T) {
+				plugin := newTempProtogenPlugin(t, map[string]string{"secure/v1/secure.proto": source}, "secure/v1/secure.proto")
+				if err := Generate(plugin, Options{Language: lang, PythonRuntime: PythonRuntimeGoogleProtobuf}); err != nil {
+					t.Fatalf("Generate(lang=%s): %v", lang, err)
+				}
+			})
+		}
 	}
 }

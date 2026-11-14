@@ -1,7 +1,10 @@
-# Python output for the shared fixtures. config/v1 is Go-only until the other
-# targets implement the OAuth resource server and required_scopes.
+# Python output for the shared fixtures. config/v1 is skipped by targets that
+# do not implement the OAuth resource server and required_scopes yet.
 generate:
   inputs:
+    - directory:
+        path: internal/testproto/config
+        root: "."
     - directory:
         path: internal/testproto/example
         root: "."
