@@ -43,6 +43,8 @@ async def main() -> None:
     app = server_config_mcp.create_server_config_mcp_http_app(server, DemoVerifier())
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind(("127.0.0.1", 0))
+    # Listen before announcing the address so clients never race uvicorn's startup.
+    sock.listen(128)
     host, port = sock.getsockname()
     config = uvicorn.Config(app, log_level="warning", lifespan="on")
     http_server = uvicorn.Server(config)
