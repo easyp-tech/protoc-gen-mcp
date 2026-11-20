@@ -4,8 +4,9 @@
 //
 // These options are the proto contract between user-authored .proto files and
 // the generator. The generator reads these annotations at code-generation time
-// to produce Go MCP tool bindings, JSON Schema definitions, and runtime
-// registration helpers.
+// to produce MCP bindings (tools, prompts, resources and server factories) for
+// every supported target language, together with their JSON Schema
+// definitions and registration helpers.
 //
 // This revision aligns the proto contract with MCP spec 2025-11-25, adding
 // ToolAnnotations, Icon, OneofOptions, ExecutionOptions, hidden method
@@ -52,7 +53,11 @@ const (
 	// or as a normal request.
 	TaskSupport_TASK_SUPPORT_OPTIONAL TaskSupport = 1
 	// TASK_SUPPORT_REQUIRED means clients must invoke this tool as a task.
-	// The server will return a -32601 error for non-task invocations.
+	// lang=go and lang=swift reject it at generation time, because their
+	// official MCP SDKs do not implement the Tasks lifecycle. Python,
+	// TypeScript, Java and Kotlin advertise `execution.taskSupport: "required"`
+	// in tools/list; the generated code does not implement the task lifecycle
+	// itself, so the handling of a non-task call is left to the language SDK.
 	TaskSupport_TASK_SUPPORT_REQUIRED TaskSupport = 2
 )
 
@@ -97,19 +102,6 @@ func (TaskSupport) EnumDescriptor() ([]byte, []int) {
 	return file_mcp_options_v1_options_proto_rawDescGZIP(), []int{0}
 }
 
-// Extend google.protobuf.MessageOptions to attach MCP prompt metadata.
-//
-// Usage in a user proto file:
-//
-//	message CodeReview {
-//	  option (mcp.options.v1.prompt) = {
-//	    name: "code_review"
-//	    description: "Analyze code quality and suggest improvements"
-//	  };
-//	  string code = 1;
-//	  optional string focus_area = 2;
-//	}
-//
 // ResourceAudience identifies the intended consumer of an MCP resource.
 type ResourceAudience int32
 
@@ -177,9 +169,8 @@ type ServiceOptions struct {
 	// When absent: the generator derives the namespace from the proto service name.
 	//
 	// Example:
-	//
-	//	option (mcp.options.v1.service) = { namespace: "myapp" };
-	//	// Tool names become "myapp_MethodName".
+	//   option (mcp.options.v1.service) = { namespace: "myapp" };
+	//   // Tool names become "myapp_MethodName".
 	Namespace string `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	// description overrides the service-level description that the generator
 	// would otherwise infer from leading proto comments on the service
@@ -189,10 +180,9 @@ type ServiceOptions struct {
 	// When absent: the generator uses the proto source comment on the service.
 	//
 	// Example:
-	//
-	//	option (mcp.options.v1.service) = {
-	//	  description: "Reporting service for analytics dashboards."
-	//	};
+	//   option (mcp.options.v1.service) = {
+	//     description: "Reporting service for analytics dashboards."
+	//   };
 	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
 	// icons provides default icons for all tools generated from this service.
 	// Individual method-level icons override these defaults.
@@ -263,9 +253,10 @@ func (x *ServiceOptions) GetIcons() []*Icon {
 // `option deprecated = true;` on the method. The generator will propagate
 // this to `"deprecated": true` in the tool's JSON Schema.
 //
-// Method-level examples have been replaced by field-level `example` and
-// `examples` annotations in FieldOptions. The generator assembles a
-// composite JSON example by walking the request message's fields.
+// Method-level examples have been replaced by the field-level `examples`
+// annotation in FieldOptions and `Example:` / `Examples:` comments. The
+// generator assembles a composite JSON example by walking the request
+// message's fields.
 type MethodOptions struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// name overrides the method segment of the generated MCP tool name.
@@ -276,8 +267,7 @@ type MethodOptions struct {
 	// When absent: the generator uses the proto RPC method name as-is.
 	//
 	// Example:
-	//
-	//	option (mcp.options.v1.method) = { name: "GenerateReport" };
+	//   option (mcp.options.v1.method) = { name: "GenerateReport" };
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// title sets the human-readable title of the generated MCP tool, surfaced
 	// to agents and clients in the tool listing.
@@ -287,8 +277,7 @@ type MethodOptions struct {
 	// name instead.
 	//
 	// Example:
-	//
-	//	option (mcp.options.v1.method) = { title: "Create Report" };
+	//   option (mcp.options.v1.method) = { title: "Create Report" };
 	Title string `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
 	// description overrides the tool description that the generator would
 	// otherwise infer from leading proto comments on the RPC method.
@@ -297,10 +286,9 @@ type MethodOptions struct {
 	// When absent: the generator uses the proto source comment on the RPC.
 	//
 	// Example:
-	//
-	//	option (mcp.options.v1.method) = {
-	//	  description: "Generates a PDF report for the given date range."
-	//	};
+	//   option (mcp.options.v1.method) = {
+	//     description: "Generates a PDF report for the given date range."
+	//   };
 	Description string `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
 	// hidden suppresses tool generation for this RPC method.
 	// The method will exist in protobuf but will not be exposed as an MCP tool.
@@ -308,10 +296,9 @@ type MethodOptions struct {
 	// compatibility but must not be called by agents.
 	//
 	// Example:
-	//
-	//	rpc InternalDebug(DebugRequest) returns (DebugResponse) {
-	//	  option (mcp.options.v1.method) = { hidden: true };
-	//	};
+	//   rpc InternalDebug(DebugRequest) returns (DebugResponse) {
+	//     option (mcp.options.v1.method) = { hidden: true };
+	//   };
 	Hidden bool `protobuf:"varint,4,opt,name=hidden,proto3" json:"hidden,omitempty"`
 	// annotations provides behavioral hints for the generated MCP tool.
 	// Agents use these hints to decide confirmation prompts, safety checks,
@@ -320,10 +307,9 @@ type MethodOptions struct {
 	// See: MCP spec 2025-11-25, ToolAnnotations.
 	//
 	// Example:
-	//
-	//	option (mcp.options.v1.method) = {
-	//	  annotations: { read_only_hint: true }
-	//	};
+	//   option (mcp.options.v1.method) = {
+	//     annotations: { read_only_hint: true }
+	//   };
 	Annotations *ToolAnnotations `protobuf:"bytes,10,opt,name=annotations,proto3" json:"annotations,omitempty"`
 	// icons provides visual identifiers for the generated MCP tool.
 	// Overrides service-level default icons for this specific method.
@@ -336,15 +322,19 @@ type MethodOptions struct {
 	// See: MCP spec 2025-11-25, execution.taskSupport.
 	//
 	// Example:
-	//
-	//	option (mcp.options.v1.method) = {
-	//	  execution: { task_support: TASK_SUPPORT_OPTIONAL }
-	//	};
+	//   option (mcp.options.v1.method) = {
+	//     execution: { task_support: TASK_SUPPORT_OPTIONAL }
+	//   };
 	Execution *ExecutionOptions `protobuf:"bytes,12,opt,name=execution,proto3" json:"execution,omitempty"`
 	// app_ui links the generated tool to a standard MCP Apps ui:// resource.
 	// Hosts without the UI extension continue using the normal tool output.
 	AppUi *AppUIOptions `protobuf:"bytes,13,opt,name=app_ui,json=appUi,proto3" json:"app_ui,omitempty"`
-	// required_scopes are verified by the generated MCP tool handler.
+	// required_scopes lists the OAuth scopes a caller needs for this tool, on
+	// top of the file-level `oauth.scopes`. The generated Streamable HTTP
+	// handler of every target answers HTTP 403 `insufficient_scope` before
+	// dispatch when the bearer token lacks one, and the generated tool also
+	// denies the call when no token carries the scopes (for example over
+	// stdio). See the file-level `server` option.
 	RequiredScopes []string `protobuf:"bytes,14,rep,name=required_scopes,json=requiredScopes,proto3" json:"required_scopes,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -446,8 +436,9 @@ func (x *MethodOptions) GetRequiredScopes() []string {
 // AppUIOptions carries the MCP Apps Tool._meta.ui metadata.
 type AppUIOptions struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The URI must use the ui:// scheme and be registered as an HTML app
-	// resource by the server (see mcpruntime.RegisterAppResource).
+	// The URI must use the ui:// scheme and be served by the same server as an
+	// MCP Apps HTML resource, typically a `resource` message with
+	// `mime_type: "text/html;profile=mcp-app"`.
 	ResourceUri string `protobuf:"bytes,1,opt,name=resource_uri,json=resourceUri,proto3" json:"resource_uri,omitempty"`
 	// Client surface visibility. Values: "model", "app"; empty means default.
 	Visibility    []string `protobuf:"bytes,2,rep,name=visibility,proto3" json:"visibility,omitempty"`
@@ -519,10 +510,9 @@ type FieldOptions struct {
 	// When absent: the generator uses the proto source comment on the field.
 	//
 	// Example:
-	//
-	//	string name = 1 [(mcp.options.v1.field) = {
-	//	  description: "Full name of the report recipient."
-	//	}];
+	//   string name = 1 [(mcp.options.v1.field) = {
+	//     description: "Full name of the report recipient."
+	//   }];
 	Description string `protobuf:"bytes,1,opt,name=description,proto3" json:"description,omitempty"`
 	// examples provides multiple typed example values for this field,
 	// included in the field's JSON Schema as `"examples": [<parsed>, ...]`.
@@ -531,12 +521,11 @@ type FieldOptions struct {
 	// ProtoJSON shapes.
 	//
 	// Example:
-	//
-	//	repeated string tags = 3 [(mcp.options.v1.field) = {
-	//	  examples: [
-	//	    { array_value: { items: [{ string_value: "urgent" }] } }
-	//	  ]
-	//	}];
+	//   repeated string tags = 3 [(mcp.options.v1.field) = {
+	//     examples: [
+	//       { array_value: { items: [{ string_value: "urgent" }] } }
+	//     ]
+	//   }];
 	Examples []*ExampleValue `protobuf:"bytes,3,rep,name=examples,proto3" json:"examples,omitempty"`
 	// default_value provides a typed default value for this field,
 	// included in the field's JSON Schema as `"default": <parsed>`.
@@ -544,10 +533,9 @@ type FieldOptions struct {
 	// When absent: no `"default"` is emitted in the JSON Schema.
 	//
 	// Example:
-	//
-	//	int32 page_size = 4 [(mcp.options.v1.field) = {
-	//	  default_value: { number_value: 25 }
-	//	}];
+	//   int32 page_size = 4 [(mcp.options.v1.field) = {
+	//     default_value: { number_value: 25 }
+	//   }];
 	DefaultValue *ExampleValue `protobuf:"bytes,4,opt,name=default_value,json=defaultValue,proto3" json:"default_value,omitempty"`
 	// pattern defines a regular expression that the string must match.
 	// Example: "^[A-Z][a-z]+$" for capitalized words
@@ -615,8 +603,7 @@ type FieldOptions struct {
 	// Agents should not include read-only fields in tool call arguments.
 	//
 	// Example:
-	//
-	//	string id = 1 [(mcp.options.v1.field) = { read_only: true }];
+	//   string id = 1 [(mcp.options.v1.field) = { read_only: true }];
 	ReadOnly      bool `protobuf:"varint,40,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1274,7 +1261,7 @@ type ExecutionOptions struct {
 	// task_support indicates whether this tool supports task-augmented execution.
 	// See: MCP spec 2025-11-25, Tool-Level Negotiation.
 	//
-	// Default: TASK_SUPPORT_FORBIDDEN.
+	// Default: TASK_SUPPORT_NONE (MCP "forbidden").
 	TaskSupport   TaskSupport `protobuf:"varint,1,opt,name=task_support,json=taskSupport,proto3,enum=mcp.options.v1.TaskSupport" json:"task_support,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1405,8 +1392,7 @@ type MessageOptions struct {
 	// When absent: no `"title"` is emitted in the JSON Schema object.
 	//
 	// Example:
-	//
-	//	option (mcp.options.v1.message) = { title: "Report Parameters" };
+	//   option (mcp.options.v1.message) = { title: "Report Parameters" };
 	Title string `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
 	// description provides a human-readable description for this message's
 	// JSON Schema object.
@@ -1415,10 +1401,9 @@ type MessageOptions struct {
 	// When absent: the generator may use the proto source comment on the message.
 	//
 	// Example:
-	//
-	//	option (mcp.options.v1.message) = {
-	//	  description: "Parameters controlling report generation."
-	//	};
+	//   option (mcp.options.v1.message) = {
+	//     description: "Parameters controlling report generation."
+	//   };
 	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
 	// examples provides typed object examples for this message, included
 	// in the message's JSON Schema as `"examples": [<parsed>, ...]`.
@@ -1426,10 +1411,9 @@ type MessageOptions struct {
 	// When absent: no message-level examples are emitted.
 	//
 	// Example:
-	//
-	//	option (mcp.options.v1.message) = {
-	//	  examples: [{ properties: { "name": { string_value: "Q4 Report" } } }]
-	//	};
+	//   option (mcp.options.v1.message) = {
+	//     examples: [{ properties: { "name": { string_value: "Q4 Report" } } }]
+	//   };
 	Examples      []*ExampleObject `protobuf:"bytes,3,rep,name=examples,proto3" json:"examples,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1498,8 +1482,7 @@ type EnumOptions struct {
 	// When absent: no `"title"` is emitted in the JSON Schema.
 	//
 	// Example:
-	//
-	//	option (mcp.options.v1.enum) = { title: "Report Format" };
+	//   option (mcp.options.v1.enum) = { title: "Report Format" };
 	Title string `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
 	// description provides a human-readable description for this enum's
 	// JSON Schema representation.
@@ -1508,10 +1491,9 @@ type EnumOptions struct {
 	// When absent: the generator may use the proto source comment on the enum.
 	//
 	// Example:
-	//
-	//	option (mcp.options.v1.enum) = {
-	//	  description: "Output format for generated reports."
-	//	};
+	//   option (mcp.options.v1.enum) = {
+	//     description: "Output format for generated reports."
+	//   };
 	Description   string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1586,10 +1568,9 @@ type EnumValueOptions struct {
 	// When absent: no description is emitted for this enum value.
 	//
 	// Example:
-	//
-	//	STATUS_ACTIVE = 1 [(mcp.options.v1.enum_value) = {
-	//	  description: "The resource is active and available."
-	//	}];
+	//   STATUS_ACTIVE = 1 [(mcp.options.v1.enum_value) = {
+	//     description: "The resource is active and available."
+	//   }];
 	Description string `protobuf:"bytes,1,opt,name=description,proto3" json:"description,omitempty"`
 	// hidden excludes this enum value from the JSON Schema's list of allowed
 	// values. Typically used for sentinel zero-values (`_UNSPECIFIED`, `_NONE`)
@@ -1599,10 +1580,9 @@ type EnumValueOptions struct {
 	// When absent (false): the enum value is included in the schema.
 	//
 	// Example:
-	//
-	//	STATUS_NONE = 0 [(mcp.options.v1.enum_value) = {
-	//	  hidden: true
-	//	}];
+	//   STATUS_NONE = 0 [(mcp.options.v1.enum_value) = {
+	//     hidden: true
+	//   }];
 	Hidden        bool `protobuf:"varint,2,opt,name=hidden,proto3" json:"hidden,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1805,12 +1785,12 @@ func (x *ResourceAnnotations) GetPriority() float64 {
 // ResourceOptions defines MCP resource metadata attached to a proto message.
 //
 // Exactly one of `uri` or `uri_template` must be set:
-//   - `uri`:          static resource, registered via server.AddResource().
-//   - `uri_template`: parameterised resource (RFC 6570 simple-string),
-//     registered via server.AddResourceTemplate().
+//   - `uri`:          static resource.
+//   - `uri_template`: parameterised resource (RFC 6570 simple-string).
 //
 // Message fields describe the output schema — they are serialised via
-// ProtoJSON when a client reads the resource.
+// ProtoJSON when a client reads the resource, unless `content_field` or
+// `source_file` selects a raw body.
 //
 // Usage:
 //
@@ -1860,10 +1840,12 @@ type ResourceOptions struct {
 	// text/html;profile=mcp-app and application/octet-stream.
 	// Use the protobuf field name (for example "markdown"), not its JSON name.
 	ContentField string `protobuf:"bytes,8,opt,name=content_field,json=contentField,proto3" json:"content_field,omitempty"`
-	// source_file embeds a compiled static file from the generated Go package.
-	// The path is relative to the directory containing the generated *.mcp.go,
-	// and must not contain parent traversal. Static resources only.
-	// Mutually exclusive with content_field; no handler method is required.
+	// source_file marks a static file as the raw resource body. Static
+	// resources only; mutually exclusive with content_field. Go embeds the file
+	// with go:embed (the path is relative to the directory containing the
+	// generated *.mcp.go and must not contain parent traversal), so no handler
+	// method is required. The other targets generate a handler method whose
+	// implementation returns the file body.
 	SourceFile string `protobuf:"bytes,9,opt,name=source_file,json=sourceFile,proto3" json:"source_file,omitempty"`
 	// app_ui emits MCP Apps resource metadata (CSP, sandbox permissions).
 	AppUi         *AppResourceOptions `protobuf:"bytes,10,opt,name=app_ui,json=appUi,proto3" json:"app_ui,omitempty"`
@@ -1972,12 +1954,15 @@ func (x *ResourceOptions) GetAppUi() *AppResourceOptions {
 }
 
 // ServerConfig is attached to a protobuf file and controls the generated
-// Go server constructor and Streamable HTTP resource-server configuration.
+// file-scoped server factory of every target and its Streamable HTTP
+// (OAuth protected-resource) configuration.
 type ServerConfig struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Server implementation name used during MCP initialization.
+	// Default: the proto file basename.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Server software version used during MCP initialization.
+	// Default: "v0.0.1".
 	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
 	// MCP Apps extension configuration, including an explicit opt-out.
 	Apps *AppsConfig `protobuf:"bytes,3,opt,name=apps,proto3" json:"apps,omitempty"`
@@ -2111,6 +2096,7 @@ type OAuthConfig struct {
 	// Expected resource audience claim in JWT access tokens.
 	Audience string `protobuf:"bytes,6,opt,name=audience,proto3" json:"audience,omitempty"`
 	// Route under which the MCP Streamable HTTP endpoint is exposed.
+	// Default: "/mcp". "/" and paths under "/.well-known/" are rejected.
 	McpPath       string `protobuf:"bytes,7,opt,name=mcp_path,json=mcpPath,proto3" json:"mcp_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2567,6 +2553,8 @@ var (
 
 // Extension fields to descriptorpb.FileOptions.
 var (
+	// server stores the MCP server configuration of a protobuf file.
+	//
 	// optional mcp.options.v1.ServerConfig server = 91010;
 	E_Server = &file_mcp_options_v1_options_proto_extTypes[9]
 )

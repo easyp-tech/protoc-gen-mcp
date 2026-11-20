@@ -8,8 +8,29 @@ server.
 The generated code is imported as normal local ESM modules:
 
 ```ts
-import { registerNotebookAPITools } from "./generated/proto/notebook_mcp.js";
+import {
+  createNotebookMCPHttpHandler,
+  createNotebookMCPServer,
+} from "./generated/proto/notebook_mcp.js";
 ```
+
+`createNotebookMCPServer(handlers)` is the server factory generated from
+`option (mcp.options.v1.server)`; it registers the file's tools, prompts and
+resources. `createNotebookMCPHttpHandler(handlers, verifier?)` serves the same
+handlers over stateless Streamable HTTP.
+
+The generated sidecar imports `@easyp-tech/protoc-gen-mcp-runtime`, which
+`package.json` takes from `file:../../runtime/typescript` (with
+`install-links=true` in `.npmrc`) because the runtime is not on npm yet.
+Build it first:
+
+```bash
+(cd ../../runtime/typescript && npm ci && npm run build)
+```
+
+Outside this repository, install the runtime tarball attached to the GitHub
+release instead, for example
+`npm install https://github.com/easyp-tech/protoc-gen-mcp/releases/download/v1.0.0/easyp-tech-protoc-gen-mcp-runtime-1.0.0.tgz`.
 
 ## Generate
 

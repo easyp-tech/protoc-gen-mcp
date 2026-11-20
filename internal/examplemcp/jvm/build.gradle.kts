@@ -6,10 +6,7 @@ plugins {
 }
 
 val repoRoot = rootDir.resolve("../../..").canonicalFile
-val jvmBuildRoot = repoRoot.parentFile.resolve(".protoc-gen-mcp-jvm-build").canonicalFile
 val protocGenMcpBinary = layout.buildDirectory.file("tools/protoc-gen-mcp")
-
-layout.buildDirectory.set(jvmBuildRoot.resolve("root"))
 
 tasks.register<Exec>("buildProtocGenMcp") {
     group = "build"

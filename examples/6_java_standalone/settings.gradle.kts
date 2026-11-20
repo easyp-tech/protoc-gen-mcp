@@ -18,6 +18,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "todo-java-standalone"
 
-// Use the runtime from this repository; projects outside it depend on the
-// published tech.easyp:protoc-gen-mcp-runtime instead.
+// Use the runtime from this repository. Projects outside it depend on
+// tech.easyp:protoc-gen-mcp-runtime, which is not on Maven Central yet: build it with
+// `gradle -p runtime/jvm publishToMavenLocal` and add mavenLocal().
 includeBuild("../../runtime/jvm")

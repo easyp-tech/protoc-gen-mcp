@@ -4,8 +4,9 @@
 //
 // These options are the proto contract between user-authored .proto files and
 // the generator. The generator reads these annotations at code-generation time
-// to produce Go MCP tool bindings, JSON Schema definitions, and runtime
-// registration helpers.
+// to produce MCP bindings (tools, prompts, resources and server factories) for
+// every supported target language, together with their JSON Schema
+// definitions and registration helpers.
 //
 // This revision aligns the proto contract with MCP spec 2025-11-25, adding
 // ToolAnnotations, Icon, OneofOptions, ExecutionOptions, hidden method
@@ -68,9 +69,10 @@ message ServiceOptions {
 // `option deprecated = true;` on the method. The generator will propagate
 // this to `"deprecated": true` in the tool's JSON Schema.
 //
-// Method-level examples have been replaced by field-level `example` and
-// `examples` annotations in FieldOptions. The generator assembles a
-// composite JSON example by walking the request message's fields.
+// Method-level examples have been replaced by the field-level `examples`
+// annotation in FieldOptions and `Example:` / `Examples:` comments. The
+// generator assembles a composite JSON example by walking the request
+// message's fields.
 message MethodOptions {
   // name overrides the method segment of the generated MCP tool name.
   // Dots and repeated underscores in the value are normalized to a single
@@ -150,14 +152,20 @@ message MethodOptions {
   // Hosts without the UI extension continue using the normal tool output.
   AppUIOptions app_ui = 13;
 
-  // required_scopes are verified by the generated MCP tool handler.
+  // required_scopes lists the OAuth scopes a caller needs for this tool, on
+  // top of the file-level `oauth.scopes`. The generated Streamable HTTP
+  // handler of every target answers HTTP 403 `insufficient_scope` before
+  // dispatch when the bearer token lacks one, and the generated tool also
+  // denies the call when no token carries the scopes (for example over
+  // stdio). See the file-level `server` option.
   repeated string required_scopes = 14;
 }
 
 // AppUIOptions carries the MCP Apps Tool._meta.ui metadata.
 message AppUIOptions {
-  // The URI must use the ui:// scheme and be registered as an HTML app
-  // resource by the server (see mcpruntime.RegisterAppResource).
+  // The URI must use the ui:// scheme and be served by the same server as an
+  // MCP Apps HTML resource, typically a `resource` message with
+  // `mime_type: "text/html;profile=mcp-app"`.
   string resource_uri = 1;
 
   // Client surface visibility. Values: "model", "app"; empty means default.
@@ -459,7 +467,7 @@ message ExecutionOptions {
   // task_support indicates whether this tool supports task-augmented execution.
   // See: MCP spec 2025-11-25, Tool-Level Negotiation.
   //
-  // Default: TASK_SUPPORT_FORBIDDEN.
+  // Default: TASK_SUPPORT_NONE (MCP "forbidden").
   TaskSupport task_support = 1;
 }
 
@@ -476,7 +484,11 @@ enum TaskSupport {
   TASK_SUPPORT_OPTIONAL = 1;
 
   // TASK_SUPPORT_REQUIRED means clients must invoke this tool as a task.
-  // The server will return a -32601 error for non-task invocations.
+  // lang=go and lang=swift reject it at generation time, because their
+  // official MCP SDKs do not implement the Tasks lifecycle. Python,
+  // TypeScript, Java and Kotlin advertise `execution.taskSupport: "required"`
+  // in tools/list; the generated code does not implement the task lifecycle
+  // itself, so the handling of a non-task call is left to the language SDK.
   TASK_SUPPORT_REQUIRED = 2;
 }
 
@@ -768,18 +780,6 @@ message PromptOptions {
   repeated Icon icons = 4;
 }
 
-// Extend google.protobuf.MessageOptions to attach MCP prompt metadata.
-//
-// Usage in a user proto file:
-//
-//   message CodeReview {
-//     option (mcp.options.v1.prompt) = {
-//       name: "code_review"
-//       description: "Analyze code quality and suggest improvements"
-//     };
-//     string code = 1;
-//     optional string focus_area = 2;
-//   }
 // ResourceAudience identifies the intended consumer of an MCP resource.
 enum ResourceAudience {
   // No explicit audience hint for the resource.
@@ -804,12 +804,12 @@ message ResourceAnnotations {
 // ResourceOptions defines MCP resource metadata attached to a proto message.
 //
 // Exactly one of `uri` or `uri_template` must be set:
-//   - `uri`:          static resource, registered via server.AddResource().
-//   - `uri_template`: parameterised resource (RFC 6570 simple-string),
-//                     registered via server.AddResourceTemplate().
+//   - `uri`:          static resource.
+//   - `uri_template`: parameterised resource (RFC 6570 simple-string).
 //
 // Message fields describe the output schema — they are serialised via
-// ProtoJSON when a client reads the resource.
+// ProtoJSON when a client reads the resource, unless `content_field` or
+// `source_file` selects a raw body.
 //
 // Usage:
 //
@@ -866,16 +866,31 @@ message ResourceOptions {
   // Use the protobuf field name (for example "markdown"), not its JSON name.
   string content_field = 8;
 
-  // source_file embeds a compiled static file from the generated Go package.
-  // The path is relative to the directory containing the generated *.mcp.go,
-  // and must not contain parent traversal. Static resources only.
-  // Mutually exclusive with content_field; no handler method is required.
+  // source_file marks a static file as the raw resource body. Static
+  // resources only; mutually exclusive with content_field. Go embeds the file
+  // with go:embed (the path is relative to the directory containing the
+  // generated *.mcp.go and must not contain parent traversal), so no handler
+  // method is required. The other targets generate a handler method whose
+  // implementation returns the file body.
   string source_file = 9;
 
   // app_ui emits MCP Apps resource metadata (CSP, sandbox permissions).
   AppResourceOptions app_ui = 10;
 }
 
+// Extend google.protobuf.MessageOptions to attach MCP prompt and resource
+// metadata.
+//
+// Usage in a user proto file:
+//
+//   message CodeReview {
+//     option (mcp.options.v1.prompt) = {
+//       name: "code_review"
+//       description: "Analyze code quality and suggest improvements"
+//     };
+//     string code = 1;
+//     optional string focus_area = 2;
+//   }
 extend google.protobuf.MessageOptions {
   // prompt marks a message as an MCP Prompt definition.
   // The generator scans all messages for this option — no file-level
@@ -889,11 +904,14 @@ extend google.protobuf.MessageOptions {
 }
 
 // ServerConfig is attached to a protobuf file and controls the generated
-// Go server constructor and Streamable HTTP resource-server configuration.
+// file-scoped server factory of every target and its Streamable HTTP
+// (OAuth protected-resource) configuration.
 message ServerConfig {
   // Server implementation name used during MCP initialization.
+  // Default: the proto file basename.
   string name = 1;
   // Server software version used during MCP initialization.
+  // Default: "v0.0.1".
   string version = 2;
   // MCP Apps extension configuration, including an explicit opt-out.
   AppsConfig apps = 3;
@@ -926,6 +944,7 @@ message OAuthConfig {
   // Expected resource audience claim in JWT access tokens.
   string audience = 6;
   // Route under which the MCP Streamable HTTP endpoint is exposed.
+  // Default: "/mcp". "/" and paths under "/.well-known/" are rejected.
   string mcp_path = 7;
 }
 
@@ -965,6 +984,26 @@ message AppResourceOptions {
   optional bool prefers_border = 4;
 }
 
+// Extend google.protobuf.FileOptions to declare the MCP server of a proto
+// file: every target then generates a server factory that registers the
+// file's tools, prompts and resources, plus a Streamable HTTP handler that
+// enforces `oauth` when it is set.
+//
+// Usage in a user proto file:
+//
+//   option (mcp.options.v1.server) = {
+//     name: "notebook"
+//     version: "1.0.0"
+//     oauth: {
+//       resource_url: "https://mcp.example.com/mcp"
+//       authorization_servers: ["https://auth.example.com"]
+//       scopes: ["notebook:read"]
+//       issuer: "https://auth.example.com"
+//       jwks_uri: "https://auth.example.com/.well-known/jwks.json"
+//       audience: "https://mcp.example.com/mcp"
+//     }
+//   };
 extend google.protobuf.FileOptions {
+  // server stores the MCP server configuration of a protobuf file.
   ServerConfig server = 91010;
 }

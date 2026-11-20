@@ -6,10 +6,18 @@ protobuf classes and JVM sidecars from `internal/testproto/example/v1/example.pr
 and runs installable stdio servers against the official JVM MCP SDKs.
 
 The workspace documents the tested paths for `lang=java` and `lang=kotlin`.
-For release scope: this repository publishes the `protoc-gen-mcp binary`; it
-does not publish separate Java or Kotlin runtime artifacts. Downstream JVM
-projects compile generated sources against the official SDK coordinates used
-here.
+Generated sidecars depend on the JVM runtime built in this repository from
+`runtime/jvm`: `tech.easyp:protoc-gen-mcp-runtime` (Java),
+`tech.easyp:protoc-gen-mcp-runtime-kotlin` (Kotlin) and
+`tech.easyp:protoc-gen-mcp-runtime-oauth` (the JWKS verifier and OAuth
+resource server shared by both). `settings.gradle.kts` pulls them in with
+`includeBuild("../../../runtime/jvm")`, next to the official JVM MCP SDKs.
+The runtime is set up for Maven Central but not published there yet;
+downstream projects build it with `gradle -p runtime/jvm publishToMavenLocal`
+from a checkout of the release tag.
+
+The root project builds the plugin binary into `build/tools/protoc-gen-mcp`
+inside this directory (`internal/examplemcp/jvm/build`, ignored by git).
 
 ## Prerequisites
 

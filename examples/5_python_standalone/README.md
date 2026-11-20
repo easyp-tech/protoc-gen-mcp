@@ -44,6 +44,18 @@ make setup
 make run
 ```
 
+`make setup` creates `.venv` and installs this project with its dependencies.
+Generated modules import `protoc-gen-mcp-runtime`, which is not on PyPI yet,
+so `make setup` installs it from the in-repo `../../runtime/python` (the
+`RUNTIME` make variable); `pyproject.toml` maps the same path for
+[uv](https://docs.astral.sh/uv/) through `[tool.uv.sources]`. In a project
+outside this repository, install the wheel attached to the GitHub release
+instead:
+
+```bash
+pip install https://github.com/easyp-tech/protoc-gen-mcp/releases/download/v1.0.0/protoc_gen_mcp_runtime-1.0.0-py3-none-any.whl
+```
+
 The server exposes:
 
 - `notebook_CreateNote`

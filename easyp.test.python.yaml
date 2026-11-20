@@ -1,5 +1,5 @@
-# Python output for the shared fixtures. config/v1 is skipped by targets that
-# do not implement the OAuth resource server and required_scopes yet.
+# Python output for the shared fixtures, including config/v1 (server option,
+# OAuth resource server and required_scopes).
 generate:
   inputs:
     - directory:
