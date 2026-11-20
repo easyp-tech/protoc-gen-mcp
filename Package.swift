@@ -1,4 +1,4 @@
-// swift-tools-version:6.1
+// swift-tools-version:6.2
 // SwiftPM resolves this repository by git tag, so the Swift runtime for code
 // generated with lang=swift is released together with protoc-gen-mcp.
 import PackageDescription

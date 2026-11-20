@@ -22,7 +22,7 @@ merged into these ones.
 - Python 3.10+ for `5_python_standalone`.
 - JDK 17+ and Gradle 9.2+ for `6_java_standalone` and `7_kotlin_standalone`.
 - Node.js and npm for `8_typescript_standalone`.
-- A Swift 6.1+ toolchain and `protoc-gen-swift` (`brew install swift-protobuf`) for `9_swift_standalone`.
+- A Swift 6.2+ toolchain and `protoc-gen-swift` (`brew install swift-protobuf`) for `9_swift_standalone`.
 
 ## Running
 
