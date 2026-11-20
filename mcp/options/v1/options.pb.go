@@ -169,8 +169,9 @@ type ServiceOptions struct {
 	// When absent: the generator derives the namespace from the proto service name.
 	//
 	// Example:
-	//   option (mcp.options.v1.service) = { namespace: "myapp" };
-	//   // Tool names become "myapp_MethodName".
+	//
+	//	option (mcp.options.v1.service) = { namespace: "myapp" };
+	//	// Tool names become "myapp_MethodName".
 	Namespace string `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	// description overrides the service-level description that the generator
 	// would otherwise infer from leading proto comments on the service
@@ -180,9 +181,10 @@ type ServiceOptions struct {
 	// When absent: the generator uses the proto source comment on the service.
 	//
 	// Example:
-	//   option (mcp.options.v1.service) = {
-	//     description: "Reporting service for analytics dashboards."
-	//   };
+	//
+	//	option (mcp.options.v1.service) = {
+	//	  description: "Reporting service for analytics dashboards."
+	//	};
 	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
 	// icons provides default icons for all tools generated from this service.
 	// Individual method-level icons override these defaults.
@@ -267,7 +269,8 @@ type MethodOptions struct {
 	// When absent: the generator uses the proto RPC method name as-is.
 	//
 	// Example:
-	//   option (mcp.options.v1.method) = { name: "GenerateReport" };
+	//
+	//	option (mcp.options.v1.method) = { name: "GenerateReport" };
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// title sets the human-readable title of the generated MCP tool, surfaced
 	// to agents and clients in the tool listing.
@@ -277,7 +280,8 @@ type MethodOptions struct {
 	// name instead.
 	//
 	// Example:
-	//   option (mcp.options.v1.method) = { title: "Create Report" };
+	//
+	//	option (mcp.options.v1.method) = { title: "Create Report" };
 	Title string `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
 	// description overrides the tool description that the generator would
 	// otherwise infer from leading proto comments on the RPC method.
@@ -286,9 +290,10 @@ type MethodOptions struct {
 	// When absent: the generator uses the proto source comment on the RPC.
 	//
 	// Example:
-	//   option (mcp.options.v1.method) = {
-	//     description: "Generates a PDF report for the given date range."
-	//   };
+	//
+	//	option (mcp.options.v1.method) = {
+	//	  description: "Generates a PDF report for the given date range."
+	//	};
 	Description string `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
 	// hidden suppresses tool generation for this RPC method.
 	// The method will exist in protobuf but will not be exposed as an MCP tool.
@@ -296,9 +301,10 @@ type MethodOptions struct {
 	// compatibility but must not be called by agents.
 	//
 	// Example:
-	//   rpc InternalDebug(DebugRequest) returns (DebugResponse) {
-	//     option (mcp.options.v1.method) = { hidden: true };
-	//   };
+	//
+	//	rpc InternalDebug(DebugRequest) returns (DebugResponse) {
+	//	  option (mcp.options.v1.method) = { hidden: true };
+	//	};
 	Hidden bool `protobuf:"varint,4,opt,name=hidden,proto3" json:"hidden,omitempty"`
 	// annotations provides behavioral hints for the generated MCP tool.
 	// Agents use these hints to decide confirmation prompts, safety checks,
@@ -307,9 +313,10 @@ type MethodOptions struct {
 	// See: MCP spec 2025-11-25, ToolAnnotations.
 	//
 	// Example:
-	//   option (mcp.options.v1.method) = {
-	//     annotations: { read_only_hint: true }
-	//   };
+	//
+	//	option (mcp.options.v1.method) = {
+	//	  annotations: { read_only_hint: true }
+	//	};
 	Annotations *ToolAnnotations `protobuf:"bytes,10,opt,name=annotations,proto3" json:"annotations,omitempty"`
 	// icons provides visual identifiers for the generated MCP tool.
 	// Overrides service-level default icons for this specific method.
@@ -322,9 +329,10 @@ type MethodOptions struct {
 	// See: MCP spec 2025-11-25, execution.taskSupport.
 	//
 	// Example:
-	//   option (mcp.options.v1.method) = {
-	//     execution: { task_support: TASK_SUPPORT_OPTIONAL }
-	//   };
+	//
+	//	option (mcp.options.v1.method) = {
+	//	  execution: { task_support: TASK_SUPPORT_OPTIONAL }
+	//	};
 	Execution *ExecutionOptions `protobuf:"bytes,12,opt,name=execution,proto3" json:"execution,omitempty"`
 	// app_ui links the generated tool to a standard MCP Apps ui:// resource.
 	// Hosts without the UI extension continue using the normal tool output.
@@ -510,9 +518,10 @@ type FieldOptions struct {
 	// When absent: the generator uses the proto source comment on the field.
 	//
 	// Example:
-	//   string name = 1 [(mcp.options.v1.field) = {
-	//     description: "Full name of the report recipient."
-	//   }];
+	//
+	//	string name = 1 [(mcp.options.v1.field) = {
+	//	  description: "Full name of the report recipient."
+	//	}];
 	Description string `protobuf:"bytes,1,opt,name=description,proto3" json:"description,omitempty"`
 	// examples provides multiple typed example values for this field,
 	// included in the field's JSON Schema as `"examples": [<parsed>, ...]`.
@@ -521,11 +530,12 @@ type FieldOptions struct {
 	// ProtoJSON shapes.
 	//
 	// Example:
-	//   repeated string tags = 3 [(mcp.options.v1.field) = {
-	//     examples: [
-	//       { array_value: { items: [{ string_value: "urgent" }] } }
-	//     ]
-	//   }];
+	//
+	//	repeated string tags = 3 [(mcp.options.v1.field) = {
+	//	  examples: [
+	//	    { array_value: { items: [{ string_value: "urgent" }] } }
+	//	  ]
+	//	}];
 	Examples []*ExampleValue `protobuf:"bytes,3,rep,name=examples,proto3" json:"examples,omitempty"`
 	// default_value provides a typed default value for this field,
 	// included in the field's JSON Schema as `"default": <parsed>`.
@@ -533,9 +543,10 @@ type FieldOptions struct {
 	// When absent: no `"default"` is emitted in the JSON Schema.
 	//
 	// Example:
-	//   int32 page_size = 4 [(mcp.options.v1.field) = {
-	//     default_value: { number_value: 25 }
-	//   }];
+	//
+	//	int32 page_size = 4 [(mcp.options.v1.field) = {
+	//	  default_value: { number_value: 25 }
+	//	}];
 	DefaultValue *ExampleValue `protobuf:"bytes,4,opt,name=default_value,json=defaultValue,proto3" json:"default_value,omitempty"`
 	// pattern defines a regular expression that the string must match.
 	// Example: "^[A-Z][a-z]+$" for capitalized words
@@ -603,7 +614,8 @@ type FieldOptions struct {
 	// Agents should not include read-only fields in tool call arguments.
 	//
 	// Example:
-	//   string id = 1 [(mcp.options.v1.field) = { read_only: true }];
+	//
+	//	string id = 1 [(mcp.options.v1.field) = { read_only: true }];
 	ReadOnly      bool `protobuf:"varint,40,opt,name=read_only,json=readOnly,proto3" json:"read_only,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1392,7 +1404,8 @@ type MessageOptions struct {
 	// When absent: no `"title"` is emitted in the JSON Schema object.
 	//
 	// Example:
-	//   option (mcp.options.v1.message) = { title: "Report Parameters" };
+	//
+	//	option (mcp.options.v1.message) = { title: "Report Parameters" };
 	Title string `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
 	// description provides a human-readable description for this message's
 	// JSON Schema object.
@@ -1401,9 +1414,10 @@ type MessageOptions struct {
 	// When absent: the generator may use the proto source comment on the message.
 	//
 	// Example:
-	//   option (mcp.options.v1.message) = {
-	//     description: "Parameters controlling report generation."
-	//   };
+	//
+	//	option (mcp.options.v1.message) = {
+	//	  description: "Parameters controlling report generation."
+	//	};
 	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
 	// examples provides typed object examples for this message, included
 	// in the message's JSON Schema as `"examples": [<parsed>, ...]`.
@@ -1411,9 +1425,10 @@ type MessageOptions struct {
 	// When absent: no message-level examples are emitted.
 	//
 	// Example:
-	//   option (mcp.options.v1.message) = {
-	//     examples: [{ properties: { "name": { string_value: "Q4 Report" } } }]
-	//   };
+	//
+	//	option (mcp.options.v1.message) = {
+	//	  examples: [{ properties: { "name": { string_value: "Q4 Report" } } }]
+	//	};
 	Examples      []*ExampleObject `protobuf:"bytes,3,rep,name=examples,proto3" json:"examples,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1482,7 +1497,8 @@ type EnumOptions struct {
 	// When absent: no `"title"` is emitted in the JSON Schema.
 	//
 	// Example:
-	//   option (mcp.options.v1.enum) = { title: "Report Format" };
+	//
+	//	option (mcp.options.v1.enum) = { title: "Report Format" };
 	Title string `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
 	// description provides a human-readable description for this enum's
 	// JSON Schema representation.
@@ -1491,9 +1507,10 @@ type EnumOptions struct {
 	// When absent: the generator may use the proto source comment on the enum.
 	//
 	// Example:
-	//   option (mcp.options.v1.enum) = {
-	//     description: "Output format for generated reports."
-	//   };
+	//
+	//	option (mcp.options.v1.enum) = {
+	//	  description: "Output format for generated reports."
+	//	};
 	Description   string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1568,9 +1585,10 @@ type EnumValueOptions struct {
 	// When absent: no description is emitted for this enum value.
 	//
 	// Example:
-	//   STATUS_ACTIVE = 1 [(mcp.options.v1.enum_value) = {
-	//     description: "The resource is active and available."
-	//   }];
+	//
+	//	STATUS_ACTIVE = 1 [(mcp.options.v1.enum_value) = {
+	//	  description: "The resource is active and available."
+	//	}];
 	Description string `protobuf:"bytes,1,opt,name=description,proto3" json:"description,omitempty"`
 	// hidden excludes this enum value from the JSON Schema's list of allowed
 	// values. Typically used for sentinel zero-values (`_UNSPECIFIED`, `_NONE`)
@@ -1580,9 +1598,10 @@ type EnumValueOptions struct {
 	// When absent (false): the enum value is included in the schema.
 	//
 	// Example:
-	//   STATUS_NONE = 0 [(mcp.options.v1.enum_value) = {
-	//     hidden: true
-	//   }];
+	//
+	//	STATUS_NONE = 0 [(mcp.options.v1.enum_value) = {
+	//	  hidden: true
+	//	}];
 	Hidden        bool `protobuf:"varint,2,opt,name=hidden,proto3" json:"hidden,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
