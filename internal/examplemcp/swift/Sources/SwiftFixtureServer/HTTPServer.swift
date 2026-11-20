@@ -16,8 +16,11 @@ func runHTTPServer() async throws {
         responder: MCPResponder(handler: handler),
         configuration: .init(address: .hostname("127.0.0.1", port: 0)),
         onServerRunning: { channel in
-            print("listening on http://127.0.0.1:\(channel.localAddress?.port ?? 0)")
-            fflush(stdout)
+            // FileHandle writes unbuffered; the C `stdout` global is not
+            // concurrency-safe under Swift 6 on Linux.
+            FileHandle.standardOutput.write(
+                Data("listening on http://127.0.0.1:\(channel.localAddress?.port ?? 0)\n".utf8)
+            )
         }
     )
     try await app.runService()
