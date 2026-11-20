@@ -111,7 +111,8 @@ The root CI also compiles and checks that regeneration produces no diff.
 ## Regenerate code after editing protobuf
 
 Committed `showcase.pb.go` and `showcase.mcp.go` files are generated and
-checked in, so **you do not need Easyp to run the example**. To regenerate:
+checked in, so **you do not need Easyp to run the example**. To regenerate,
+use the Easyp version that CI pins in `.github/workflows/tests.yml`:
 
 ```bash
 go install github.com/easyp-tech/easyp/cmd/easyp@v0.15.2-rc1

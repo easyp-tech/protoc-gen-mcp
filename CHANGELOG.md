@@ -19,7 +19,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`ProtocGenMCPRuntime`, `ProtocGenMCPHTTP`), resolved by git tag without a
   registry. The shared stdio and HTTP contracts run against a Swift fixture
   server, and `examples/9_swift_standalone` shows the notebook over stdio and
-  HTTP.
+  HTTP. Like Go, Swift generation rejects `TASK_SUPPORT_REQUIRED`, and protos
+  used only for Swift need no `go_package`.
+- `runtime/typescript/README.md` for the npm runtime package.
+
+### Changed
+
+- Documentation states that no runtime is published to PyPI, npm or Maven
+  Central yet and points to the wheel and npm tarball attached to each GitHub
+  release; the README gains an Install section (`go install`, release
+  archives, plain `protoc` usage) and marks Swift as unreleased.
+- The JVM test harness (`internal/examplemcp/jvm`) builds the plugin binary
+  under its own `build/` directory instead of `.protoc-gen-mcp-jvm-build`
+  next to the repository checkout.
+- `mcp/options/v1/options.proto` comments describe every target, the actual
+  `TASK_SUPPORT_REQUIRED` behaviour per target and the file-level `server`
+  option.
+
+### Fixed
+
+- `make setup` in `examples/5_python_standalone` failed because
+  `protoc-gen-mcp-runtime` is not on PyPI; it now installs the runtime from
+  `runtime/python`.
 
 ## [1.0.0] - 2026-11-14
 
@@ -98,15 +119,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `option (mcp.options.v1.server)`: proto name and version, the MCP Apps
   capability and registration of the file's tools, prompts and resources.
 - `tech.easyp:protoc-gen-mcp-runtime` and `protoc-gen-mcp-runtime-kotlin`,
-  Maven artifacts with the registries and dispatch that generated Java and
-  Kotlin sidecars previously embedded. Java sidecars of several proto files now
+  JVM libraries built from `runtime/jvm` (not on Maven Central yet) with the
+  registries and dispatch that generated Java and Kotlin sidecars previously
+  embedded. Java sidecars of several proto files now
   share one registry per transport, so their tools, prompts and resources
   compose instead of failing.
-- `@easyp-tech/protoc-gen-mcp-runtime`, an npm package with the TypeScript
-  registries and dispatch that generated `*_mcp.ts` files previously embedded;
-  the SDK, Protobuf-ES and Ajv are peer dependencies.
-- `protoc-gen-mcp-runtime`, a PyPI package with the tool, prompt and resource
-  registries that generated Python code previously embedded in every
+- `@easyp-tech/protoc-gen-mcp-runtime`, an npm package (attached to the
+  release as a tarball, not on npm yet) with the TypeScript registries and
+  dispatch that generated `*_mcp.ts` files previously embedded; the SDK,
+  Protobuf-ES and Ajv are peer dependencies.
+- `protoc-gen-mcp-runtime`, a Python package (attached to the release as a
+  wheel, not on PyPI yet) with the tool, prompt and resource registries that
+  generated Python code previously embedded in every
   `*_mcp.py`. Several generated modules now share one registry per server, and
   generated code checks the runtime API version on import. Install it next to
   the generated code.
@@ -128,9 +152,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Python, TypeScript, Java and Kotlin silently ignored the server `oauth`
-  option and per-tool `required_scopes`, serving protected tools without any
-  check; generation now fails with an explicit error for those targets.
 - The Java and Kotlin standalone examples are now compiled and run in CI.
 - Python prompt registration called a `server.add_prompt` method the low-level
   MCP server does not have and raised `AttributeError`.
@@ -180,6 +201,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `WWW-Authenticate` challenges point there; the root location remains.
   OAuth `mcp_path` values under `/.well-known/` are rejected.
 
+## [0.7.1] - 2026-09-27
+
+### Added
+
+- Apache-2.0 `LICENSE` and README badges (CI, coverage, Go reference,
+  release, license, Go version).
+- CI coverage gate: `mcpruntime` and `internal/codegen` must stay at 80% or
+  more.
+
+### Changed
+
+- Exported `mcpruntime` identifiers are documented, generated sources are
+  refreshed and code is gofmt-clean; the release workflow takes the Go
+  version from `go.mod`.
+
 ## [0.7.0] - 2026-07-11
 
 ### Added
@@ -218,6 +254,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   interfaces with stub registration.
 - `mcpruntime.Ptr[T]` helper for populating optional pointer fields from values
   in generated code.
+
+### Changed
+
+- **Breaking (Go):** the Go target no longer depends on
+  `github.com/modelcontextprotocol/go-sdk`. Generated Go code and `mcpruntime`
+  now use the in-repo, self-contained runtime: `RegisterProtoTool`/`ToolSpec`
+  take `*mcpruntime.Server` (not `*mcp.Server`), annotation/icon types are
+  `mcpruntime.*`, and servers run over stdio via `mcpruntime.ServeStdio`.
+  Python, JVM, and TypeScript targets are unaffected and keep their native SDKs.
+- The `initialize` handler now parses the request, negotiates the client's
+  `protocolVersion`, and rejects a second `initialize` on an already-initialized
+  session.
+
+### Fixed
+
+- Resource generation emitted `Priority: <float>` into the `*float64`
+  `Annotations.Priority` field, which did not compile; the value is now wrapped
+  with `mcpruntime.Ptr`.
+- Tool-annotation generation emitted bare `read_only_hint` / `idempotent_hint`
+  bools into `*bool` fields, which did not compile; both are now wrapped with
+  `proto.Bool` (matching `destructive_hint` / `open_world_hint`).
+- `resources/read` held the server read lock while invoking the resource
+  handler, deadlocking when a handler registered another primitive; the lock is
+  now released before the handler runs.
+
+## [0.5.0] - 2026-05-14
+
+### Added
+
+- **Java** (`lang=java`) and **Kotlin** (`lang=kotlin`) MCP sidecar
+  generation on the official JVM MCP SDKs (`io.modelcontextprotocol.sdk:mcp`
+  and `io.modelcontextprotocol:kotlin-sdk-server`), with a Gradle compile gate
+  and the `examples/6_java_standalone` and `examples/7_kotlin_standalone`
+  projects.
 - TypeScript MCP sidecar generation through `lang=typescript`, targeting
   `@modelcontextprotocol/sdk`, Protobuf-ES `_pb.ts` output, NodeNext `.js`
   imports, and Ajv-backed raw JSON Schema validation.
@@ -231,18 +301,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   TypeScript target `.js` plus `.d.ts` output.
 - Node verification gates covering local npm compile/build checks, generated
   Node stdio behavior, and standalone TypeScript/JavaScript stdio parity.
+- Python `python_handler=protobuf` (handlers take raw `*_pb2` messages) and
+  `python_handler=dataclass+protobuf` (both surfaces, the raw one in
+  `*_mcp_pb.py`), shown by `examples/10_python_protobuf_standalone`.
+- Python tools carry `execution.taskSupport` metadata.
 
 ### Changed
 
-- **Breaking (Go):** the Go target no longer depends on
-  `github.com/modelcontextprotocol/go-sdk`. Generated Go code and `mcpruntime`
-  now use the in-repo, self-contained runtime: `RegisterProtoTool`/`ToolSpec`
-  take `*mcpruntime.Server` (not `*mcp.Server`), annotation/icon types are
-  `mcpruntime.*`, and servers run over stdio via `mcpruntime.ServeStdio`.
-  Python, JVM, and TypeScript targets are unaffected and keep their native SDKs.
-- The `initialize` handler now parses the request, negotiates the client's
-  `protocolVersion`, and rejects a second `initialize` on an already-initialized
-  session.
 - Documentation now explains that direct `lang=javascript` generation is
   deferred; JavaScript users consume compiled TypeScript target output.
 - Release messaging now states that tagged releases publish the
@@ -250,17 +315,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   TypeScript against npm dependencies rather than using repository-published
   Node runtime artifacts.
 
-### Fixed
+## [0.4.0] - 2026-04-14
 
-- Resource generation emitted `Priority: <float>` into the `*float64`
-  `Annotations.Priority` field, which did not compile; the value is now wrapped
-  with `mcpruntime.Ptr`.
-- Tool-annotation generation emitted bare `read_only_hint` / `idempotent_hint`
-  bools into `*bool` fields, which did not compile; both are now wrapped with
-  `proto.Bool` (matching `destructive_hint` / `open_world_hint`).
-- `resources/read` held the server read lock while invoking the resource
-  handler, deadlocking when a handler registered another primitive; the lock is
-  now released before the handler runs.
+### Added
+
+- **Python** MCP server generation (`lang=python`,
+  `python_runtime=google.protobuf`) on the official MCP Python SDK: handlers
+  receive dataclasses from `*_mcp.py` with `UNSET` for absent optional fields
+  and explicit `oneof` wrapper types, while `*_pb2.py` stays internal.
+- `examples/5_python_standalone`, a Python-only project with its own
+  `pyproject.toml` and `easyp.yaml`.
+
+## [0.3.1] - 2026-03-30
+
+### Changed
+
+- Compiled example server binaries and the old in-repository `skills/`
+  directory are no longer tracked; the agent skill lives in
+  [easyp-tech/protoc-gen-mcp-skill](https://github.com/easyp-tech/protoc-gen-mcp-skill).
 
 ## [0.3.0] - 2026-03-29
 
@@ -285,21 +357,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow lint and generate steps now use correct `-p mcp` path instead of
   stale `-p api`.
 
-## [0.2.0] - 2026-03-17
+## [0.2.0] - 2026-03-18
 
 ### Changed
 
 - Migrated options package to `mcp/options/v1` and added typed field
   customization options.
 
-## [0.1.1] - 2026-03-17
+## [0.1.1] - 2026-03-10
 
 ### Fixed
 
 - Escape generated schema string literals so proto comments containing
   backticks do not break `*.mcp.go` output.
 
-## [0.1.0] - 2026-03-17
+## [0.1.0] - 2026-03-10
 
 ### Added
 
@@ -311,16 +383,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Four standalone examples (helloworld, weather API, file manager, CRM system).
 - Golden snapshot testing and stdio smoke tests.
 
-## [0.0.0] - 2026-03-16
-
-- Initial commit.
-
 [Unreleased]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.7.1...v1.0.0
+[0.7.1]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.3.0...v0.6.0
+[0.6.0]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.3.1...v0.4.0
+[0.3.1]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/easyp-tech/protoc-gen-mcp/compare/v0.0.0...v0.1.0
-[0.0.0]: https://github.com/easyp-tech/protoc-gen-mcp/releases/tag/v0.0.0
+[0.1.0]: https://github.com/easyp-tech/protoc-gen-mcp/releases/tag/v0.1.0

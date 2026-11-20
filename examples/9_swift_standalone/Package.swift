@@ -5,8 +5,9 @@ let package = Package(
     name: "notebook-swift-standalone",
     platforms: [.macOS(.v14)],
     dependencies: [
-        // Use the runtime from this repository; projects outside it depend on
-        // .package(url: "https://github.com/easyp-tech/protoc-gen-mcp.git", from: "1.1.0").
+        // Use the runtime from this repository. Projects outside it depend on
+        // .package(url: "https://github.com/easyp-tech/protoc-gen-mcp.git", branch: "master")
+        // until v1.1.0 is tagged, then on from: "1.1.0".
         .package(name: "protoc-gen-mcp", path: "../.."),
         .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", .upToNextMinor(from: "0.12.1")),
         .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.39.0"),

@@ -10,16 +10,20 @@
 </p>
 
 
-`protoc-gen-mcp` generates Go, Python, Kotlin, Java, TypeScript and Swift MCP
+`protoc-gen-mcp` generates Go, Python, Kotlin, Java and TypeScript MCP
 bindings from protobuf definitions — covering **tools**, **prompts**, and
 **resources**. Protobuf is the source of truth: RPCs become tools, annotated
 messages become prompts and resources, and the generated code validates
 ProtoJSON payloads against generated JSON Schema before calling your typed
 handlers. JavaScript projects consume the compiled TypeScript output.
 
+A **Swift** target is merged on `master` and ships in v1.1.0 (not tagged
+yet); the latest release, v1.0.0, does not include it. Everything marked
+Swift below refers to `master`.
+
 ## Supported MCP Primitives
 
-| Primitive | Go | Python | Kotlin | Java | TypeScript | Swift |
+| Primitive | Go | Python | Kotlin | Java | TypeScript | Swift² |
 |-----------|:--:|:------:|:------:|:----:|:----------:|:-----:|
 | **Tools** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
 | **Prompts** | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full | ✅ Full |
@@ -29,6 +33,8 @@ handlers. JavaScript projects consume the compiled TypeScript output.
 | **Markdown, HTML, binary resources** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **OAuth/JWKS and tool scopes** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
+² On `master` only; ships in v1.1.0.
+
 Every target serves the same resources contract: ProtoJSON or raw text/blob
 bodies, percent-decoded template parameters, annotations, icons and the MCP
 Apps `_meta.ui` of a resource. Only Go embeds `source_file` at build time;
@@ -37,7 +43,7 @@ body.
 
 Every target generates a file-scoped server factory from
 `option (mcp.options.v1.server)`: Python `create_<file>_mcp_server(handlers)`,
-TypeScript `create<File>MCPServer(handlers)`, Swift
+TypeScript `create<File>MCPServer(handlers)`, Swift (`master`)
 `new<File>MCPServer(handlers) async throws`, Kotlin
 `suspend new<File>MCPServer(handlers)` and Java
 `<ProtoFile>Mcp.install<File>MCPServer(transportProvider, handlers)`. ¹ The
@@ -53,16 +59,59 @@ Each target uses the official MCP SDK of its language: the Go MCP SDK,
 the Python `mcp` SDK with `google.protobuf`, `io.modelcontextprotocol.sdk:mcp`
 for Java, `io.modelcontextprotocol:kotlin-sdk-server` for Kotlin, and
 `@modelcontextprotocol/sdk` with Protobuf-ES and Ajv for TypeScript, and
-`modelcontextprotocol/swift-sdk` with swift-protobuf for Swift.
+`modelcontextprotocol/swift-sdk` with swift-protobuf for Swift (`master`).
+
+## Install
+
+The latest release is
+[v1.0.0](https://github.com/easyp-tech/protoc-gen-mcp/releases/tag/v1.0.0).
+Install the plugin with Go 1.26+:
+
+```bash
+go install github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@v1.0.0
+```
+
+or download a prebuilt binary from the release:
+`protoc-gen-mcp-<version>-<os>-<arch>.tar.gz` for `linux` and `darwin`
+and `protoc-gen-mcp-<version>-windows-<arch>.zip`, each for `amd64` and
+`arm64`, plus `protoc-gen-mcp-<version>-checksums.txt`. Put
+`protoc-gen-mcp` on `PATH`.
+
+[Easyp](#generation-with-easyp) is the recommended driver. With plain
+`protoc` the plugin is `--mcp_out`, and `--mcp_opt=lang=` selects the target
+(`go` by default, or `python`, `java`, `kotlin`, `typescript`; `swift`
+needs a build from `master`). `mcp/options/v1/options.proto` must be on the
+include path, for example from a clone of this repository at the release
+tag:
+
+```bash
+# Go, next to protoc-gen-go output
+protoc -I . -I path/to/protoc-gen-mcp \
+  --go_out=. --go_opt=paths=source_relative \
+  --mcp_out=. --mcp_opt=paths=source_relative \
+  proto/weather/v1/weather.proto
+
+# Python; also generate the options module the generated code imports
+protoc -I . -I path/to/protoc-gen-mcp \
+  --python_out=. --mcp_out=. --mcp_opt=lang=python \
+  proto/weather/v1/weather.proto mcp/options/v1/options.proto
+```
+
+Generated code imports a small runtime of its language; see
+[Runtime packages](#runtime-packages).
 
 ## Quickstart: run the full Go showcase
 
 The [protobuf-first showcase](examples/11_protobuf_first_mcp/README.md)
 runs one server with generated tools, prompts, JSON/text/blob resources,
 embedded `SKILL.md`, an MCP Apps UI resource, CSP/permissions, and OAuth
-resource-server configuration. With **Go 1.26+**, from the repository root:
+resource-server configuration. With **Go 1.26+**, from a clone of the
+repository:
 
 ```bash
+git clone https://github.com/easyp-tech/protoc-gen-mcp.git
+cd protoc-gen-mcp
+
 # Terminal A: explicitly enable local development-only OAuth tokens.
 go run ./examples/11_protobuf_first_mcp -transport=http -demo-auth
 
@@ -104,37 +153,56 @@ generate:
         path: proto
         root: "."
   plugins:
+    # Go
     - name: go
       out: .
       opts:
         paths: source_relative
-    - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@latest"]
+    - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@v1.0.0"]
       out: .
       opts:
         paths: source_relative
+    # Python
     - name: python
       with_imports: true
       out: .
-    - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@latest"]
+    - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@v1.0.0"]
       out: .
       opts:
         lang: python
         # python_handler: protobuf            # raw *_pb2 handlers
         # python_handler: dataclass+protobuf  # both, raw ones in *_mcp_pb.py
-    - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@latest"]
-      out: .
+    # Java and Kotlin both need protobuf Java output; Kotlin also needs
+    # protobuf Kotlin output (examples 6 and 7)
+    - name: java
+      with_imports: true
+      out: src/generated/main/java
+    - name: kotlin # Kotlin only
+      out: src/generated/main/kotlin
+    - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@v1.0.0"]
+      out: src/generated/main/java # src/generated/main/kotlin for lang=kotlin
       opts:
+        paths: source_relative
         lang: java # or kotlin
+    # TypeScript
     - command: ["./node_modules/.bin/protoc-gen-es"]
       with_imports: true
       out: src/generated
       opts:
         target: ts
         import_extension: js
-    - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@latest"]
+    - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@v1.0.0"]
       out: src/generated
       opts:
         lang: typescript
+    # Swift, master only until v1.1.0: protoc-gen-swift must be on PATH
+    - name: swift
+      out: Sources/App/Generated
+    - command: ["go", "run", "github.com/easyp-tech/protoc-gen-mcp/cmd/protoc-gen-mcp@master"]
+      out: Sources/App/Generated
+      opts:
+        paths: source_relative
+        lang: swift
 ```
 
 ```bash
@@ -142,8 +210,9 @@ easyp --cfg easyp.yaml mod download
 easyp --cfg easyp.yaml generate -p proto -r .
 ```
 
-Pin a release tag instead of `@latest` for reproducible builds. Protos used only
-for Python, JVM or TypeScript do not need a `go_package` option; the plugin
+Pin a release tag (not `@latest`) for reproducible builds; the Swift
+target needs `@master` until v1.1.0 is tagged. Protos used only for Python,
+JVM, TypeScript or Swift do not need a `go_package` option; the plugin
 synthesizes the metadata it needs. `mcp.options.v1` declares its own
 `go_package`, so no Easyp override is required.
 
@@ -157,9 +226,10 @@ Language notes:
   `mcp/__init__.py` bridge so `mcp.options.*` modules coexist with the official
   `mcp` SDK package. Enable `with_imports: true` on the Python plugin when your
   protos import other packages. Generated modules import the
-  `protoc-gen-mcp-runtime` package (`pip install protoc-gen-mcp-runtime`),
-  which holds the tool, prompt and resource registries; it is released with
-  the plugin and checks on import that it matches the generated code. With
+  `protoc-gen-mcp-runtime` package, which holds the tool, prompt and resource
+  registries; it is not on PyPI yet, so install the wheel attached to the
+  release (see [Runtime packages](#runtime-packages)). Generated code checks
+  on import that the runtime matches it. With
   `option (mcp.options.v1.server)` a module also exports
   `create_<file>_mcp_http_app(server, verifier=None)`, an ASGI app (for
   example for uvicorn) that serves stateless Streamable HTTP through the SDK
@@ -194,9 +264,10 @@ Language notes:
   same tree, generated with `import_extension=js` for Node ESM and
   `moduleResolution: NodeNext`. **JavaScript** projects import the compiled
   `.js` output and `.d.ts` declarations; there is no `lang=javascript`.
-  Generated files import `@easyp-tech/protoc-gen-mcp-runtime`
-  (`npm install @easyp-tech/protoc-gen-mcp-runtime`), which keeps the tool,
-  prompt and resource registries; `@modelcontextprotocol/sdk`,
+  Generated files import `@easyp-tech/protoc-gen-mcp-runtime`, which keeps
+  the tool, prompt and resource registries; it is not on npm yet, so install
+  the tarball attached to the release (see
+  [Runtime packages](#runtime-packages)). `@modelcontextprotocol/sdk`,
   `@bufbuild/protobuf` and `ajv` are its peer dependencies, so the server and
   the runtime share one SDK. With `option (mcp.options.v1.server)` a file also
   exports `create<File>MCPHttpHandler(handlers, verifier?)`, a request
@@ -204,22 +275,14 @@ Language notes:
   (the stateless SDK transport requires it) and, with `oauth`, uses the SDK
   `requireBearerAuth` plus the runtime scope gate and RFC 9728 metadata;
   `verifier` defaults to the built-in RS256 JWKS verifier on `jose`.
-
-Runtime packages are released with the plugin under the same version. Every
-GitHub release also carries the Python wheel and the npm tarball, so they can
-be installed straight from the release while a registry is not available:
-
-```bash
-pip install https://github.com/easyp-tech/protoc-gen-mcp/releases/download/v1.0.0/protoc_gen_mcp_runtime-1.0.0-py3-none-any.whl
-npm install https://github.com/easyp-tech/protoc-gen-mcp/releases/download/v1.0.0/easyp-tech-protoc-gen-mcp-runtime-1.0.0.tgz
-```
-
-- **Swift** (`lang=swift`) writes `<file>.mcp.swift` next to the
-  `<file>.pb.swift` of `protoc-gen-swift` (swift-protobuf 1.39+), in the same
-  module. The runtime ships from this repository as a Swift package, resolved
-  by tag like the Go module, so no registry is involved:
-  `.package(url: "https://github.com/easyp-tech/protoc-gen-mcp.git", from: "1.1.0")`
-  with the products `ProtocGenMCPRuntime` and, for files with a server option,
+- **Swift** (`lang=swift`, on `master`, ships in v1.1.0) writes
+  `<file>.mcp.swift` next to the `<file>.pb.swift` of `protoc-gen-swift`
+  (swift-protobuf 1.39+), in the same module. The runtime ships from this
+  repository as a Swift package resolved by git, like the Go module, so no
+  registry is involved. Until v1.1.0 is tagged, depend on the branch:
+  `.package(url: "https://github.com/easyp-tech/protoc-gen-mcp.git", branch: "master")`
+  (after the release, `from: "1.1.0"`), with the products
+  `ProtocGenMCPRuntime` and, for files with a server option,
   `ProtocGenMCPHTTP`. Handlers are `Sendable` protocols with `async throws`
   methods that receive a `ToolContext` carrying the bearer token. Start a
   server with `serve(server, transport:)`, which advertises MCP Apps under
@@ -233,9 +296,26 @@ npm install https://github.com/easyp-tech/protoc-gen-mcp/releases/download/v1.0.
   `EmitDefaultValues`. `TASK_SUPPORT_REQUIRED` is rejected as for Go.
   See [examples/9_swift_standalone](examples/9_swift_standalone).
 
-JVM projects can build the runtime from a checkout of the release tag with
-`gradle -p runtime/jvm publishToMavenLocal` and add `mavenLocal()` to their
-repositories.
+### Runtime packages
+
+The runtimes are versioned with the plugin, but **none of them is published
+to a package registry yet**: there is no PyPI, npm or Maven Central release.
+Every GitHub release carries the Python wheel and the npm tarball, so
+install them straight from the release:
+
+```bash
+pip install https://github.com/easyp-tech/protoc-gen-mcp/releases/download/v1.0.0/protoc_gen_mcp_runtime-1.0.0-py3-none-any.whl
+npm install https://github.com/easyp-tech/protoc-gen-mcp/releases/download/v1.0.0/easyp-tech-protoc-gen-mcp-runtime-1.0.0.tgz
+```
+
+The JVM runtimes (`tech.easyp:protoc-gen-mcp-runtime`,
+`protoc-gen-mcp-runtime-kotlin` and `protoc-gen-mcp-runtime-oauth`) are not
+attached to the release. Build them from a checkout of the release tag with
+`gradle -p runtime/jvm publishToMavenLocal` and add `mavenLocal()` to your
+repositories, or use them through a Gradle `includeBuild` of `runtime/jvm`
+as examples 6 and 7 do. Swift resolves its runtime from this repository by
+git (see above). The examples in this repository use the in-repo runtimes
+directly.
 
 ## Generated API
 
@@ -251,7 +331,7 @@ underscores, so namespace `weather.v1` and RPC `GetForecast` become
 | Kotlin | `<Service>ToolHandler` | `register<Service>Tools(server, impl, namespace: String? = null)` |
 | Java | `<ProtoFile>Mcp.<Service>ToolHandler` | `<ProtoFile>Mcp.register<Service>Tools(transportProvider, impl, namespace)` |
 | TypeScript | `<Service>ToolHandler` | `register<Service>Tools(server, impl, namespace?)` |
-| Swift | `<Service>ToolHandler` protocol | `register<Service>Tools(server, impl, namespace: String? = nil) async throws` |
+| Swift (`master`) | `<Service>ToolHandler` protocol | `register<Service>Tools(server, impl, namespace: String? = nil) async throws` |
 
 Prompts and resources are declared on messages, so their Go registration is
 file-scoped: `Register<File>Prompts(server, impl, opts...)` and
@@ -268,7 +348,7 @@ The other targets follow the same shape:
 | Kotlin | `register<File>Prompts(server, impl, namespace)` | `suspend fun register<File>Resources(server, impl, namespace)` |
 | Java | `<ProtoFile>Mcp.register<File>Prompts(transportProvider, impl, namespace)` | `<ProtoFile>Mcp.register<File>Resources(transportProvider, impl, namespace)` |
 | TypeScript | `register<File>Prompts(server, impl, namespace?)` | `register<File>Resources(server, impl, namespace?)` |
-| Swift | `register<File>Prompts(server, impl, namespace:) async throws` | `register<File>Resources(server, impl, namespace:) async throws` |
+| Swift (`master`) | `register<File>Prompts(server, impl, namespace:) async throws` | `register<File>Resources(server, impl, namespace:) async throws` |
 
 Resource handlers return the generated message type of the target (a Python
 dataclass or `*_pb2` message, a Protobuf-ES message, a Java/Kotlin protobuf
@@ -314,7 +394,7 @@ func main() {
 ```
 
 The [examples](examples/README.md) show the same wiring for Python, Java,
-Kotlin and TypeScript.
+Kotlin, TypeScript and Swift (`master`).
 
 ### Go: HTTP, protobuf-defined servers, Apps and OAuth
 
@@ -384,28 +464,42 @@ fail at generation time.
 Import `mcp/options/v1/options.proto` to control generation. The proto file
 documents every field; this is the summary.
 
+- **File** `option (mcp.options.v1.server)`: `name` (default: the proto
+  basename), `version` (default `v0.0.1`), `apps.enabled` (unset follows
+  whether the file uses MCP Apps), and `oauth` with `resource_url`,
+  `authorization_servers`, `scopes`, `issuer`, `jwks_uri`, `audience` and
+  `mcp_path` (default `/mcp`). Every target then generates the file's server
+  factory and Streamable HTTP handler.
 - **Service** `option (mcp.options.v1.service)`: `namespace`, `description`,
   default `icons`.
 - **Method** `option (mcp.options.v1.method)`: `name`, `title`, `description`,
-  `hidden`, `annotations` (`read_only_hint`, `destructive_hint`,
-  `idempotent_hint`, `open_world_hint`), `icons`, `execution.task_support`.
-  Omitted hints stay omitted; some clients render their own defaults, so set
-  hints such as `destructive_hint: false` explicitly when it matters.
+  `hidden`, `annotations` (`title`, `read_only_hint`, `destructive_hint`,
+  `idempotent_hint`, `open_world_hint`), `icons`, `execution.task_support`,
+  `app_ui` (`resource_uri`, `visibility`) for MCP Apps tool `_meta.ui`, and
+  `required_scopes` for per-tool OAuth scopes. Omitted hints stay omitted;
+  some clients render their own defaults, so set hints such as
+  `destructive_hint: false` explicitly when it matters.
 - **Field** `[(mcp.options.v1.field)]`: `description`, typed `examples`,
   `default_value`, string constraints (`pattern`, `format`, `min_length`,
   `max_length`), number constraints (`minimum`, `maximum`,
   `exclusive_minimum`, `exclusive_maximum`, `multiple_of`), array constraints
   (`min_items`, `max_items`, `unique_items`), `read_only`.
 - **Message** `option (mcp.options.v1.message)`: `title`, `description`,
-  `examples`. **Enum** / **enum value**: `title`, `description`, `hidden`
-  (typically for `_NONE` sentinels). **Oneof**: `description`, `required`.
+  `examples`. **Enum** `option (mcp.options.v1.enum)`: `title`,
+  `description`. **Enum value** `[(mcp.options.v1.enum_value)]`:
+  `description`, `hidden` (typically for `_NONE` sentinels). **Oneof**
+  `option (mcp.options.v1.oneof)`: `description`, `required`.
 - **Prompt** `option (mcp.options.v1.prompt)` on a message: `name`, `title`,
   `description`, `icons`. Fields become prompt arguments; `optional` ones are
   not required.
 - **Resource** `option (mcp.options.v1.resource)` on a message: exactly one of
   `uri` or `uri_template` (`{param}` placeholders), `name`, `description`,
   `mime_type` (default `application/json`), `annotations` (`audience`,
-  `priority`), `icons`, plus `content_field`, `source_file` and `app_ui` for Go.
+  `priority`), `icons`, `content_field` (a singular `string` or `bytes` field
+  served as raw text or blob), `source_file` (a static file body: Go embeds
+  it, the other targets return it from a generated handler method) and
+  `app_ui` (`csp`, `permissions`, `domain`, `prefers_border`) for MCP Apps
+  UI resources. All of them work in every target.
 
 Comments are metadata too: plain lines become descriptions, `Example: <json>`
 adds one schema example and `Examples: a | b` adds several. Typed `examples`
@@ -458,7 +552,8 @@ The skill lives in
 
 ```bash
 go build ./cmd/protoc-gen-mcp
-(cd internal/codegen/testdata/node && npm ci)   # TypeScript test harness
+(cd runtime/typescript && npm ci && npm run build)   # TypeScript runtime, consumed through file:
+(cd internal/codegen/testdata/node && npm ci)        # TypeScript test harness
 go test ./...
 ```
 
