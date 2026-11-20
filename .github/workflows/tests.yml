@@ -10,7 +10,7 @@ on:
 
 jobs:
   test:
-    # setup-swift v2 does not support the Ubuntu 26.04 image behind ubuntu-latest.
+    # Pinned: the Swift toolchain below is the Ubuntu 24.04 build.
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -46,10 +46,19 @@ jobs:
         with:
           gradle-version: "9.2.1"
 
+      # swift-log 1.17 uses @nonexhaustive, which Swift 6.2 rejects, and
+      # setup-swift v2 lags behind swift.org releases, so the toolchain comes
+      # straight from swift.org.
       - name: Install Swift
-        uses: swift-actions/setup-swift@v2
-        with:
-          swift-version: "6.2"
+        env:
+          SWIFT_VERSION: "6.4.2"
+        run: |
+          url="https://download.swift.org/swift-${SWIFT_VERSION}-release/ubuntu2404/swift-${SWIFT_VERSION}-RELEASE/swift-${SWIFT_VERSION}-RELEASE-ubuntu24.04.tar.gz"
+          curl -fsSL --retry 3 "$url" -o "$RUNNER_TEMP/swift.tar.gz"
+          sudo mkdir -p /opt/swift
+          sudo tar -xzf "$RUNNER_TEMP/swift.tar.gz" -C /opt/swift --strip-components=1
+          echo "/opt/swift/usr/bin" >> "$GITHUB_PATH"
+          /opt/swift/usr/bin/swift --version
 
       - name: Install easyp
         run: go install github.com/easyp-tech/easyp/cmd/easyp@v0.15.2-rc1

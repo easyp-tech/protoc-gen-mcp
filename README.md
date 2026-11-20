@@ -557,7 +557,7 @@ go build ./cmd/protoc-gen-mcp
 go test ./...
 ```
 
-JVM tests need JDK 17+ and Gradle 9.2+ and Swift tests a Swift 6.2+
+JVM tests need JDK 17+ and Gradle 9.2+ and Swift tests a Swift 6.4+
 toolchain; both skip otherwise. Fixtures and examples are regenerated with
 `easyp` (`easyp.test.yaml`, `easyp.test.swift.yaml` with `protoc-gen-swift` on
 `PATH`, `easyp.showcase.yaml`,
