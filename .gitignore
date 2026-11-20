@@ -44,6 +44,7 @@ dist/
 # Example server binaries
 examples/1_helloworld/helloworld-server
 internal/examplemcp/jvm/.gradle/
+internal/examplemcp/jvm/build/
 internal/examplemcp/jvm/*/build/
 internal/codegen/testdata/node/node_modules/
 internal/codegen/testdata/node/dist/

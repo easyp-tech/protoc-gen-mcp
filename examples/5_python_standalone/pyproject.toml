@@ -19,6 +19,11 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 py-modules = []
 
+# protoc-gen-mcp-runtime is not on PyPI yet. `make setup` installs it from
+# ../../runtime/python; uv resolves it from the same path through this source.
+[tool.uv.sources]
+protoc-gen-mcp-runtime = { path = "../../runtime/python" }
+
 [tool.pyright]
 pythonVersion = "3.10"
 typeCheckingMode = "basic"
